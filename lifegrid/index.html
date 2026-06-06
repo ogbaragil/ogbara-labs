@@ -225,6 +225,9 @@
                background:var(--panel); border:1.5px solid var(--ink); border-radius:14px;
                padding:11px 16px; margin:6px 0 8px; color:var(--ink); font-weight:700; font-size:14.5px; text-align:left;}
   .reflect-btn .r-sub{color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap;}
+  .signin-alt{margin-top:20px; padding-top:16px; border-top:1px solid var(--line); text-align:center;}
+  .signin-alt .alt-q{color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .signin-alt .alt-btn{width:100%;}
   .hl-chips{display:flex; gap:8px;}
   .hl-chip{flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--line); background:var(--panel2);
            color:var(--muted); font-weight:700; font-size:13px;}
@@ -404,13 +407,27 @@ function renderForm(editing=false) {
   root.append(el("h1","app", editing ? "Edit Profile" : "Life Grid"));
   root.append(el("p","tagline", editing
     ? "Update your name or birth details. This affects labels and the “today” marker."
-    : "Your life in months — 90 years, one cell each. Works offline, with optional cloud backup."));
+    : "Your life in weeks — 90 years on one screen. Works offline, with optional cloud backup."));
   const card = el("div","card");
   card.innerHTML = `
     <label>Your name</label><input type="text" id="fName" placeholder="e.g. Gil" autocomplete="off">
     <label>Birth month (1–12)</label><input type="number" id="fMonth" placeholder="e.g. 7" min="1" max="12">
     <label>Birth year</label><input type="number" id="fYear" placeholder="e.g. 1995">
     <div class="err" id="fErr" hidden></div>`;
+  if (!editing && window.Cloud) {
+    // Returning user on a new device: sign in first and the cloud profile +
+    // grid load straight in (the post-sign-in pull applies them and re-renders).
+    const alt = el("div","signin-alt");
+    alt.appendChild(el("p","alt-q","Already using Life Grid on another device?"));
+    const sb = el("button","btn btn-soft alt-btn","☁️ Sign in to restore your grid");
+    sb.onclick = () => {
+      const chip = document.getElementById("cloudChip");
+      if (chip) chip.click();
+      else confirmDialog("Cloud sync isn't configured on this deployment.", "OK", false);
+    };
+    alt.appendChild(sb);
+    card.appendChild(alt);
+  }
   const nameI = card.querySelector("#fName"), monI = card.querySelector("#fMonth"), yrI = card.querySelector("#fYear"), err = card.querySelector("#fErr");
   if (editing && profile){ nameI.value=profile.name; monI.value=profile.birthMonthIndex+1; yrI.value=profile.birthYear; }
   const submit = () => {
