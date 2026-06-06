@@ -209,11 +209,20 @@
               margin:14px 0; color:var(--muted); font-size:13.5px; line-height:1.6;}
   .about-card b{color:var(--ink);}
 
-  /* v4: weekly notes inside the month modal */
+  /* v5: weekly reflections — each week opens its own full modal */
   .weeks{display:grid; gap:8px;}
-  .wk-input{width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line);
-            border-radius:10px; padding:10px 12px; font-size:14px; outline:none;}
-  .wk-input:focus{border-color:var(--sky);}
+  .wk-row{display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+          background:var(--panel2); border:1px solid var(--line); border-radius:12px;
+          padding:12px 14px; color:var(--ink);}
+  .wk-row .wk-lab{flex:none; font-weight:700; font-size:13px; color:var(--muted); width:54px;}
+  .wk-row .wk-prev{flex:1; font-size:13.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .wk-row.has{border-color:rgba(154,215,255,.45);}
+  .wk-row.has .wk-prev{color:var(--ink);}
+  .wk-row .go{flex:none; color:var(--muted);}
+  .week-ta{width:100%; box-sizing:border-box; background:var(--panel2); color:var(--ink);
+           border:1px solid var(--line); border-radius:14px; padding:14px; font-size:16px;
+           line-height:1.6; min-height:38dvh; resize:vertical; outline:none;}
+  .week-ta:focus{border-color:var(--sky);}
 
   /* account chip lives behind Profile now */
   #cloudChip{display:none !important;}
@@ -872,13 +881,8 @@ async function openMonth(month) {
       <label>Title / story</label><input type="text" id="mTitle" placeholder="What happened this month?">
       <label>Notes</label><textarea id="mNotes" placeholder="Details, reflections, lessons…"></textarea>
       <label>Tags (comma separated)</label><input type="text" id="mTags" placeholder="career, love, health…">
-      <label>Weekly notes</label>
-      <div class="weeks" id="mWeeks">
-        <input type="text" class="wk-input" placeholder="Week 1">
-        <input type="text" class="wk-input" placeholder="Week 2">
-        <input type="text" class="wk-input" placeholder="Week 3">
-        <input type="text" class="wk-input" placeholder="Week 4">
-      </div>
+      <label>Weekly reflections</label>
+      <div class="weeks" id="mWeeks"></div>
       <label>Photos</label>
       <div class="photo-list" id="mPhotos"></div>
       <button class="add-photo" id="mAdd">＋ Add a photo</button>
@@ -896,9 +900,57 @@ async function openMonth(month) {
 
   const t = box.querySelector("#mTitle"), n = box.querySelector("#mNotes"), g = box.querySelector("#mTags");
   t.value = month.title; n.value = month.notes; g.value = month.tags;
-  const wkInputs = [...box.querySelectorAll(".wk-input")];
-  wkInputs.forEach((w,i) => { w.value = (month.weeks && month.weeks[i]) || ""; });
-  const readWeeks = () => wkInputs.map(w => w.value);
+  let weeks = (Array.isArray(month.weeks) && month.weeks.length===4 ? month.weeks : EMPTY_WEEKS()).map(w=>String(w??""));
+  const readWeeks = () => weeks.slice();
+  const weeksEl = box.querySelector("#mWeeks");
+  const weekRange = (i) => `days ${i*7+1}–${i<3 ? (i+1)*7 : "end"}`;
+  function paintWeeks() {
+    weeksEl.innerHTML = "";
+    for (let i=0;i<4;i++) {
+      const has = !!(weeks[i] && weeks[i].trim());
+      const row = el("button","wk-row" + (has ? " has" : ""));
+      const prev = has ? weeks[i].trim().replace(/\s+/g," ") : "Add a reflection";
+      row.innerHTML = `<span class="wk-lab">Week ${i+1}</span><span class="wk-prev"></span><span class="go">›</span>`;
+      row.querySelector(".wk-prev").textContent = prev;   // textContent: user words, no HTML path
+      row.onclick = () => openWeekModal(i);
+      weeksEl.appendChild(row);
+    }
+  }
+  function openWeekModal(i) {
+    const wb = el("div","modal-back");
+    const wbox = el("div","modal");
+    wbox.innerHTML = `
+      <h2>Week ${i+1}</h2>
+      <p class="age">${esc(labelFor(month))} · ${weekRange(i)}</p>
+      <div class="modal-scroll"></div>
+      <div class="modal-actions">
+        <button class="btn btn-soft" id="wCancel">Cancel</button>
+        <button class="btn btn-save" id="wSave">Save</button>
+      </div>`;
+    const ta = document.createElement("textarea");
+    ta.className = "week-ta";
+    ta.placeholder = "How was this week? What happened, what did you feel, what did you learn…";
+    ta.value = weeks[i];
+    wbox.querySelector(".modal-scroll").appendChild(ta);
+    wb.appendChild(wbox);
+    document.body.appendChild(wb);
+    const wInitial = ta.value;
+    const closeWeek = async () => {
+      if (ta.value !== wInitial) {
+        const yes = await confirmDialog("Discard this week's unsaved reflection?", "Discard");
+        if (!yes) return;
+      }
+      wb.remove();
+    };
+    wb.onclick = (e) => { if (e.target === wb) closeWeek(); };
+    wbox.querySelector("#wCancel").onclick = closeWeek;
+    wbox.querySelector("#wSave").onclick = () => {
+      weeks[i] = ta.value;
+      wb.remove(); paintWeeks();
+    };
+    setTimeout(()=> { try { ta.focus(); } catch {} }, 80);
+  }
+  paintWeeks();
   /* dirty check: a stray backdrop tap must never eat typed words */
   const snapshot = () => JSON.stringify({ t:t.value, n:n.value, g:g.value, w:readWeeks(), mi:isMile, p:photoIds });
   const initial = snapshot();
