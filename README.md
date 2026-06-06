@@ -8,11 +8,11 @@ is synthesised in the browser, all data stays on the user's device).
 
 | Folder         | App                        | Subdomain                     |
 |----------------|----------------------------|-------------------------------|
-| `home/`        | Landing hub                | `ogbaralabs.com` (apex + www) |
-| `howmany/`     | How Many? (kids learning)  | `howmany.ogbaralabs.com`      |
-| `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbaralabs.com`     |
-| `couples/`     | Couples Snakes & Ladders   | `couples.ogbaralabs.com`      |
-| `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbaralabs.com`  |
+| `home/`        | Landing hub                | `ogbaralabs.xyz` (apex + www) |
+| `howmany/`     | How Many? (kids learning)  | `howmany.ogbaralabs.xyz`      |
+| `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbaralabs.xyz`     |
+| `couples/`     | Couples Snakes & Ladders   | `couples.ogbaralabs.xyz`      |
+| `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbaralabs.xyz`  |
 
 Each folder is self-contained: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/`
 (How Many? also has a separate `app.js`).
@@ -34,7 +34,7 @@ Create **five** Pages projects, all connected to this same GitHub repo:
 3. **Root directory (advanced)**: set per project → `home`, `howmany`, `lifegrid`, `couples`, `supersnakes`
 4. Save & Deploy
 5. In each project → **Custom domains** → add its subdomain (the `home` project
-   gets `ogbaralabs.com` and `www.ogbaralabs.com`)
+   gets `ogbaralabs.xyz` and `www.ogbaralabs.xyz`)
 
 Optional: in each project's Settings → Builds → **Build watch paths**, set the
 include path to that app's folder (e.g. `supersnakes/*`) so a push only rebuilds
