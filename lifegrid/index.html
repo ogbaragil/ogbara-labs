@@ -83,6 +83,8 @@
   /* Month modal */
   .modal-back{position:fixed; inset:0; background:rgba(18,20,26,.45); backdrop-filter:blur(3px); display:flex; align-items:flex-end; justify-content:center; z-index:70;}
   @media(min-width:560px){ .modal-back{align-items:center;} }
+  .modal-back.center{align-items:center; padding:18px;}
+  .modal-back.center .modal{border-radius:24px; max-height:82dvh; width:calc(100% - 8px);}
   .modal{background:var(--panel); width:100%; max-width:560px; max-height:88dvh; border-radius:24px 24px 0 0;
          padding:22px 22px calc(22px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; border:1px solid var(--line);}
   @media(min-width:560px){ .modal{border-radius:24px;} }
@@ -901,7 +903,7 @@ async function deleteMonthData(m) {
 function openMemoryView(m) {
   const abs = months.indexOf(m);
   const ageY = Math.floor(abs/12), ageM = abs%12;
-  const back = el("div","modal-back");
+  const back = el("div","modal-back center");
   const box = el("div","modal");
   box.innerHTML = `
     <h2>${esc(m.title || labelFor(m))}</h2>
