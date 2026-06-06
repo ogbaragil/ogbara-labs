@@ -370,7 +370,7 @@ function render() {
   else if (tab === "profile") renderProfile();
   else if (viewMode === "life") renderLife();
   else renderGrid();
-  updateChrome();
+  try { updateChrome(); } catch (e) { console.error("chrome:", e); }
 }
 
 function renderForm(editing=false) {
@@ -427,7 +427,7 @@ function ensureChrome() {
     tabbarEl = el("nav","tabbar");
     [["grid","Grid"],["memories","Memories"],["profile","Profile"]].forEach(([id,label]) => {
       const b = el("button","tab-item", TAB_ICONS[id] + `<span>${label}</span>`);
-      b.dataset = b.dataset || {}; b._tab = id;
+      b._tab = id;
       b.onclick = () => { setTab(id); render(); };
       tabbarEl.appendChild(b);
     });
@@ -583,9 +583,16 @@ function renderLife() {
   root.appendChild(wrap);
   root.appendChild(el("p","ov-hint","▦ milestones glow gold · the mint dot is today"));
 
-  // size the cells so all 90 years fit the available space, no scrolling
-  requestAnimationFrame(() => {
-    const h = wrap.clientHeight || 520, w = wrap.clientWidth || 340;
+  // size the cells so all 90 years fit the available space, no scrolling.
+  // Derive height from the viewport, not the flex box — some webviews (iOS
+  // in-app browsers) let ov-wrap stretch to its content, which made the grid
+  // a 2,400px scrolling strip. Double-rAF so layout has settled first.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const top = wrap.getBoundingClientRect().top;
+    const viewportH = Math.max(320, (window.innerHeight || 640) - top - 110); // 110 ≈ tab bar + hint line
+    const boxH = wrap.clientHeight || viewportH;
+    const h = Math.min(boxH > 0 ? boxH : viewportH, viewportH);
+    const w = wrap.clientWidth || 340;
     const cell = Math.max(3, Math.floor(Math.min((h - (YEARS-1)) / YEARS, (w - 26 - 8 - 11) / 12)));
     grid.style.setProperty("--c", cell + "px");
     rail.innerHTML = "";
@@ -605,7 +612,7 @@ function renderLife() {
         }, 80 + y * 14);
       }
     }
-  });
+  }));
 
   // shared auto-pinch: used by grid taps AND the ＋ FAB (which targets today)
   zoomFromOverview = (year, originPx) => {
