@@ -130,6 +130,27 @@
   .confirm-msg{margin:0 0 16px; font-size:15px;}
   #installBtn{position:fixed; right:14px; bottom:16px; z-index:60; background:var(--sky); color:#11182e; border-radius:999px; padding:10px 18px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.35);}
 
+  /* Whole-life overview (v3): the entire grid on one screen, tap to zoom */
+  .head-btns{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+  .ov-wrap{flex:1; min-height:0; display:flex; gap:8px; margin-top:10px;}
+  .ov-rail{position:relative; width:26px; flex:none;}
+  .ov-rail span{position:absolute; right:2px; transform:translateY(-50%); font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .ov-rail span.gold{color:var(--gold); font-weight:700;}
+  .ov-grid{display:grid; grid-template-columns:repeat(12, var(--c, 7px)); grid-auto-rows:var(--c, 7px); gap:1px;
+           align-content:start; cursor:zoom-in; transition:transform .35s ease, opacity .32s ease; will-change:transform;}
+  .ov-grid.zoom{transform:scale(4); opacity:0;}
+  .ov-cell{background:var(--cell-future); border-radius:1.5px;}
+  .ov-cell.lived{background:var(--cell);}
+  .ov-cell.filled{background:var(--cell-filled);}
+  .ov-cell.milestone{background:var(--cell-milestone);}
+  .ov-cell.today{background:var(--mint); animation:ovPulse 2.2s ease-in-out infinite;}
+  .ov-cell.pre{background:var(--cell-future);}
+  @keyframes ovPulse{0%,100%{box-shadow:0 0 0 0 rgba(156,232,200,.7);} 50%{box-shadow:0 0 0 3px rgba(156,232,200,0);}}
+  .ov-hint{text-align:center; color:var(--muted); font-size:12px; margin:10px 0 0;}
+  .year-row{border-radius:8px;}
+  .year-row.flash{animation:rowFlash 1.4s ease both;}
+  @keyframes rowFlash{0%{background:rgba(245,198,107,.22);} 100%{background:transparent;}}
+
   .loading{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted);}
   .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--sky); border-radius:50%; animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -241,6 +262,7 @@ function labelFor(month) {
 const root = document.getElementById("root");
 const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
 const esc = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const reduceMotion = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 
 /* Styled confirm (replaces native confirm) — resolves true/false */
 function confirmDialog(message, okLabel="Yes", danger=true) {
@@ -271,6 +293,7 @@ const b64ToBlob = (b64, type) => fetch(`data:${type || "image/jpeg"};base64,${b6
 function render() {
   root.innerHTML = "";
   if (!profile) renderForm();
+  else if (viewMode === "life") renderLife();
   else renderGrid();
 }
 
@@ -295,6 +318,8 @@ function renderForm(editing=false) {
     if (isNaN(mn)||mn<1||mn>12) return fail("Birth month must be a number between 1 and 12.");
     if (isNaN(yr)||String(yrI.value).length<4) return fail("Birth year should be a 4-digit number (e.g. 1995).");
     profile = { name, birthYear:String(yrI.value), birthMonthIndex:mn-1 };
+    try { sessionStorage.setItem(REVEAL_KEY, "1"); } catch {}
+    setView("life");
     saveProfile(); render();
   };
   if (editing) {
@@ -307,6 +332,13 @@ function renderForm(editing=false) {
   }
   root.appendChild(card);
 }
+
+/* ---------- v3: two-level view ---------- */
+const VIEW_KEY = "lifegrid_view_v1";
+const REVEAL_KEY = "lifegrid_reveal_pending";
+let viewMode = (localStorage.getItem(VIEW_KEY) === "detail") ? "detail" : "life";
+let detailTargetYear = null;
+function setView(v) { viewMode = v; try { localStorage.setItem(VIEW_KEY, v); } catch {} }
 
 /* ---------- v2: tags, memories, backup ---------- */
 let activeTag = null;
@@ -377,14 +409,100 @@ async function importBackup(fileBlob) {
   saveProfile(); saveMonths(); activeTag = null; render();
 }
 
+/* ---- Whole-life view: 90 years on one screen, tap anywhere to zoom ---- */
+function renderLife() {
+  const cur = currentAbsoluteIndex();
+  const head = el("div","head");
+  const left = el("div");
+  left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
+  left.append(el("p","sub","Your whole life on one screen. Tap anywhere to zoom in."));
+  const btns = el("div","head-btns");
+  const detailBtn = el("button","edit-btn","☰ Detail view");
+  detailBtn.onclick = () => { detailTargetYear = null; setView("detail"); render(); };
+  btns.appendChild(detailBtn);
+  head.append(left, btns);
+  root.appendChild(head);
+
+  const filled = months.filter(monthHasContent).length;
+  const miles = months.filter(m => m.isMilestone).length;
+  const lived = cur != null ? cur+1 : 0;
+  root.appendChild(el("div","stats-strip",
+    `<span><b>${lived.toLocaleString()}</b> months lived</span>
+     <span><b>${filled}</b> with stories</span>
+     <span><b>${miles}</b> milestones</span>
+     <span><b>${(YEARS*12-lived).toLocaleString()}</b> still ahead ✨</span>`));
+
+  const wrap = el("div","ov-wrap");
+  const rail = el("div","ov-rail");
+  const grid = el("div","ov-grid");
+  const reveal = sessionStorage.getItem(REVEAL_KEY) === "1";
+  const frag = document.createDocumentFragment();
+  for (let abs = 0; abs < YEARS*12; abs++) {
+    const m = months[abs];
+    let cls = "ov-cell";
+    if (cur != null && abs === cur) cls += " today";
+    else if (m.isMilestone) cls += " milestone";
+    else if (monthHasContent(m)) cls += " filled";
+    else if (cur != null && abs < cur) cls += " lived";
+    const c = el("div", cls);
+    if (reveal && cur != null && abs <= cur) c.classList.add("pre");
+    frag.appendChild(c);
+  }
+  grid.appendChild(frag);
+  wrap.append(rail, grid);
+  root.appendChild(wrap);
+  root.appendChild(el("p","ov-hint","▦ milestones glow gold · the mint dot is today"));
+
+  // size the cells so all 90 years fit the available space, no scrolling
+  requestAnimationFrame(() => {
+    const h = wrap.clientHeight || 520, w = wrap.clientWidth || 340;
+    const cell = Math.max(3, Math.floor(Math.min((h - (YEARS-1)) / YEARS, (w - 26 - 8 - 11) / 12)));
+    grid.style.setProperty("--c", cell + "px");
+    const by = parseInt(profile.birthYear, 10);
+    rail.innerHTML = "";
+    for (let d = 0; d < YEARS; d += 10) {
+      const lab = el("span", d % 20 === 0 ? "gold" : "", isNaN(by) ? String(d) : String(by + d));
+      lab.style.top = (d * (cell+1) + cell/2) + "px";
+      rail.appendChild(lab);
+    }
+    // first-run reveal: lived months sweep in year by year
+    if (reveal) {
+      try { sessionStorage.removeItem(REVEAL_KEY); } catch {}
+      const cells = grid.children;
+      const lastYear = cur != null ? Math.floor(cur/12) : 0;
+      for (let y = 0; y <= lastYear; y++) {
+        setTimeout(() => {
+          for (let m = 0; m < 12; m++) { const c = cells[y*12+m]; if (c) c.classList.remove("pre"); }
+        }, 80 + y * 14);
+      }
+    }
+  });
+
+  // tap → auto-pinch zoom into that year
+  grid.onclick = (e) => {
+    const rect = grid.getBoundingClientRect();
+    const cell = parseFloat(grid.style.getPropertyValue("--c")) || 7;
+    const year = Math.max(0, Math.min(YEARS-1, Math.floor((e.clientY - rect.top) / (cell + 1))));
+    const zoomIn = () => { detailTargetYear = year; setView("detail"); render(); };
+    if (reduceMotion()) { zoomIn(); return; }
+    grid.style.transformOrigin = `${e.clientX - rect.left}px ${e.clientY - rect.top}px`;
+    grid.classList.add("zoom");
+    setTimeout(zoomIn, 330);
+  };
+}
+
 function renderGrid() {
   const cur = currentAbsoluteIndex();
   const head = el("div","head");
   const left = el("div");
   left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
   left.append(el("p","sub",`Born ${MONTH_NAMES[profile.birthMonthIndex]} ${profile.birthYear}. Tap a month to add a story.`));
+  const btns = el("div","head-btns");
+  const lifeBtn = el("button","edit-btn","▦ Whole life");
+  lifeBtn.onclick = () => { setView("life"); render(); };
   const edit = el("button","edit-btn","Edit profile"); edit.onclick = () => renderForm(true);
-  head.append(left, edit);
+  btns.append(lifeBtn, edit);
+  head.append(left, btns);
   root.appendChild(head);
 
   // stats
@@ -490,11 +608,17 @@ function renderGrid() {
   scroll.appendChild(frag);
   root.appendChild(scroll);
   root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · works offline · optional cloud backup"));
-  // auto-scroll to today
-  if (cur != null) requestAnimationFrame(() => {
+  // auto-scroll: to the tapped year (with a flash) when arriving via zoom, else to today
+  const targetYear = detailTargetYear != null ? detailTargetYear : (cur != null ? Math.floor(cur/12) : null);
+  const flash = detailTargetYear != null;
+  detailTargetYear = null;
+  if (targetYear != null) requestAnimationFrame(() => {
     const rows = scroll.querySelectorAll(".year-row");
-    const r = rows[Math.floor(cur/12)];
-    if (r) r.scrollIntoView({ block:"center" });
+    const r = rows[targetYear];
+    if (r) {
+      r.scrollIntoView({ block:"center" });
+      if (flash && !reduceMotion()) r.classList.add("flash");
+    }
   });
 }
 
