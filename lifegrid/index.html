@@ -182,6 +182,7 @@
   .mem-when{color:var(--muted); font-size:13px; margin:0 0 2px;}
   .mem-snippet{color:var(--muted); font-size:13.5px; margin:6px 0 0;}
   .mem-photo{width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:12px; margin-top:10px; background:var(--panel2); display:block;}
+  .mem-photo.full{aspect-ratio:auto; height:auto; max-height:62dvh; object-fit:contain;}
   .mem-badge{display:inline-block; background:var(--panel2); border:1px solid var(--line); border-radius:999px;
              padding:3px 9px; font-size:11px; color:var(--muted); margin-top:8px; margin-right:6px;}
 
@@ -930,7 +931,7 @@ function openMemoryView(m) {
   }
   for (const id of m.photoIds) {
     const img = document.createElement("img");
-    img.className = "mem-photo"; img.alt = "";
+    img.className = "mem-photo full"; img.alt = "";
     photoURL(id).then(u => { if (u) img.src = u; });
     scroll.appendChild(img);
   }
