@@ -219,6 +219,10 @@
   .wk-row.has{border-color:rgba(154,215,255,.45);}
   .wk-row.has .wk-prev{color:var(--ink);}
   .wk-row .go{flex:none; color:var(--muted);}
+  .reflect-btn{display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%;
+               background:var(--panel); border:1px solid rgba(154,215,255,.4); border-radius:14px;
+               padding:13px 16px; margin:0 0 10px; color:var(--ink); font-weight:700; font-size:14.5px; text-align:left;}
+  .reflect-btn .r-sub{color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap;}
   .week-ta{width:100%; box-sizing:border-box; background:var(--panel2); color:var(--ink);
            border:1px solid var(--line); border-radius:14px; padding:14px; font-size:16px;
            line-height:1.6; min-height:38dvh; resize:vertical; outline:none;}
@@ -547,6 +551,68 @@ async function importBackup(fileBlob) {
   saveProfile(); saveMonths(); activeTag = null; render();
 }
 
+/* ---- Week reflection editor (shared by month form + this-week shortcut) ---- */
+function openWeekEditor({ heading, sub, value, onSave }) {
+  const wb = el("div","modal-back");
+  const wbox = el("div","modal");
+  wbox.innerHTML = `
+    <h2>${heading}</h2>
+    <p class="age">${sub}</p>
+    <div class="modal-scroll"></div>
+    <div class="modal-actions">
+      <button class="btn btn-soft" id="wCancel">Cancel</button>
+      <button class="btn btn-save" id="wSave">Save</button>
+    </div>`;
+  const ta = document.createElement("textarea");
+  ta.className = "week-ta";
+  ta.placeholder = "How was this week? What happened, what did you feel, what did you learn…";
+  ta.value = value || "";
+  wbox.querySelector(".modal-scroll").appendChild(ta);
+  wb.appendChild(wbox);
+  document.body.appendChild(wb);
+  const initial = ta.value;
+  const close = async () => {
+    if (ta.value !== initial) {
+      const yes = await confirmDialog("Discard this week's unsaved reflection?", "Discard");
+      if (!yes) return;
+    }
+    wb.remove();
+  };
+  wb.onclick = (e) => { if (e.target === wb) close(); };
+  wbox.querySelector("#wCancel").onclick = close;
+  wbox.querySelector("#wSave").onclick = () => { onSave(ta.value); wb.remove(); };
+  setTimeout(()=> { try { ta.focus(); } catch {} }, 80);
+}
+
+/* One tap from the grid to writing: today's week, saved immediately */
+const currentWeekIdx = () => Math.min(3, Math.floor((new Date().getDate()-1)/7));
+function reflectThisWeek() {
+  const cur = currentAbsoluteIndex(); if (cur == null) return;
+  const wk = currentWeekIdx();
+  const m = months[cur];
+  openWeekEditor({
+    heading: `Week ${wk+1}`,
+    sub: `${esc(labelFor(m))} · this week`,
+    value: (m.weeks && m.weeks[wk]) || "",
+    onSave: (text) => {
+      if (!Array.isArray(m.weeks) || m.weeks.length !== 4) m.weeks = EMPTY_WEEKS();
+      m.weeks[wk] = text;
+      saveMonths(); render();   // the week's square lights up right away
+    },
+  });
+}
+function reflectButton() {
+  const cur = currentAbsoluteIndex(); if (cur == null) return null;
+  const wk = currentWeekIdx();
+  const m = months[cur];
+  const has = !!(m.weeks && m.weeks[wk] && m.weeks[wk].trim());
+  const b = el("button","reflect-btn");
+  b.innerHTML = `<span>✍️ ${has ? "Edit this week's reflection" : "Reflect on this week"}</span>
+    <span class="r-sub">Week ${wk+1} · ${MONTH_NAMES[new Date().getMonth()]}</span>`;
+  b.onclick = reflectThisWeek;
+  return b;
+}
+
 /* ---- Whole-life view: 90 years on one screen, tap anywhere to zoom ---- */
 function renderLife() {
   const cur = currentAbsoluteIndex();
@@ -556,6 +622,7 @@ function renderLife() {
   left.append(el("p","sub","Your whole life on one screen. Tap anywhere — or ＋ — to zoom in."));
   head.append(left);
   root.appendChild(head);
+  const rb = reflectButton(); if (rb) root.appendChild(rb);
 
   // backup nudge lives on the grid tab, where it'll be seen
   const filled = months.filter(monthHasContent).length;
@@ -805,6 +872,7 @@ function renderGrid() {
   left.append(el("p","sub","Tap a month to add a story. − zooms back out."));
   head.append(left);
   root.appendChild(head);
+  const rb2 = reflectButton(); if (rb2) root.appendChild(rb2);
 
 
   root.appendChild(el("div","legend",
@@ -917,38 +985,12 @@ async function openMonth(month) {
     }
   }
   function openWeekModal(i) {
-    const wb = el("div","modal-back");
-    const wbox = el("div","modal");
-    wbox.innerHTML = `
-      <h2>Week ${i+1}</h2>
-      <p class="age">${esc(labelFor(month))} · ${weekRange(i)}</p>
-      <div class="modal-scroll"></div>
-      <div class="modal-actions">
-        <button class="btn btn-soft" id="wCancel">Cancel</button>
-        <button class="btn btn-save" id="wSave">Save</button>
-      </div>`;
-    const ta = document.createElement("textarea");
-    ta.className = "week-ta";
-    ta.placeholder = "How was this week? What happened, what did you feel, what did you learn…";
-    ta.value = weeks[i];
-    wbox.querySelector(".modal-scroll").appendChild(ta);
-    wb.appendChild(wbox);
-    document.body.appendChild(wb);
-    const wInitial = ta.value;
-    const closeWeek = async () => {
-      if (ta.value !== wInitial) {
-        const yes = await confirmDialog("Discard this week's unsaved reflection?", "Discard");
-        if (!yes) return;
-      }
-      wb.remove();
-    };
-    wb.onclick = (e) => { if (e.target === wb) closeWeek(); };
-    wbox.querySelector("#wCancel").onclick = closeWeek;
-    wbox.querySelector("#wSave").onclick = () => {
-      weeks[i] = ta.value;
-      wb.remove(); paintWeeks();
-    };
-    setTimeout(()=> { try { ta.focus(); } catch {} }, 80);
+    openWeekEditor({
+      heading: `Week ${i+1}`,
+      sub: `${esc(labelFor(month))} · ${weekRange(i)}`,
+      value: weeks[i],
+      onSave: (text) => { weeks[i] = text; paintWeeks(); },   // deferred: persists on the month's Save
+    });
   }
   paintWeeks();
   /* dirty check: a stray backdrop tap must never eat typed words */
