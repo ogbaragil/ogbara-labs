@@ -57,6 +57,38 @@ const BADGE_EMOJI = ["🥉","🥈","🥇","🏅","💎","👑"];
 const MAX_STICKERS = 100;
 const MAX_COUNT_SKILL = 8;
 
+/* v5: Journey worlds — visible progression driven by lifetime stickers */
+const WORLDS = [
+  { thr:0,   name:"Sunny Meadow",   emoji:"🌼" },
+  { thr:10,  name:"Banana Grove",   emoji:"🍌" },
+  { thr:25,  name:"Butterfly Creek",emoji:"🦋" },
+  { thr:45,  name:"Monkey Bridge",  emoji:"🐵" },
+  { thr:70,  name:"Parrot Falls",   emoji:"🦜" },
+  { thr:100, name:"Tiger Trail",    emoji:"🐯" },
+  { thr:140, name:"Crystal Cave",   emoji:"💎" },
+  { thr:190, name:"Rainbow River",  emoji:"🌈" },
+  { thr:250, name:"Lion Rock",      emoji:"🦁" },
+  { thr:320, name:"Star Summit",    emoji:"⭐" },
+  { thr:400, name:"Cloud Castle",   emoji:"🏰" },
+  { thr:500, name:"Legend Lagoon",  emoji:"🌟" },
+];
+function worldFor(total) {
+  let w = 0;
+  for (let i=0;i<WORLDS.length;i++) if (total >= WORLDS[i].thr) w = i;
+  return w;
+}
+
+/* v5: shared adaptive answer-choice builder (Count Game + First Sums) */
+function buildAnswerChoices(target, skill) {
+  const k = Math.min(10, 3 + skill);
+  const set = new Set([target]);
+  const near = shuffle([target-3,target-2,target-1,target+1,target+2,target+3].filter(v => v>=1 && v<=10));
+  for (const v of near) { if (set.size >= k) break; set.add(v); }
+  const rest = shuffle(Array.from({length:10},(_,i)=>i+1).filter(v=>!set.has(v)));
+  for (const v of rest) { if (set.size >= k) break; set.add(v); }
+  return [...set].sort((a,b)=>a-b);
+}
+
 /* ---------------- Persistent store (localStorage, fail-safe) ---------------- */
 const Store = (() => {
   let mem = {};
@@ -92,8 +124,10 @@ const S = {
   musicOn: Store.bool("music", true),
   speechOn: Store.bool("speech", true),
   speechRate: Store.num("speech.rate", 1),
+  playerName: Store.str("player.name", ""),                        // v4: personalisation
   volume: Math.min(1, Math.max(0, Store.num("volume", 0.8))),      // v2 #10
   countSkill: Math.min(MAX_COUNT_SKILL, Math.max(1, Store.num("count.skill", 1))), // v2 #1
+  sumSkill: Math.min(MAX_COUNT_SKILL, Math.max(1, Store.num("sum.skill", 1))),     // v5: First Sums
   wbMode: Store.str("wb.mode", "Guided"),
   wbLenOverride: Store.str("wb.lenOverride", "auto"),               // v2 #4
   wbStats: Store.json("wb.stats", { solved:0, currentStreak:0, bestStreak:0, totalMistakes:0, totalTimeMs:0, avgTimeMs:0, last:{word:"",timeMs:0,mistakes:0} }),
@@ -106,7 +140,9 @@ function persist() {
   Store.set("stickers.count", S.stickerCount); Store.set("stickers.tier", S.stickerTier); Store.set("stickers.total", S.stickerTotal);
   Store.set("sound", S.soundOn); Store.set("music", S.musicOn); Store.set("speech", S.speechOn); Store.set("speech.rate", S.speechRate);
   Store.set("volume", S.volume);
+  Store.set("player.name", S.playerName);
   Store.set("count.skill", S.countSkill);
+  Store.set("sum.skill", S.sumSkill);
   Store.set("wb.mode", S.wbMode); Store.set("wb.lenOverride", S.wbLenOverride); Store.setJSON("wb.stats", S.wbStats);
   Store.set("mm.mode", S.mmMode); Store.set("mm.freeDiff", S.mmFreeDiff); Store.set("mm.campaignIdx", S.mmCampaignIdx);
   if (window.Cloud) Cloud.schedulePush();
@@ -118,6 +154,7 @@ const rand = (n) => Math.floor(Math.random()*n);
 const pick = (arr) => arr[rand(arr.length)];
 const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; };
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
+const esc = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* v2 #13/#14: track first user gesture; screens can register teardown */
@@ -322,7 +359,7 @@ const Mascot = (() => {
     cheer: () => react("m-cheer", pick(["⭐","🎉","👏","💪","✨"]), 1100),
     big:   (t) => react("m-cheer", t ?? "🎉🎉", 1900),
     oops:  () => react("m-oops", pick(["💭","🤔"]), 900),
-    hello: () => react("m-talk", "👋", 1500),
+    hello: (t) => react("m-talk", t ?? "👋", 1800),
   };
 })();
 
@@ -348,8 +385,19 @@ function starFly() {
   setTimeout(()=> s.remove(), 750);
 }
 function addStar() {
+  const beforeWorld = worldFor(S.stickerTotal);   // v5: journey progress check
   // Stickers first
   S.stickerCount += 1; S.stickerTotal += 1;
+  const afterWorld = worldFor(S.stickerTotal);
+  if (afterWorld > beforeWorld) {
+    const w = WORLDS[afterWorld];
+    setTimeout(() => {
+      Confetti.start(200); Sound.fanfare();
+      ribbon(`🗺️ New place reached: ${w.emoji} ${w.name}!`, 2400);
+      Speech.say(`Amazing! You reached ${w.name}!`);
+      Mascot.big(w.emoji);
+    }, 450);
+  }
   if (S.stickerCount >= MAX_STICKERS) {
     S.stickerCount = 0; S.stickerTier += 1;
     Confetti.start(180); Sound.levelup();          // milestone: full confetti
@@ -427,11 +475,35 @@ function gatedReset() {
 function doReset() {
   S.stars=0; S.correct=0; S.vip=0;
   S.stickerCount=0; S.stickerTier=0; S.stickerTotal=0;
-  S.countSkill=1;
+  S.countSkill=1; S.sumSkill=1;
   S.wbStats={ solved:0,currentStreak:0,bestStreak:0,totalMistakes:0,totalTimeMs:0,avgTimeMs:0,last:{word:"",timeMs:0,mistakes:0} };
   S.mmCampaignIdx=0;
   persist(); render();
   toast("Progress reset");
+}
+
+/* ---------------- Name capture (v4 personalisation) ---------------- */
+function openNameModal() {
+  const back = el("div","modal-back");
+  const box = el("div","modal");
+  box.innerHTML = `
+    <p style="font-weight:800;margin:0 0 4px;color:#064e3b;font-size:18px">What's your name? 😊</p>
+    <p style="margin:0 0 12px;color:#065f46;font-size:13.5px">We'll cheer for you by name! Stored with your progress — leave empty to stay anonymous.</p>`;
+  const input = el("input","name-input");
+  input.type = "text"; input.maxLength = 20; input.value = S.playerName;
+  input.placeholder = "e.g. Amara"; input.autocomplete = "off";
+  const save = el("button","modal-opt sel","Save");
+  const cancel = el("button","modal-close","Cancel");
+  save.onclick = () => {
+    S.playerName = input.value.trim().slice(0,20);
+    persist(); back.remove(); render();
+    if (S.playerName) { Mascot.hello(`Hi ${S.playerName}!`); Speech.say(`Hello ${S.playerName}!`); }
+  };
+  cancel.onclick = () => back.remove();
+  back.onclick = (e)=>{ if (e.target===back) back.remove(); };
+  box.append(input, save, cancel); back.appendChild(box);
+  document.getElementById("overlay").appendChild(back);
+  setTimeout(()=> { try { input.focus(); } catch {} }, 80);
 }
 
 /* ===================================================================== */
@@ -445,16 +517,17 @@ function render() {
   document.body.className = "t-" + (S.screen || "home");   // v3: per-screen mood tint
   renderHUD();
   const root = app(); root.innerHTML = "";
-  ({ home:Home, count:CountGame, word:WordBuilder, memory:MemoryMatch, stickers:StickerBook, settings:Settings }[S.screen] || Home)(root);
+  ({ home:Home, count:CountGame, sums:FirstSums, word:WordBuilder, memory:MemoryMatch, stickers:StickerBook, journey:Journey, settings:Settings }[S.screen] || Home)(root);
 }
 
 /* ---- Home ---- */
 function Home(root) {
   const page = el("div","page");
   const banner = el("div","banner card");
+  const kidName = S.playerName.trim();
   banner.innerHTML = `
-    <h1 class="title-xl">How Many? 🌿</h1>
-    <p class="sub">Count animals, build words, and play memory!</p>`;
+    <h1 class="title-xl">${kidName ? `Hi ${esc(kidName)}! 🌿` : "How Many? 🌿"}</h1>
+    <p class="sub">${kidName ? "Ready to count, spell and play?" : "Count animals, build words, and play memory!"}</p>`;
   /* v3: jungle scene dressing */
   ["🌿","🍃","🌴"].forEach((g,i)=> banner.appendChild(el("span","deco d"+(i+1), g)));
 
@@ -468,6 +541,7 @@ function Home(root) {
   };
   feats.append(
     tap("🦁","Count!","How many animals?","tone-amber",()=>go("count")),
+    tap("🍎","Sums!","Add them up","tone-violet",()=>go("sums")),
     tap("🦜","Words!","Build with letters","tone-sky",()=>go("word")),
     tap("🦥","Memory!","Find the pairs","",()=>{ Sound.jungle(); go("memory"); }),
   );
@@ -476,6 +550,8 @@ function Home(root) {
   const util = el("div","util-row");
   const ub = (label, fn, cls="btn-ghost") => { const b = el("button","btn "+cls, label); b.onclick = fn; return b; };
   util.append(
+    ub(kidName ? "✏️ "+esc(kidName) : "✏️ Add your name", openNameModal),
+    ub("🗺️ Journey", ()=>go("journey")),
     ub("🟡 Sticker Book", ()=>go("stickers")),
     ub("⚙️ Settings", ()=>go("settings")),
     ub(S.soundOn?"🔊 Sound On":"🔇 Sound Off", function(){ S.soundOn=!S.soundOn; persist(); this.textContent=S.soundOn?"🔊 Sound On":"🔇 Sound Off"; }, "btn-amber"),
@@ -509,19 +585,9 @@ function CountGame(root) {
   const animals = card.querySelector("#animals");
   const answers = card.querySelector("#answers");
 
-  /* v2 #1: skill → number range and choice count */
+  /* v2 #1: skill → number range; choices via shared buildAnswerChoices */
   const maxN = () => Math.min(10, 2 + S.countSkill);                 // skill 1→3 … 8→10
-  const numChoices = () => Math.min(10, 3 + S.countSkill);           // skill 1→4 … 7+→10
-  function buildChoices(t) {
-    const k = numChoices();
-    const set = new Set([t]);
-    // prefer near-miss distractors (teaches discrimination), then fill randomly
-    const near = shuffle([t-3,t-2,t-1,t+1,t+2,t+3].filter(v => v>=1 && v<=10));
-    for (const v of near) { if (set.size >= k) break; set.add(v); }
-    const rest = shuffle(Array.from({length:10},(_,i)=>i+1).filter(v=>!set.has(v)));
-    for (const v of rest) { if (set.size >= k) break; set.add(v); }
-    return [...set].sort((a,b)=>a-b);
-  }
+  const buildChoices = (t) => buildAnswerChoices(t, S.countSkill);
   function bumpSkill(up) {
     if (up) {
       streakDown = 0; streakUp += 1;
@@ -574,7 +640,8 @@ function CountGame(root) {
       locked = true; S.correct += 1;
       bumpSkill(true);
       addStar(); cheerSmall(); Sound.correct();   // v2 #8: small burst per answer
-      Speech.say(pick(PRAISE));
+      const nm = S.playerName.trim();
+      Speech.say(pick(PRAISE) + (nm && Math.random() < 0.34 ? ` ${nm}!` : ""));
       const myGen = token.gen;
       setTimeout(()=>{ if (!token.cancelled && token.gen === myGen) setup(); }, 900);
     } else {
@@ -582,6 +649,110 @@ function CountGame(root) {
       missesThisRound += 1;
       bumpSkill(false);
       animals.classList.remove("shake"); void animals.offsetWidth; animals.classList.add("shake");
+      if (missesThisRound >= 2 && !taughtThisRound) countTogether();
+    }
+  }
+  setup();
+}
+
+/* ---- First Sums (v5): two groups, "how many altogether?" ---- */
+function FirstSums(root) {
+  let a = 1, b = 1, total = 2, emoji = "🍎", locked = false;
+  let missesThisRound = 0, taughtThisRound = false;
+  let streakUp = 0, streakDown = 0;
+  const token = { cancelled: false, gen: 0 };
+  screenCleanup = () => { token.cancelled = true; };
+
+  const page = el("div","page");
+  const card = el("div","card game-card");
+  card.innerHTML = `<p class="question">How many altogether?</p>
+    <div class="sums-box" id="sumsBox">
+      <div class="sum-group" id="gA"></div>
+      <div class="sum-plus">+</div>
+      <div class="sum-group" id="gB"></div>
+    </div>
+    <p class="sum-eq" id="sumEq"></p>
+    <div class="answers-grid" id="answers"></div>`;
+  const toolbar = el("div","toolbar");
+  const home = el("button","btn btn-ghost","🏠 Home"); home.onclick = ()=>go("home");
+  const next = el("button","btn btn-amber","Next ➡️"); next.onclick = setup;
+  toolbar.append(home, next); card.appendChild(toolbar);
+  page.append(card, Footer()); root.appendChild(page);
+
+  const sumsBox = card.querySelector("#sumsBox");
+  const gA = card.querySelector("#gA");
+  const gB = card.querySelector("#gB");
+  const eq = card.querySelector("#sumEq");
+  const answers = card.querySelector("#answers");
+
+  const maxTotal = () => Math.min(10, 3 + S.sumSkill);   // skill 1 → totals up to 4 … 7+ → 10
+  function bumpSkill(up) {
+    if (up) {
+      streakDown = 0; streakUp += 1;
+      if (streakUp >= 2 && S.sumSkill < MAX_COUNT_SKILL) { S.sumSkill += 1; streakUp = 0; persist(); }
+    } else {
+      streakUp = 0; streakDown += 1;
+      if (streakDown >= 2 && S.sumSkill > 1) { S.sumSkill -= 1; streakDown = 0; persist(); }
+    }
+  }
+
+  function setup() {
+    token.gen += 1;
+    total = 2 + rand(maxTotal() - 1);          // 2 … maxTotal
+    a = 1 + rand(total - 1); b = total - a;    // both ≥ 1
+    emoji = pick(EMOJIS);
+    locked = false; missesThisRound = 0; taughtThisRound = false;
+    eq.textContent = "";
+    sumsBox.classList.remove("shake");
+    gA.innerHTML = ""; gB.innerHTML = "";
+    for (let i=0;i<a;i++) gA.appendChild(el("span","animal", emoji));
+    for (let i=0;i<b;i++) gB.appendChild(el("span","animal", emoji));
+    const choices = buildAnswerChoices(total, S.sumSkill);
+    answers.innerHTML = "";
+    answers.style.gridTemplateColumns = `repeat(${Math.min(choices.length,5)},1fr)`;
+    choices.forEach(n => { const btn = el("button","answer-btn", n); btn.onclick = ()=>submit(n); answers.appendChild(btn); });
+    setTimeout(()=> { if (!token.cancelled) Speech.say(`${a} plus ${b}. How many altogether?`); }, 120);
+  }
+
+  /* teaching: count every animal across BOTH groups, then say the sum */
+  async function countTogether() {
+    taughtThisRound = true;
+    locked = true;
+    const myGen = token.gen;
+    const dead = () => token.cancelled || token.gen !== myGen;
+    const spans = [...gA.children, ...gB.children];
+    Speech.say("Let's count them all together!");
+    await delay(950); if (dead()) return;
+    for (let i=0;i<spans.length;i++) {
+      if (dead()) return;
+      spans[i].classList.add("counted");
+      Sound.tick();
+      Speech.say(String(i+1));
+      await delay(800);
+    }
+    if (dead()) return;
+    await delay(250);
+    spans.forEach(sp => sp.classList.remove("counted"));
+    Speech.say(`${total}! ${a} plus ${b} makes ${total}. Now you try!`);
+    locked = false;
+  }
+
+  function submit(n) {
+    if (locked) return;
+    if (n === total) {
+      locked = true; S.correct += 1;
+      bumpSkill(true);
+      eq.textContent = `${a} + ${b} = ${total}`;          // the equation moment
+      addStar(); cheerSmall(); Sound.correct();
+      const nm = S.playerName.trim();
+      Speech.say(`${a} plus ${b} makes ${total}! ${pick(PRAISE)}${nm && Math.random()<0.34 ? " "+nm+"!" : ""}`);
+      const myGen = token.gen;
+      setTimeout(()=>{ if (!token.cancelled && token.gen === myGen) setup(); }, 1400);
+    } else {
+      wrong(); loseStar();                                 // star-loss kept, consistent with siblings
+      missesThisRound += 1;
+      bumpSkill(false);
+      sumsBox.classList.remove("shake"); void sumsBox.offsetWidth; sumsBox.classList.add("shake");
       if (missesThisRound >= 2 && !taughtThisRound) countTogether();
     }
   }
@@ -956,6 +1127,76 @@ function StickerBook(root) {
   card.querySelector("#sbCheer").onclick = ()=>{ cheerBig("Hooray!"); Sound.yay(); };
 }
 
+/* ---- Journey map (v5): visible progression across 12 jungle worlds ---- */
+function Journey(root) {
+  const total = S.stickerTotal;
+  const wi = worldFor(total);
+  const cur = WORLDS[wi];
+  const nxt = WORLDS[wi+1] || null;
+
+  const page = el("div","page");
+  const card = el("div","card game-card");
+  const need = nxt ? nxt.thr - total : 0;
+  const span = nxt ? nxt.thr - cur.thr : 1;
+  const prog = nxt ? Math.min(1, (total - cur.thr) / span) : 1;
+  card.innerHTML = `
+    <h2 class="title">My Journey 🗺️</h2>
+    <p class="subtitle">You're at <b>${cur.emoji} ${cur.name}</b> · ${total} ⭐ collected so far</p>
+    <div class="prog"><span style="width:${prog*100}%"></span></div>
+    <p class="journey-next">${nxt ? `${need} more ⭐ to reach ${nxt.emoji} ${nxt.name}!` : "You've explored the whole jungle — legend status! 🌟"}</p>
+    <div class="map-wrap" id="mapWrap"><div class="map-inner" id="mapInner"></div></div>
+    <div class="row-spread">
+      <button class="btn btn-ghost" id="jHome">🏠 Home</button>
+    </div>`;
+  page.append(card, Footer()); root.appendChild(page);
+  card.querySelector("#jHome").onclick = ()=>go("home");
+
+  /* winding path: world 1 at the bottom, climbing upward */
+  const STEP = 96, N = WORLDS.length;
+  const H = N * STEP;
+  const inner = card.querySelector("#mapInner");
+  inner.style.height = H + "px";
+  const xy = (i) => ({ x: i % 2 === 0 ? 28 : 72, y: (N - 1 - i) * STEP + STEP/2 });
+
+  let d = "";
+  for (let i=0;i<N;i++) {
+    const p = xy(i);
+    if (i===0) d += `M ${p.x} ${p.y}`;
+    else { const q = xy(i-1); const ym = (p.y+q.y)/2; d += ` C ${q.x} ${ym}, ${p.x} ${ym}, ${p.x} ${p.y}`; }
+  }
+  inner.innerHTML = `<svg class="map-path" viewBox="0 0 100 ${H}" preserveAspectRatio="none">
+    <path d="${d}" fill="none" stroke="#86efac" stroke-width="5" stroke-linecap="round"
+          stroke-dasharray="2 9" vector-effect="non-scaling-stroke"/></svg>`;
+
+  let currentNode = null;
+  WORLDS.forEach((w, i) => {
+    const p = xy(i);
+    const state = i < wi ? "done" : i === wi ? "current" : "locked";
+    const node = el("button", "map-node " + state, state === "locked" ? "🔒" : w.emoji);
+    node.style.left = p.x + "%"; node.style.top = p.y + "px";
+    node.setAttribute("aria-label", w.name);
+    const lbl = el("span","node-label", w.name);
+    node.appendChild(lbl);
+    node.onclick = () => {
+      if (state === "locked") toast(`${w.emoji} ${w.name}: ${w.thr - total} more ⭐ to unlock`, 1500);
+      else if (state === "current") toast(`${w.emoji} ${w.name} — you are here!`, 1400);
+      else toast(`${w.emoji} ${w.name} — explored! ✅`, 1300);
+      Sound.pop();
+    };
+    inner.appendChild(node);
+    if (state === "current") currentNode = node;
+  });
+
+  /* scroll the path so the child's current world is in view */
+  requestAnimationFrame(() => {
+    const wrap = card.querySelector("#mapWrap");
+    if (currentNode && wrap) {
+      const target = parseFloat(currentNode.style.top) - wrap.clientHeight * 0.55;
+      wrap.scrollTop = Math.max(0, target);
+    }
+  });
+}
+
 /* ---- Settings (v2 #4 word length · #9 gated reset · #10 volume) ---- */
 function Settings(root) {
   const page = el("div","page");
@@ -1008,6 +1249,12 @@ function Settings(root) {
   });
   wlRow.appendChild(seg); sl.appendChild(wlRow);
 
+  /* v4: child's name */
+  const nameRow = el("div","set-row"); nameRow.innerHTML = `<span>👤 Child's name</span>`;
+  const nameBtn = el("button","switch on", S.playerName.trim() ? esc(S.playerName.trim()) : "Set");
+  nameBtn.onclick = openNameModal;
+  nameRow.appendChild(nameBtn); sl.appendChild(nameRow);
+
   /* v3: cloud account access lives here, away from little fingers */
   const cloudRow = el("div","set-row"); cloudRow.innerHTML = `<span>☁️ Account & sync</span>`;
   const cloudBtn = el("button","switch on","Open");
@@ -1024,7 +1271,9 @@ function Settings(root) {
     ⭐ Stars this round: ${S.stars} · 🏅 VIP ${S.vip}<br>
     🎯 Total correct: ${S.correct} · 🟡 Stickers earned: ${S.stickerTotal} · 🏆 Badges: ${S.stickerTier}<br>
     🔤 Words solved: ${stats.solved} · 🔥 Best streak: ${stats.bestStreak}<br>
-    🔢 Counting level: ${S.countSkill}/${MAX_COUNT_SKILL} (numbers up to ${Math.min(10, 2+S.countSkill)})`;
+    🔢 Counting level: ${S.countSkill}/${MAX_COUNT_SKILL} (numbers up to ${Math.min(10, 2+S.countSkill)})<br>
+    ➕ Sums level: ${S.sumSkill}/${MAX_COUNT_SKILL} (totals up to ${Math.min(10, 3+S.sumSkill)})<br>
+    🗺️ Journey: ${WORLDS[worldFor(S.stickerTotal)].emoji} ${WORLDS[worldFor(S.stickerTotal)].name}`;
   sl.appendChild(info);
 
   card.querySelector("#setHome").onclick = ()=>go("home");
@@ -1058,7 +1307,7 @@ if ("serviceWorker" in navigator) {
 
 render();
 Mascot.ensure();
-setTimeout(() => Mascot.hello(), 700);
+setTimeout(() => Mascot.hello(S.playerName.trim() ? `Hi ${S.playerName.trim()}!` : undefined), 700);
 
 /* ---------------- Cloud sync (optional account) ---------------- */
 if (window.Cloud) Cloud.init("howmany", {
@@ -1066,17 +1315,18 @@ if (window.Cloud) Cloud.init("howmany", {
     stars:S.stars, correct:S.correct, vip:S.vip,
     stickerCount:S.stickerCount, stickerTier:S.stickerTier, stickerTotal:S.stickerTotal,
     soundOn:S.soundOn, musicOn:S.musicOn, speechOn:S.speechOn, speechRate:S.speechRate,
-    volume:S.volume, countSkill:S.countSkill,
+    volume:S.volume, countSkill:S.countSkill, sumSkill:S.sumSkill, playerName:S.playerName,
     wbMode:S.wbMode, wbLenOverride:S.wbLenOverride, wbStats:S.wbStats,
     mmMode:S.mmMode, mmFreeDiff:S.mmFreeDiff, mmCampaignIdx:S.mmCampaignIdx,
   }),
   apply: (st) => {
     const KEYS = ["stars","correct","vip","stickerCount","stickerTier","stickerTotal",
-      "soundOn","musicOn","speechOn","speechRate","volume","countSkill",
+      "soundOn","musicOn","speechOn","speechRate","volume","countSkill","sumSkill","playerName",
       "wbMode","wbLenOverride","wbStats","mmMode","mmFreeDiff","mmCampaignIdx"];
     for (const k of KEYS) if (st[k] !== undefined) S[k] = st[k];
     S.volume = Math.min(1, Math.max(0, Number(S.volume) || 0.8));
     S.countSkill = Math.min(MAX_COUNT_SKILL, Math.max(1, Number(S.countSkill) || 1));
+    S.sumSkill = Math.min(MAX_COUNT_SKILL, Math.max(1, Number(S.sumSkill) || 1));
     persist(); Sound.applyVolume(); render();
   },
 });
