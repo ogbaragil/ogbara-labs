@@ -701,7 +701,7 @@ function renderLife() {
       const monthCore = !!(m.title || m.notes || m.tags || m.photoIds.length);  // month-level only
       let cls = "ov-cell";
       if (cur != null && abs === cur && wk === curWeekOfMonth) cls += " today";
-      else if (m.isMilestone) cls += " milestone";
+      else if (m.isMilestone && (m.hl ? m.hl[wk] : true)) cls += " milestone";   // gold follows the mask too
       else if (weekNote || (monthCore && (m.hl ? m.hl[wk] : true))) cls += " filled";
       else if (cur != null && (abs < cur || (abs === cur && wk < curWeekOfMonth))) cls += " lived";
       const c = el("div", cls);
