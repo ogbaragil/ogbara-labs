@@ -236,6 +236,7 @@
   .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
   .footer{font-size:11.5px; color:#9aa0ae; text-align:center; margin-top:10px;}
+  .footer a{color:inherit; text-decoration:underline; text-underline-offset:2px;}
   @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important;} }
 </style>
 </head>
@@ -887,7 +888,7 @@ function renderProfile() {
   };
   actions.appendChild(resetRow);
   root.appendChild(actions);
-  root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · works offline"));
+  root.appendChild(el("p","footer",`Life Grid · an Ogbara Labs experiment · <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a>`));
 }
 
 /* ---- Memory view (v6): tap a memory to expand it; edit or delete from there ---- */

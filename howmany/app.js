@@ -1379,7 +1379,7 @@ function Settings(root) {
   card.querySelector("#setReset").onclick = gatedReset;   // v2 #9
 }
 
-function Footer() { return el("p","footer","Made with ❤️ for little learners"); }
+function Footer() { return el("p","footer",`Made with ❤️ for little learners · <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a>`); }
 
 /* ---------------- Boot ---------------- */
 function unlockAudioOnce() {
