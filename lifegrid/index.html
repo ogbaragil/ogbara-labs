@@ -99,6 +99,37 @@
   .modal-actions .btn{flex:1;}
   .btn-save{background:var(--sky); color:#11182e;}
 
+  /* Tools row (backup / restore) */
+  .tools{display:flex; gap:8px; margin:2px 0 8px; flex-wrap:wrap;}
+  .tool-btn{background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:8px 13px; font-weight:600; font-size:12.5px;}
+  .tool-btn:disabled{opacity:.6;}
+
+  /* Tag filter chips */
+  .tag-row{display:flex; gap:7px; overflow-x:auto; padding:2px 0 8px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  .tag-row::-webkit-scrollbar{display:none;}
+  .tag-chip{flex:none; background:var(--panel2); color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-weight:600; font-size:12.5px; white-space:nowrap;}
+  .tag-chip.active{background:rgba(255,143,163,.16); border-color:var(--rose); color:var(--rose);}
+  .cell.hit{box-shadow:0 0 0 2px var(--rose); z-index:1;}
+  .cell.dim{opacity:.22;}
+
+  /* "This month in your past" */
+  .memories{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin:6px 0 10px;}
+  .memories h3{font-family:var(--display); font-size:16px; margin:0 0 8px; color:var(--gold); font-weight:700;}
+  .memory-item{display:block; width:100%; text-align:left; background:transparent; color:var(--ink); padding:7px 2px; border-top:1px solid var(--line); font-size:14px;}
+  .memory-item:first-of-type{border-top:none;}
+  .memory-item .when{color:var(--muted); font-size:12px; display:block;}
+
+  /* Backup nudge */
+  .nudge{background:rgba(245,198,107,.1); border:1px solid rgba(245,198,107,.35); border-radius:16px; padding:13px 16px; margin:0 0 12px; font-size:13.5px; color:var(--ink); display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+  .nudge .n-act{display:flex; gap:8px;}
+  .nudge button{border-radius:10px; padding:8px 12px; font-weight:700; font-size:12.5px;}
+  .nudge .n-go{background:var(--gold); color:#11182e;}
+  .nudge .n-no{background:transparent; color:var(--muted); border:1px solid var(--line);}
+
+  /* Styled confirm + install button */
+  .confirm-msg{margin:0 0 16px; font-size:15px;}
+  #installBtn{position:fixed; right:14px; bottom:16px; z-index:60; background:var(--sky); color:#11182e; border-radius:999px; padding:10px 18px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.35);}
+
   .loading{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted);}
   .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--sky); border-radius:50%; animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -108,6 +139,7 @@
 </head>
 <body>
 <div class="wrap" id="root"><div class="loading"><div class="spinner"></div>Loading your life map…</div></div>
+<button id="installBtn" hidden>⬇ Install app</button>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="cloud.js"></script>
@@ -208,6 +240,32 @@ function labelFor(month) {
 /* ---------- Tiny DOM helpers ---------- */
 const root = document.getElementById("root");
 const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+const esc = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* Styled confirm (replaces native confirm) — resolves true/false */
+function confirmDialog(message, okLabel="Yes", danger=true) {
+  return new Promise((resolve) => {
+    const back = el("div","modal-back");
+    const box = el("div","modal");
+    box.appendChild(el("p","confirm-msg", esc(message)));
+    const row = el("div","modal-actions");
+    const no = el("button","btn btn-soft","Cancel");
+    const ok = el("button","btn " + (danger ? "btn-danger" : "btn-save"), okLabel);
+    no.onclick = () => { back.remove(); resolve(false); };
+    ok.onclick = () => { back.remove(); resolve(true); };
+    back.onclick = (e)=>{ if (e.target===back){ back.remove(); resolve(false); } };
+    row.append(no, ok); box.appendChild(row); back.appendChild(box);
+    document.body.appendChild(back);
+  });
+}
+
+const blobToB64 = (blob) => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result).split(",")[1]);
+  r.onerror = () => rej(r.error);
+  r.readAsDataURL(blob);
+});
+const b64ToBlob = (b64, type) => fetch(`data:${type || "image/jpeg"};base64,${b64}`).then(r => r.blob());
 
 /* ---------- Screens ---------- */
 function render() {
@@ -250,18 +308,87 @@ function renderForm(editing=false) {
   root.appendChild(card);
 }
 
+/* ---------- v2: tags, memories, backup ---------- */
+let activeTag = null;
+const NUDGE_KEY = "lifegrid_backup_nudge_dismissed";
+const tagsOf = (m) => (m.tags || "").split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+function allTags() {
+  const freq = new Map();
+  for (const m of months) for (const t of tagsOf(m)) freq.set(t, (freq.get(t)||0)+1);
+  return [...freq.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([t])=>t);
+}
+const monthHasContent = (m) => !!(m.title || m.notes || m.tags || m.photoIds.length);
+
+function pastThisMonth(cur) {
+  if (cur == null || !profile) return [];
+  const nowCal = new Date().getMonth();
+  const out = [];
+  for (let abs = cur-12; abs >= 0; abs -= 1) {
+    if ((profile.birthMonthIndex + abs) % 12 !== nowCal) continue;
+    const m = months[abs];
+    if (monthHasContent(m)) out.push({ m, abs, yearsAgo: Math.round((cur-abs)/12) });
+  }
+  return out.slice(0, 3);
+}
+
+/* ---- Export / Import: a backup file the user owns ---- */
+async function exportBackup(btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "Preparing…";
+  try {
+    const ids = [...new Set(months.flatMap(m => m.photoIds))];
+    const photos = [];
+    for (const id of ids) {
+      const blob = await PhotoDB.get(id);
+      if (blob) photos.push({ id, type: blob.type || "image/jpeg", data: await blobToB64(blob) });
+    }
+    const payload = { app:"lifegrid", version:1, exportedAt:new Date().toISOString(), profile, months, photos };
+    const blob = new Blob([JSON.stringify(payload)], { type:"application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `lifegrid-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    btn.textContent = "✓ Saved";
+  } catch { btn.textContent = "Failed — try again"; }
+  setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 2200);
+}
+
+async function importBackup(fileBlob) {
+  let data;
+  try { data = JSON.parse(await fileBlob.text()); } catch { await confirmDialog("That file couldn't be read as a Life Grid backup.", "OK", false); return; }
+  if (!data || data.app !== "lifegrid" || !Array.isArray(data.months) || data.months.length !== YEARS*MONTHS_PER_YEAR || !data.profile) {
+    await confirmDialog("That file doesn't look like a Life Grid backup.", "OK", false); return;
+  }
+  const yes = await confirmDialog(`Restore backup from ${String(data.exportedAt||"").slice(0,10) || "unknown date"}? This replaces everything currently on this device.`, "Restore");
+  if (!yes) return;
+  // photos first, so the grid can show them immediately
+  for (const p of (data.photos || [])) {
+    try {
+      const blob = await b64ToBlob(p.data, p.type);
+      await PhotoDB.put(p.id, blob);
+      if (window.Cloud && Cloud.isSignedIn()) Cloud.uploadPhoto(p.id, blob);
+    } catch {}
+  }
+  for (const [id, u] of photoURLCache) { try { URL.revokeObjectURL(u); } catch {} }
+  photoURLCache.clear();
+  profile = data.profile;
+  months = data.months.map(m => ({ title:"", notes:"", tags:"", isMilestone:false, ...m, photoIds: Array.isArray(m.photoIds) ? m.photoIds : [] }));
+  saveProfile(); saveMonths(); activeTag = null; render();
+}
+
 function renderGrid() {
   const cur = currentAbsoluteIndex();
   const head = el("div","head");
   const left = el("div");
-  left.append(el("h2","greet",`Hi ${profile.name} 👋`));
+  left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
   left.append(el("p","sub",`Born ${MONTH_NAMES[profile.birthMonthIndex]} ${profile.birthYear}. Tap a month to add a story.`));
   const edit = el("button","edit-btn","Edit profile"); edit.onclick = () => renderForm(true);
   head.append(left, edit);
   root.appendChild(head);
 
   // stats
-  const filled = months.filter(m => m.title||m.notes||m.tags||m.photoIds.length).length;
+  const filled = months.filter(monthHasContent).length;
   const miles = months.filter(m => m.isMilestone).length;
   const lived = cur != null ? cur+1 : 0;
   const stats = el("div","stats-strip",
@@ -271,11 +398,69 @@ function renderGrid() {
      <span><b>${(YEARS*12-lived).toLocaleString()}</b> still ahead ✨</span>`);
   root.appendChild(stats);
 
+  // backup nudge — shown once stories accumulate with no cloud account
+  const signedIn = !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn());
+  if (filled >= 5 && !signedIn && localStorage.getItem(NUDGE_KEY) !== "1") {
+    const nudge = el("div","nudge");
+    nudge.append(el("span",null,`You have <b>${filled}</b> stories on this device only. Back them up so they can't be lost.`));
+    const acts = el("div","n-act");
+    const go = el("button","n-go","☁️ Sign in");
+    go.onclick = () => { const chip = document.getElementById("cloudChip"); if (chip) chip.click(); };
+    const no = el("button","n-no","Dismiss");
+    no.onclick = () => { try{ localStorage.setItem(NUDGE_KEY,"1"); }catch{} render(); };
+    acts.append(go, no); nudge.appendChild(acts);
+    root.appendChild(nudge);
+  }
+
+  // "this month in your past" — the reason to come back
+  const memories = pastThisMonth(cur);
+  if (memories.length) {
+    const card = el("div","memories");
+    card.appendChild(el("h3",null,"✨ This month in your past"));
+    for (const { m, yearsAgo } of memories) {
+      const what = m.title || (m.notes ? m.notes.slice(0,60) + (m.notes.length>60?"…":"") : `${m.photoIds.length} photo${m.photoIds.length===1?"":"s"}`);
+      const item = el("button","memory-item",
+        `<span class="when">${esc(labelFor(m))} · ${yearsAgo} year${yearsAgo===1?"":"s"} ago</span>${esc(what)}`);
+      item.onclick = () => openMonth(m);
+      card.appendChild(item);
+    }
+    root.appendChild(card);
+  }
+
   root.appendChild(el("div","legend",
     `<span><i class="swatch"></i>Empty</span>
      <span><i class="swatch filled"></i>Story / photos</span>
      <span><i class="swatch mile"></i>Milestone</span>
      <span><i class="swatch today"></i>Today</span>`));
+
+  // backup tools
+  const tools = el("div","tools");
+  const exp = el("button","tool-btn","⬇ Export backup");
+  exp.onclick = () => exportBackup(exp);
+  const impBtn = el("button","tool-btn","⬆ Import");
+  const impFile = document.createElement("input");
+  impFile.type = "file"; impFile.accept = "application/json,.json"; impFile.hidden = true;
+  impBtn.onclick = () => impFile.click();
+  impFile.onchange = () => { if (impFile.files[0]) importBackup(impFile.files[0]); impFile.value = ""; };
+  tools.append(exp, impBtn, impFile);
+  root.appendChild(tools);
+
+  // tag filter chips
+  const tags = allTags();
+  if (tags.length) {
+    const row = el("div","tag-row");
+    for (const tg of tags) {
+      const chip = el("button","tag-chip" + (activeTag===tg ? " active" : ""), esc(tg));
+      chip.onclick = () => { activeTag = activeTag===tg ? null : tg; render(); };
+      row.appendChild(chip);
+    }
+    if (activeTag) {
+      const clear = el("button","tag-chip active","✕ clear filter");
+      clear.onclick = () => { activeTag = null; render(); };
+      row.appendChild(clear);
+    }
+    root.appendChild(row);
+  }
 
   const scroll = el("div","grid-scroll");
   const frag = document.createDocumentFragment();
@@ -294,6 +479,7 @@ function renderGrid() {
       if (cur!=null && abs===cur) cls += " today";
       if (cur!=null && abs>cur) cls += " future";
       if (month.photoIds.length) cls += " haspic";
+      if (activeTag) cls += tagsOf(month).includes(activeTag) ? " hit" : " dim";
       const c = el("button",cls);
       c.setAttribute("aria-label", labelFor(month));
       c.onclick = () => openMonth(month);
@@ -315,6 +501,18 @@ function renderGrid() {
 async function openMonth(month) {
   let photoIds = month.photoIds.slice();
   let isMile = !!month.isMilestone;
+  /* v2 photo lifecycle: nothing is persisted until Save.
+     pendingAdds holds new photos in memory; Cancel discards them entirely,
+     Save commits adds AND deletes removed originals (no more orphans). */
+  let pendingAdds = [];   // [{id, blob}]
+  function discardPending() {
+    for (const p of pendingAdds) {
+      const u = photoURLCache.get(p.id);
+      if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(p.id); }
+    }
+    pendingAdds = [];
+  }
+  const closeDiscard = () => { discardPending(); back.remove(); };
 
   const back = el("div","modal-back");
   const box = el("div","modal");
@@ -338,7 +536,7 @@ async function openMonth(month) {
     </div>`;
   back.appendChild(box);
   document.body.appendChild(back);
-  back.onclick = (e)=>{ if (e.target===back) back.remove(); };
+  back.onclick = (e)=>{ if (e.target===back) closeDiscard(); };
 
   const t = box.querySelector("#mTitle"), n = box.querySelector("#mNotes"), g = box.querySelector("#mTags");
   t.value = month.title; n.value = month.notes; g.value = month.tags;
@@ -367,19 +565,37 @@ async function openMonth(month) {
     const f = file.files[0]; if (!f) return;
     const blob = await downscale(f, 1280, 0.8);
     const id = `${month.id}-${Date.now()}`;
-    await PhotoDB.put(id, blob);
-    if (window.Cloud) Cloud.uploadPhoto(id, blob);
+    photoURLCache.set(id, URL.createObjectURL(blob));   // preview without persisting
+    pendingAdds.push({ id, blob });
     photoIds.push(id); file.value = ""; paintPhotos();
   };
 
-  box.querySelector("#mCancel").onclick = () => back.remove();
-  box.querySelector("#mSave").onclick = () => {
+  box.querySelector("#mCancel").onclick = closeDiscard;
+  box.querySelector("#mSave").onclick = async () => {
+    // 1) commit new photos
+    for (const p of pendingAdds) {
+      try { await PhotoDB.put(p.id, p.blob); if (window.Cloud) Cloud.uploadPhoto(p.id, p.blob); } catch {}
+    }
+    pendingAdds = [];
+    // 2) delete originals the user removed in this session
+    const removed = month.photoIds.filter(id => !photoIds.includes(id));
+    for (const id of removed) {
+      PhotoDB.del(id); if (window.Cloud) Cloud.deletePhoto(id);
+      const u = photoURLCache.get(id);
+      if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
+    }
     Object.assign(month, { title:t.value, notes:n.value, tags:g.value, isMilestone:isMile, photoIds });
     saveMonths(); back.remove(); render();
   };
-  box.querySelector("#mClear").onclick = () => {
-    if (!confirm("Clear everything in this month?")) return;
-    photoIds.forEach(id => { PhotoDB.del(id); if (window.Cloud) Cloud.deletePhoto(id); });
+  box.querySelector("#mClear").onclick = async () => {
+    const yes = await confirmDialog("Clear this month? The story, tags and photos will be removed.", "Yes, clear");
+    if (!yes) return;
+    discardPending();                                    // never persisted — just drop
+    month.photoIds.forEach(id => {                       // originals: delete for real
+      PhotoDB.del(id); if (window.Cloud) Cloud.deletePhoto(id);
+      const u = photoURLCache.get(id);
+      if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
+    });
     Object.assign(month, { title:"", notes:"", tags:"", isMilestone:false, photoIds:[] });
     saveMonths(); back.remove(); render();
   };
@@ -405,6 +621,17 @@ function downscale(fileBlob, maxSide, quality) {
 /* ---------- Boot ---------- */
 loadAll();
 render();
+/* Ask the browser to protect this origin's storage from eviction —
+   a journal must not be silently garbage-collected. */
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
+
+/* Install prompt (parity with the rest of the suite) */
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault(); deferredPrompt = e;
+  const btn = document.getElementById("installBtn");
+  if (btn) { btn.hidden = false; btn.onclick = async ()=>{ btn.hidden = true; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; }; }
+});
 
 /* ---------------- Cloud sync (optional account) ---------------- */
 if (window.Cloud) Cloud.init("lifegrid", {
