@@ -1,9 +1,10 @@
 /* How Many? PWA service worker — precache the whole app for offline play */
-const CACHE = "howmany-v7";
+const CACHE = "howmany-v8";
 const ASSETS = [
   "./",
   "./index.html",
   "./app.js",
+  "./jungle_intro.mp3",
   "./manifest.webmanifest","./supabase-config.js","./cloud.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -25,9 +26,12 @@ self.addEventListener("activate", (e) => {
 });
 
 // Cache-first for app assets; network fallback. Everything is local so this works fully offline.
+// Cross-origin requests (Supabase API, streamed background music) pass straight through:
+// caching opaque responses would bloat the quota, and the music is intentionally stream-only.
 self.addEventListener("fetch", (e) => {
   const { request } = e;
   if (request.method !== "GET") return;
+  if (new URL(request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(request).then((hit) => {
       if (hit) return hit;

@@ -57,6 +57,14 @@ const BADGE_EMOJI = ["🥉","🥈","🥇","🏅","💎","👑"];
 const MAX_STICKERS = 100;
 const MAX_COUNT_SKILL = 8;
 
+/* v6 audio sources:
+   - JUNGLE_URL: tiny local file, bundled & precached, plays on every Memory entry.
+   - MUSIC_URL: the "Kids Happy Music" track (Pixabay Content License, by MFCC),
+     streamed from your own Supabase public bucket — NOT bundled (2.3 MB).
+     If the stream fails or the URL is empty, the synthesised loop takes over. */
+const JUNGLE_URL = "jungle_intro.mp3";
+const MUSIC_URL  = "https://qfjudxzxyvqraogwskwc.supabase.co/storage/v1/object/public/assets/kids-happy-music.mp3";
+
 /* v5: Journey worlds — visible progression driven by lifetime stickers */
 const WORLDS = [
   { thr:0,   name:"Sunny Meadow",   emoji:"🌼" },
@@ -195,6 +203,50 @@ const Sound = (() => {
   const BASS   = [261.63, 196.0, 220.0, 196.0];
   const MUSIC_BASE_GAIN = 0.06;
 
+  /* v6: streamed background track with synth fallback */
+  let musicEl = null, musicMode = "none", streamFailed = false;   // none | stream | synth
+  const MUSIC_EL_VOL = 0.35;
+  let jungleEl = null;
+
+  function startSynth() {
+    if (musicNodes) { musicMode = "synth"; return; }
+    const c = ensure(); if (!c) return;
+    musicMode = "synth";
+    const master = c.createGain();
+    master.gain.value = S.musicOn ? MUSIC_BASE_GAIN * S.volume : 0.0001;
+    master.connect(c.destination);
+    let step = 0;
+    const tick = () => {
+      if (!musicNodes) return;
+      const t = c.currentTime;
+      const f = MELODY[step % MELODY.length];
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = "triangle"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(1, t+0.18); g.gain.linearRampToValueAtTime(0.0001, t+0.52);
+      o.connect(g).connect(master); o.start(t); o.stop(t+0.56);
+      const o2 = c.createOscillator(), g2 = c.createGain();
+      o2.type = "sine"; o2.frequency.value = f/2;
+      g2.gain.setValueAtTime(0.0001, t); g2.gain.linearRampToValueAtTime(0.45, t+0.2); g2.gain.linearRampToValueAtTime(0.0001, t+0.5);
+      o2.connect(g2).connect(master); o2.start(t); o2.stop(t+0.54);
+      if (step % 4 === 0) {
+        const bs = c.createOscillator(), gb = c.createGain();
+        bs.type = "sine"; bs.frequency.value = BASS[(step/4) % BASS.length];
+        gb.gain.setValueAtTime(0.0001, t); gb.gain.linearRampToValueAtTime(0.8, t+0.25); gb.gain.linearRampToValueAtTime(0.0001, t+1.6);
+        bs.connect(gb).connect(master); bs.start(t); bs.stop(t+1.7);
+      }
+      step++;
+    };
+    const id = setInterval(tick, 430); tick();
+    musicNodes = { master, id };
+  }
+  function fallbackToSynth() {
+    if (musicMode === "synth") return;
+    streamFailed = true;
+    try { musicEl && musicEl.pause(); } catch {}
+    musicEl = null; musicMode = "none";
+    if (S.musicOn) startSynth();
+  }
+
   const api = {
     unlock: () => ensure(),
     correct() { const c=ensure(); if(!c||!S.soundOn) return; const t=c.currentTime;
@@ -216,46 +268,57 @@ const Sound = (() => {
         .forEach(([f,o])=>tone(f,t+o,0.3,"triangle",0.22));
       noise(t+0.85,0.7,0.09,900); },
     startMusic() {
-      const c = ensure(); if (!c || musicNodes) return;
-      const master = c.createGain();
-      master.gain.value = S.musicOn ? MUSIC_BASE_GAIN * S.volume : 0.0001;
-      master.connect(c.destination);
-      let step = 0;
-      const tick = () => {
-        if (!musicNodes) return;
-        const t = c.currentTime;
-        const f = MELODY[step % MELODY.length];
-        // lead voice
-        const o = c.createOscillator(), g = c.createGain();
-        o.type = "triangle"; o.frequency.value = f;
-        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(1, t+0.18); g.gain.linearRampToValueAtTime(0.0001, t+0.52);
-        o.connect(g).connect(master); o.start(t); o.stop(t+0.56);
-        // soft octave-below shimmer
-        const o2 = c.createOscillator(), g2 = c.createGain();
-        o2.type = "sine"; o2.frequency.value = f/2;
-        g2.gain.setValueAtTime(0.0001, t); g2.gain.linearRampToValueAtTime(0.45, t+0.2); g2.gain.linearRampToValueAtTime(0.0001, t+0.5);
-        o2.connect(g2).connect(master); o2.start(t); o2.stop(t+0.54);
-        // bass on every 4th step
-        if (step % 4 === 0) {
-          const b = c.createOscillator(), gb = c.createGain();
-          b.type = "sine"; b.frequency.value = BASS[(step/4) % BASS.length];
-          gb.gain.setValueAtTime(0.0001, t); gb.gain.linearRampToValueAtTime(0.8, t+0.25); gb.gain.linearRampToValueAtTime(0.0001, t+1.6);
-          b.connect(gb).connect(master); b.start(t); b.stop(t+1.7);
-        }
-        step++;
-      };
-      const id = setInterval(tick, 430); tick();
-      musicNodes = { master, id };
+      if (musicMode !== "none") return;
+      if (MUSIC_URL && typeof Audio !== "undefined" && !streamFailed) {
+        try {
+          musicMode = "stream";
+          musicEl = new Audio(MUSIC_URL);
+          musicEl.loop = true; musicEl.preload = "auto";
+          musicEl.volume = S.musicOn ? Math.min(1, MUSIC_EL_VOL * S.volume) : 0;
+          musicEl.addEventListener("error", fallbackToSynth);
+          if (S.musicOn) {
+            const p = musicEl.play();
+            if (p && p.catch) p.catch(fallbackToSynth);
+          }
+          return;
+        } catch { fallbackToSynth(); return; }
+      }
+      startSynth();
     },
     setMusic(on) {
-      if (!musicNodes) { if (on) api.startMusic(); return; }
-      const c = ensure();
-      musicNodes.master.gain.setTargetAtTime(on ? MUSIC_BASE_GAIN * S.volume : 0.0001, c.currentTime, 0.1);
+      if (musicMode === "stream" && musicEl) {
+        if (on) { musicEl.volume = Math.min(1, MUSIC_EL_VOL * S.volume); const p = musicEl.play(); if (p && p.catch) p.catch(fallbackToSynth); }
+        else musicEl.pause();
+        return;
+      }
+      if (musicMode === "synth" && musicNodes) {
+        const c = ensure();
+        musicNodes.master.gain.setTargetAtTime(on ? MUSIC_BASE_GAIN * S.volume : 0.0001, c.currentTime, 0.1);
+        return;
+      }
+      if (on) api.startMusic();
     },
     applyVolume() { // v2 #10: live music volume; SFX pick it up per-note
+      if (musicMode === "stream" && musicEl) {
+        musicEl.volume = S.musicOn ? Math.min(1, MUSIC_EL_VOL * S.volume) : 0;
+        return;
+      }
       if (!musicNodes) return;
       const c = ensure();
       musicNodes.master.gain.setTargetAtTime(S.musicOn ? MUSIC_BASE_GAIN * S.volume : 0.0001, c.currentTime, 0.05);
+    },
+    /* v6: the real jungle intro, restarted from the top on every Memory entry */
+    jungleIntro() {
+      if (!S.soundOn) return;
+      if (typeof Audio === "undefined") { api.jungle(); return; }
+      try {
+        if (!jungleEl) { jungleEl = new Audio(JUNGLE_URL); jungleEl.preload = "auto"; jungleEl.addEventListener("error", () => { jungleEl = "failed"; }); }
+        if (jungleEl === "failed") { api.jungle(); return; }
+        jungleEl.volume = Math.min(1, 0.9 * S.volume);
+        jungleEl.currentTime = 0;
+        const p = jungleEl.play();
+        if (p && p.catch) p.catch(() => api.jungle());
+      } catch { api.jungle(); }
     },
   };
   return api;
@@ -482,6 +545,43 @@ function doReset() {
   toast("Progress reset");
 }
 
+/* ---------------- Sound options (v6) ----------------
+   One home button, one clear question: which sounds do you want? */
+function soundLabel() {
+  if (S.soundOn && S.speechOn) return "🔊 Sound On";
+  if (!S.soundOn && !S.speechOn) return "🔇 Sound Off";
+  return "🔉 Sound Mixed";
+}
+function openSoundModal() {
+  const back = el("div","modal-back");
+  const box = el("div","modal");
+  box.innerHTML = `
+    <p style="font-weight:800;margin:0 0 4px;color:#064e3b;font-size:18px">Sound options 🔊</p>
+    <p style="margin:0 0 12px;color:#065f46;font-size:13.5px">Choose what you'd like to hear. Music has its own button on the home screen.</p>`;
+  const row = (label, get, set) => {
+    const r = el("div","set-row");
+    r.innerHTML = `<span>${label}</span>`;
+    const b = el("button","switch"+(get()?" on":""), get()?"On":"Off");
+    b.onclick = () => { const nv = set(); b.classList.toggle("on", nv); b.textContent = nv?"On":"Off"; Sound.pop(); };
+    r.appendChild(b); return r;
+  };
+  box.append(
+    row("🎮 Game sounds", ()=>S.soundOn, ()=>{ S.soundOn=!S.soundOn; persist(); return S.soundOn; }),
+    row("🗣️ Spoken words", ()=>S.speechOn, ()=>{ S.speechOn=!S.speechOn; persist(); return S.speechOn; }),
+  );
+  const both = el("button","modal-opt", (S.soundOn||S.speechOn) ? "🔇 Turn both off" : "🔊 Turn both on");
+  both.onclick = () => {
+    const target = !(S.soundOn || S.speechOn);
+    S.soundOn = target; S.speechOn = target; persist();
+    back.remove(); render();
+  };
+  const done = el("button","modal-close","Done");
+  done.onclick = () => { back.remove(); render(); };   // re-render so the home label updates
+  back.onclick = (e)=>{ if (e.target===back){ back.remove(); render(); } };
+  box.append(both, done); back.appendChild(box);
+  document.getElementById("overlay").appendChild(back);
+}
+
 /* ---------------- Name capture (v4 personalisation) ---------------- */
 function openNameModal() {
   const back = el("div","modal-back");
@@ -543,7 +643,7 @@ function Home(root) {
     tap("🦁","Count!","How many animals?","tone-amber",()=>go("count")),
     tap("🍎","Sums!","Add them up","tone-violet",()=>go("sums")),
     tap("🦜","Words!","Build with letters","tone-sky",()=>go("word")),
-    tap("🦥","Memory!","Find the pairs","",()=>{ Sound.jungle(); go("memory"); }),
+    tap("🦥","Memory!","Find the pairs","",()=>go("memory")),
   );
   banner.appendChild(feats);
 
@@ -554,7 +654,7 @@ function Home(root) {
     ub("🗺️ Journey", ()=>go("journey")),
     ub("🟡 Sticker Book", ()=>go("stickers")),
     ub("⚙️ Settings", ()=>go("settings")),
-    ub(S.soundOn?"🔊 Sound On":"🔇 Sound Off", function(){ S.soundOn=!S.soundOn; persist(); this.textContent=S.soundOn?"🔊 Sound On":"🔇 Sound Off"; }, "btn-amber"),
+    ub(soundLabel(), openSoundModal, "btn-amber"),
     ub(S.musicOn?"🎵 Music On":"🎵 Music Off", function(){ S.musicOn=!S.musicOn; persist(); Sound.setMusic(S.musicOn); this.textContent=S.musicOn?"🎵 Music On":"🎵 Music Off"; }, "btn-amber"),
   );
   banner.appendChild(util);
@@ -936,7 +1036,7 @@ function MemoryMatch(root) {
   let pairsUsed = CAMPAIGN_SEQUENCE[S.mmCampaignIdx] || 2, timer = null;
   screenCleanup = () => clearTimer();                    // v2 #14: proper teardown
 
-  Sound.jungle();
+  Sound.jungleIntro();   // v6: the real jungle recording, from the top, every entry
   const page = el("div","page");
   const card = el("div","card game-card");
   card.innerHTML = `
