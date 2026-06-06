@@ -293,6 +293,39 @@ const Confetti = (() => {
   };
 })();
 
+/* ---------------- Leo the lion mascot (v3) ----------------
+   A persistent host who reacts: jumps on wins, wobbles on misses. */
+const Mascot = (() => {
+  let root = null, face = null, bubble = null, tmr = null;
+  function ensure() {
+    if (root) return;
+    root = el("div"); root.id = "mascot"; root.setAttribute("aria-hidden","true");
+    root.innerHTML = `<span class="m-bubble"></span><span class="m-face">🦁</span>`;
+    document.body.appendChild(root);
+    face = root.querySelector(".m-face");
+    bubble = root.querySelector(".m-bubble");
+  }
+  function react(cls, text, ms) {
+    ensure();
+    if (reduceMotion) cls = null;
+    face.classList.remove("m-cheer","m-oops","m-talk");
+    if (cls) { void face.offsetWidth; face.classList.add(cls); }
+    if (text) {
+      bubble.textContent = text;
+      bubble.classList.remove("show"); void bubble.offsetWidth; bubble.classList.add("show");
+    }
+    clearTimeout(tmr);
+    tmr = setTimeout(() => { bubble.classList.remove("show"); if (cls) face.classList.remove(cls); }, ms);
+  }
+  return {
+    ensure,
+    cheer: () => react("m-cheer", pick(["⭐","🎉","👏","💪","✨"]), 1100),
+    big:   (t) => react("m-cheer", t ?? "🎉🎉", 1900),
+    oops:  () => react("m-oops", pick(["💭","🤔"]), 900),
+    hello: () => react("m-talk", "👋", 1500),
+  };
+})();
+
 /* ---------------- Toasts / banners ---------------- */
 function flashBanner(cls, msg, ms=1100) {
   const layer = document.getElementById("overlay");
@@ -339,9 +372,9 @@ function addStar() {
 function loseStar() { S.stars = Math.max(0, S.stars-1); persist(); renderHUD(); }
 
 /* v2 #8: two tiers of celebration */
-function cheerSmall() { buzzHaptic(12); Confetti.burst(22); }
-function cheerBig(msg) { buzzHaptic(18); Confetti.start(150); if (msg) ribbon(msg, 1500); }
-function wrong() { buzzHaptic(40); Sound.error(); }
+function cheerSmall() { buzzHaptic(12); Confetti.burst(22); Mascot.cheer(); }
+function cheerBig(msg) { buzzHaptic(18); Confetti.start(150); if (msg) ribbon(msg, 1500); Mascot.big(); }
+function wrong() { buzzHaptic(40); Sound.error(); Mascot.oops(); }
 
 /* ---------------- HUD ---------------- */
 function renderHUD() {
@@ -409,6 +442,7 @@ function go(screen) { S.screen = screen; render(); }
 
 function render() {
   if (screenCleanup) { try { screenCleanup(); } catch {} screenCleanup = null; } // v2 #14
+  document.body.className = "t-" + (S.screen || "home");   // v3: per-screen mood tint
   renderHUD();
   const root = app(); root.innerHTML = "";
   ({ home:Home, count:CountGame, word:WordBuilder, memory:MemoryMatch, stickers:StickerBook, settings:Settings }[S.screen] || Home)(root);
@@ -421,16 +455,21 @@ function Home(root) {
   banner.innerHTML = `
     <h1 class="title-xl">How Many? 🌿</h1>
     <p class="sub">Count animals, build words, and play memory!</p>`;
+  /* v3: jungle scene dressing */
+  ["🌿","🍃","🌴"].forEach((g,i)=> banner.appendChild(el("span","deco d"+(i+1), g)));
+
+  /* v3: the whole card is one giant picture button — no reading required */
   const feats = el("div","features");
-  const card = (icon, title, text, tone, fn) => {
-    const c = el("div","feature-card");
-    c.innerHTML = `<div class="fc-emoji">${icon}</div><h3>${title}</h3><p>${text}</p>`;
-    const b = el("button","btn "+tone,"Open"); b.onclick = fn; c.appendChild(b); return c;
+  const tap = (icon, title, sub, tone, fn) => {
+    const b = el("button","feature-tap "+tone);
+    b.innerHTML = `<span class="ft-emoji">${icon}</span><span class="ft-title">${title}</span><span class="ft-sub">${sub}</span>`;
+    b.setAttribute("aria-label", title);
+    b.onclick = fn; return b;
   };
   feats.append(
-    card("🦁","Count Game","How many animals can you spot?","btn-amber",()=>go("count")),
-    card("🦜","Word Builder","Guided • Free • Decoy","btn-amber",()=>go("word")),
-    card("🦥","Memory Match","Campaign or Free Play","btn-green",()=>{ Sound.jungle(); go("memory"); }),
+    tap("🦁","Count!","How many animals?","tone-amber",()=>go("count")),
+    tap("🦜","Words!","Build with letters","tone-sky",()=>go("word")),
+    tap("🦥","Memory!","Find the pairs","",()=>{ Sound.jungle(); go("memory"); }),
   );
   banner.appendChild(feats);
 
@@ -590,9 +629,9 @@ function WordBuilder(root) {
     <div class="wb-bank" id="bank"></div>
     <div class="toolbar wb-toolbar">
       <div class="row" style="justify-content:space-between">
-        <button class="btn btn-ghost" id="wbHome">🏠 Home</button>
-        <button class="btn btn-green" id="wbSound">🔤 Sound it out</button>
-        <button class="btn btn-amber" id="wbHint">💡 Hint (-1⭐)</button>
+        <button class="btn btn-ghost wb-icon" id="wbHome" aria-label="Home">🏠</button>
+        <button class="btn btn-green" id="wbSound">🔤 Sounds</button>
+        <button class="btn btn-amber" id="wbHint">💡 Hint −1⭐</button>
       </div>
       <div class="row modes" id="modes"></div>
       <p class="wb-progress" id="wbProg"></p>
@@ -969,6 +1008,16 @@ function Settings(root) {
   });
   wlRow.appendChild(seg); sl.appendChild(wlRow);
 
+  /* v3: cloud account access lives here, away from little fingers */
+  const cloudRow = el("div","set-row"); cloudRow.innerHTML = `<span>☁️ Account & sync</span>`;
+  const cloudBtn = el("button","switch on","Open");
+  cloudBtn.onclick = () => {
+    const chip = document.getElementById("cloudChip");
+    if (chip) chip.click();
+    else toast("Cloud sync isn't set up yet");
+  };
+  cloudRow.appendChild(cloudBtn); sl.appendChild(cloudRow);
+
   const stats = S.wbStats;
   const info = el("div","set-stats");
   info.innerHTML = `<b>Your progress</b><br>
@@ -1008,6 +1057,8 @@ if ("serviceWorker" in navigator) {
 }
 
 render();
+Mascot.ensure();
+setTimeout(() => Mascot.hello(), 700);
 
 /* ---------------- Cloud sync (optional account) ---------------- */
 if (window.Cloud) Cloud.init("howmany", {
