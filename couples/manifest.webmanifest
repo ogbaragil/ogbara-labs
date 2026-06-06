@@ -3,7 +3,7 @@
   "short_name": "Couples S&L",
   "description": "The classic board remade for two, with love quests along the way.",
   "id": "/",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

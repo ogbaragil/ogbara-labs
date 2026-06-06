@@ -3,7 +3,7 @@
   "short_name": "Ogbara Labs",
   "description": "A tiny studio of joyful web apps.",
   "id": "/",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "browser",
   "background_color": "#101c16",
