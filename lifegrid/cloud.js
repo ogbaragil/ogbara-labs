@@ -164,7 +164,9 @@
           if (!data || !data.state) throw new Error("No cloud copy yet — back up first.");
           await applyState(data.state);
           localStorage.setItem(touchKey(), data.updated_at);
-          setStatus("idle"); return;
+          setStatus("idle");
+          if (hooks.onSynced) setTimeout(() => { try { hooks.onSynced(); } catch {} }, 0);
+          return;
         }
         // Merge-aware: reconcile field-by-field; never blindly replace either side.
         if (!data || !data.state) { await pushNow(); setStatus("idle"); return; }
@@ -172,7 +174,9 @@
         if (m.needsApply) await applyState(m.state);
         localStorage.setItem(touchKey(), data.updated_at);
         if (m.needsPush) await pushNow();
-        setStatus("idle"); return;
+        setStatus("idle");
+        if (hooks.onSynced) setTimeout(() => { try { hooks.onSynced(); } catch {} }, 0);
+        return;
       }
       // Legacy whole-document behaviour for apps without a merge hook
       if (data && data.state) {

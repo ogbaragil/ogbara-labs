@@ -293,6 +293,34 @@ const PhotoDB = (() => {
     del: (id) => tx("readwrite", s => s.delete(id)),
   };
 })();
+/* Photo reconciliation: state sync carries photo IDs, but the bytes travel
+   separately. After every sync, push any referenced photo the cloud doesn't
+   have yet (e.g. added while signed out) and pull any this device is missing. */
+const PUSHED_KEY = "lifegrid_photos_pushed_v1";
+const pushedSet = (() => { try { return new Set(JSON.parse(localStorage.getItem(PUSHED_KEY) || "[]")); } catch { return new Set(); } })();
+function markPushed(id) { pushedSet.add(id); try { localStorage.setItem(PUSHED_KEY, JSON.stringify([...pushedSet])); } catch {} }
+let photoSyncRunning = false;
+async function syncPhotos() {
+  if (photoSyncRunning || !window.Cloud || !Cloud.isSignedIn()) return;
+  photoSyncRunning = true;
+  try {
+    for (const m of months) {
+      for (const id of m.photoIds) {
+        if (pushedSet.has(id)) continue;
+        try {
+          const blob = await PhotoDB.get(id);
+          if (blob) {                                   // local has it → make sure the cloud does
+            if (await Cloud.uploadPhoto(id, blob)) markPushed(id);
+          } else {                                      // local missing → fetch from cloud
+            const remote = await Cloud.getPhoto(id);
+            if (remote) { await PhotoDB.put(id, remote); markPushed(id); }
+          }
+        } catch {}
+      }
+    }
+  } finally { photoSyncRunning = false; }
+}
+
 const photoURLCache = new Map();
 async function photoURL(id) {
   if (photoURLCache.has(id)) return photoURLCache.get(id);
@@ -568,7 +596,7 @@ async function importBackup(fileBlob) {
     try {
       const blob = await b64ToBlob(p.data, p.type);
       await PhotoDB.put(p.id, blob);
-      if (window.Cloud && Cloud.isSignedIn()) Cloud.uploadPhoto(p.id, blob);
+      if (window.Cloud && Cloud.isSignedIn()) Cloud.uploadPhoto(p.id, blob).then(ok => { if (ok) markPushed(p.id); });
     } catch {}
   }
   for (const [id, u] of photoURLCache) { try { URL.revokeObjectURL(u); } catch {} }
@@ -810,7 +838,7 @@ function renderMemories() {
     if (m.photoIds.length) {
       const img = document.createElement("img");
       img.className = "mem-photo"; img.alt = "";
-      photoURL(m.photoIds[0]).then(u => { if (u) img.src = u; });
+      photoURL(m.photoIds[0]).then(u => { if (u) img.src = u; else img.remove(); });
       card.appendChild(img);
     }
     card.onclick = () => openMemoryView(m);
@@ -958,7 +986,7 @@ function openMemoryView(m) {
   for (const id of m.photoIds) {
     const img = document.createElement("img");
     img.className = "mem-photo full"; img.alt = "";
-    photoURL(id).then(u => { if (u) img.src = u; });
+    photoURL(id).then(u => { if (u) img.src = u; else img.remove(); });
     scroll.appendChild(img);
   }
   back.appendChild(box);
@@ -1158,7 +1186,10 @@ async function openMonth(month) {
   box.querySelector("#mSave").onclick = async () => {
     // 1) commit new photos
     for (const p of pendingAdds) {
-      try { await PhotoDB.put(p.id, p.blob); if (window.Cloud) Cloud.uploadPhoto(p.id, p.blob); } catch {}
+      try {
+        await PhotoDB.put(p.id, p.blob);
+        if (window.Cloud) Cloud.uploadPhoto(p.id, p.blob).then(ok => { if (ok) markPushed(p.id); });
+      } catch {}
     }
     pendingAdds = [];
     // 2) delete originals the user removed in this session
@@ -1247,6 +1278,7 @@ function mergeStates(localS, remoteS) {
 if (window.Cloud) Cloud.init("lifegrid", {
   collect: () => ({ profile, months }),
   merge: mergeStates,
+  onSynced: () => { syncPhotos().then(() => render()); },   // re-render so freshly fetched photos appear
   apply: (st) => {
     if (st.profile && st.profile.name) { profile = st.profile; try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }catch{} }
     if (Array.isArray(st.months) && st.months.length === YEARS*MONTHS_PER_YEAR) {
