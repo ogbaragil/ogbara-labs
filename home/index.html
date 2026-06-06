@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101c16">
+<title>Ogbara Labs — playful apps for real life</title>
+<meta name="description" content="Ogbara Labs builds small, joyful web apps: learning games for kids, a life-in-months journal, and board games for two.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Albert+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101c16; --bg2:#16261d; --ink:#f4f1e6; --muted:#a8b8a8;
+    --lime:#cdf463; --mint:#8fe3b0; --peach:#ffb38a; --sky:#9ad7ff; --rose:#ffa3c2;
+    --card:#1b2c22; --line:rgba(244,241,230,.12);
+    --display:"Bricolage Grotesque", system-ui, sans-serif;
+    --body:"Albert Sans", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--body);
+    line-height:1.55; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  /* grain + glow atmosphere */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background:
+      radial-gradient(700px 460px at 85% -10%, rgba(205,244,99,.10), transparent 60%),
+      radial-gradient(640px 480px at -10% 30%, rgba(143,227,176,.08), transparent 60%),
+      radial-gradient(560px 420px at 60% 110%, rgba(255,179,138,.07), transparent 60%);
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 24px;}
+
+  /* Header */
+  header{display:flex; justify-content:space-between; align-items:center; padding:26px 0 0;}
+  .logo{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
+  .logo-mark{
+    width:42px; height:42px; border-radius:13px; background:var(--lime); color:#15240f;
+    display:grid; place-items:center; font-family:var(--display); font-weight:800; font-size:22px;
+    box-shadow:0 0 0 1px rgba(205,244,99,.4), 0 8px 24px rgba(205,244,99,.18);
+    transform:rotate(-6deg);
+  }
+  .logo-name{font-family:var(--display); font-weight:800; font-size:19px; letter-spacing:.2px;}
+  .logo-name small{display:block; font-family:var(--body); font-weight:500; font-size:11px; color:var(--muted); letter-spacing:2px; text-transform:uppercase;}
+  nav a{color:var(--muted); text-decoration:none; font-weight:500; font-size:15px; margin-left:22px; transition:color .2s;}
+  nav a:hover{color:var(--lime);}
+
+  /* Hero */
+  .hero{padding:84px 0 40px;}
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px; font-size:12.5px; letter-spacing:2.5px; text-transform:uppercase;
+    color:var(--mint); border:1px solid rgba(143,227,176,.35); padding:7px 14px; border-radius:999px; font-weight:700;
+  }
+  .eyebrow::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--lime); box-shadow:0 0 10px var(--lime); animation:blink 2.4s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{
+    font-family:var(--display); font-weight:800; margin:22px 0 0;
+    font-size:clamp(42px, 8vw, 84px); line-height:1.02; letter-spacing:-1.5px;
+  }
+  h1 .tilt{display:inline-block; color:var(--lime); transform:rotate(-2.5deg);}
+  h1 .outline{
+    color:transparent; -webkit-text-stroke:1.5px var(--ink);
+  }
+  .hero p{max-width:560px; color:var(--muted); font-size:clamp(16px,2.4vw,19px); margin:22px 0 0;}
+
+  /* marquee */
+  .marquee{margin:58px 0 0; border-block:1px solid var(--line); padding:13px 0; overflow:hidden; white-space:nowrap;}
+  .marquee-inner{display:inline-block; animation:slide 26s linear infinite; font-family:var(--display); font-weight:600; font-size:15px; letter-spacing:1px; color:var(--muted);}
+  .marquee-inner span{margin:0 26px;}
+  .marquee-inner em{font-style:normal; color:var(--lime);}
+  @keyframes slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+  /* App grid */
+  .apps{padding:64px 0 30px;}
+  .apps h2{font-family:var(--display); font-weight:800; font-size:clamp(26px,4vw,36px); letter-spacing:-.5px; margin:0 0 6px;}
+  .apps .sub{color:var(--muted); margin:0 0 34px; max-width:520px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:20px;}
+  .app-card{
+    position:relative; display:flex; flex-direction:column; gap:10px;
+    background:var(--card); border:1px solid var(--line); border-radius:24px; padding:26px 24px 22px;
+    text-decoration:none; color:var(--ink); overflow:hidden;
+    transition:transform .25s cubic-bezier(.2,.7,.3,1.2), border-color .25s, box-shadow .25s;
+  }
+  .app-card:hover{transform:translateY(-5px) rotate(-.4deg); border-color:var(--ac); box-shadow:0 18px 44px rgba(0,0,0,.4), 0 0 0 1px var(--ac);}
+  .app-card::before{
+    content:""; position:absolute; top:-46px; right:-46px; width:130px; height:130px; border-radius:50%;
+    background:var(--ac); opacity:.13; transition:opacity .25s, transform .35s;
+  }
+  .app-card:hover::before{opacity:.24; transform:scale(1.25);}
+  .app-emoji{font-size:42px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));}
+  .app-card h3{font-family:var(--display); font-weight:800; font-size:23px; margin:4px 0 0; letter-spacing:-.3px;}
+  .app-card p{margin:0; color:var(--muted); font-size:15px; flex:1;}
+  .app-meta{display:flex; justify-content:space-between; align-items:center; margin-top:14px;}
+  .pill{font-size:11.5px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; padding:5px 12px; border-radius:999px;}
+  .pill.live{background:rgba(205,244,99,.14); color:var(--lime); border:1px solid rgba(205,244,99,.4);}
+  .pill.soon{background:rgba(168,184,168,.1); color:var(--muted); border:1px solid var(--line);}
+  .go{font-family:var(--display); font-weight:600; font-size:14px; color:var(--ac); transition:transform .2s; display:inline-block;}
+  .app-card:hover .go{transform:translateX(4px);}
+  .app-card.disabled{pointer-events:none; opacity:.62;}
+  .domain{font-size:12.5px; color:var(--muted); opacity:.75; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+
+  /* About strip */
+  .about{margin:70px 0; padding:40px 36px; border-radius:28px; background:var(--bg2); border:1px solid var(--line);
+         display:grid; grid-template-columns:1.2fr .8fr; gap:34px; align-items:center;}
+  .about h2{font-family:var(--display); font-weight:800; font-size:clamp(24px,3.5vw,32px); margin:0 0 12px; letter-spacing:-.5px;}
+  .about p{color:var(--muted); margin:0; font-size:16px;}
+  .about-points{display:flex; flex-direction:column; gap:14px;}
+  .point{display:flex; gap:12px; align-items:flex-start; font-size:15px;}
+  .point b{color:var(--ink);}
+  .point .dot{flex:none; width:30px; height:30px; border-radius:10px; display:grid; place-items:center; font-size:15px; background:rgba(205,244,99,.12); border:1px solid rgba(205,244,99,.3);}
+
+  footer{padding:30px 0 44px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;}
+  footer p{margin:0; color:var(--muted); font-size:14px;}
+  footer .heart{color:var(--rose);}
+
+  @media (max-width:760px){
+    .about{grid-template-columns:1fr; padding:30px 24px;}
+    nav a{margin-left:14px; font-size:14px;}
+    .hero{padding:60px 0 30px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important; transition:none!important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <a class="logo" href="/">
+      <span class="logo-mark">O</span>
+      <span class="logo-name">Ogbara Labs<small>playful apps</small></span>
+    </a>
+    <nav>
+      <a href="#apps">Apps</a>
+      <a href="#about">About</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow">A tiny studio of joyful software</span>
+    <h1>Small apps,<br><span class="tilt">big smiles</span> —<br><span class="outline">made to be played.</span></h1>
+    <p>Ogbara Labs builds little web apps that install like real apps and work offline —
+       learning games for kids, a map of your whole life in months, and board games made for two.</p>
+  </section>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-inner">
+      <span>🦁 count it</span><span><em>★</em></span><span>🔤 spell it</span><span><em>★</em></span>
+      <span>🗓️ map your life</span><span><em>★</em></span><span>🎲 roll together</span><span><em>★</em></span>
+      <span>🐍 dodge the snakes</span><span><em>★</em></span><span>📲 installs offline</span><span><em>★</em></span>
+      <span>🦁 count it</span><span><em>★</em></span><span>🔤 spell it</span><span><em>★</em></span>
+      <span>🗓️ map your life</span><span><em>★</em></span><span>🎲 roll together</span><span><em>★</em></span>
+      <span>🐍 dodge the snakes</span><span><em>★</em></span><span>📲 installs offline</span><span><em>★</em></span>
+    </div>
+  </div>
+
+  <section class="apps" id="apps">
+    <h2>The apps</h2>
+    <p class="sub">Each one lives on its own little corner of the lab. Tap to open — add to your home screen and it's yours, even offline.</p>
+
+    <div class="grid">
+
+      <a class="app-card" style="--ac:var(--lime)" href="https://howmany.ogbaralabs.com">
+        <span class="app-emoji">🦁</span>
+        <h3>How Many?</h3>
+        <p>Count animals, build words, and play memory. A jungle of learning games for little kids — with stars, stickers and VIP levels.</p>
+        <div class="app-meta">
+          <span class="pill live">Live</span>
+          <span class="go">Play now →</span>
+        </div>
+        <span class="domain">howmany.ogbaralabs.com</span>
+      </a>
+
+      <a class="app-card disabled" style="--ac:var(--sky)" href="https://lifegrid.ogbaralabs.com">
+        <span class="app-emoji">🗓️</span>
+        <h3>Life Grid</h3>
+        <p>Your whole life, one month per cell. 90 years of memories — notes, tags, milestones and photos, all in one quiet map.</p>
+        <div class="app-meta">
+          <span class="pill soon">Coming soon</span>
+          <span class="go">→</span>
+        </div>
+        <span class="domain">lifegrid.ogbaralabs.com</span>
+      </a>
+
+      <a class="app-card disabled" style="--ac:var(--rose)" href="https://couples.ogbaralabs.com">
+        <span class="app-emoji">💞</span>
+        <h3>Couples Snakes &amp; Ladders</h3>
+        <p>The classic board, remade for two. Avatars, prompts along the way, and a final question waiting at square 100.</p>
+        <div class="app-meta">
+          <span class="pill soon">Coming soon</span>
+          <span class="go">→</span>
+        </div>
+        <span class="domain">couples.ogbaralabs.com</span>
+      </a>
+
+      <a class="app-card disabled" style="--ac:var(--peach)" href="https://supersnakes.ogbaralabs.com">
+        <span class="app-emoji">🐍</span>
+        <h3>Super Snakes</h3>
+        <p>Snakes &amp; ladders with the dial turned up. Wild boards, bigger slides, faster climbs.</p>
+        <div class="app-meta">
+          <span class="pill soon">Coming soon</span>
+          <span class="go">→</span>
+        </div>
+        <span class="domain">supersnakes.ogbaralabs.com</span>
+      </a>
+
+    </div>
+  </section>
+
+  <section class="about" id="about">
+    <div>
+      <h2>Why "Labs"?</h2>
+      <p>Because everything here starts as an experiment — a small idea built quickly, played with the people
+         it's for, and polished until it feels right. No accounts, no ads, no tracking. Your data stays on your device.</p>
+    </div>
+    <div class="about-points">
+      <div class="point"><span class="dot">📲</span><span><b>Real PWAs.</b> Install to your home screen from the browser.</span></div>
+      <div class="point"><span class="dot">✈️</span><span><b>Offline first.</b> Once loaded, they work without internet.</span></div>
+      <div class="point"><span class="dot">🔒</span><span><b>Private by design.</b> Progress is saved on your device only.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <p>© <span id="yr"></span> Ogbara Labs</p>
+    <p>Made with <span class="heart">❤</span> in Melbourne</p>
+  </footer>
+
+</div>
+<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+</body>
+</html>

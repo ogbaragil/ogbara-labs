@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c2541">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Life Grid">
+<title>Life Grid — your life in months</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#11182e; --panel:#1c2541; --panel2:#222d4f; --ink:#eef1f8; --muted:#9aa7c7;
+    --line:rgba(238,241,248,.1); --sky:#9ad7ff; --gold:#f5c66b; --rose:#ff8fa3; --mint:#9ce8c8;
+    --cell:#2a3458; --cell-filled:#9ad7ff; --cell-milestone:#f5c66b; --cell-future:#1a2240;
+    --display:"Fraunces", Georgia, serif; --body:"Public Sans", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{margin:0; font-family:var(--body); background:var(--bg); color:var(--ink); line-height:1.5;
+       min-height:100dvh; display:flex; flex-direction:column;
+       padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+  button,input,textarea{font-family:inherit;}
+  button{cursor:pointer; border:none;}
+  .wrap{flex:1; width:100%; max-width:720px; margin:0 auto; padding:18px 16px 24px; display:flex; flex-direction:column;}
+
+  h1.app{font-family:var(--display); font-weight:700; font-size:clamp(26px,6vw,34px); margin:4px 0 2px; letter-spacing:-.3px;}
+  .tagline{color:var(--muted); margin:0 0 18px; font-size:15px;}
+
+  /* Forms */
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:22px;}
+  label{display:block; font-weight:600; font-size:13.5px; color:var(--muted); margin:14px 0 6px; letter-spacing:.3px; text-transform:uppercase;}
+  input[type=text], input[type=number], textarea{
+    width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line);
+    border-radius:12px; padding:12px 14px; font-size:16px; outline:none; transition:border-color .2s;
+  }
+  input:focus, textarea:focus{border-color:var(--sky);}
+  textarea{resize:vertical; min-height:90px;}
+  .err{color:var(--rose); font-size:14px; margin:12px 0 0; font-weight:600;}
+  .btn{display:inline-block; border-radius:14px; padding:13px 20px; font-weight:700; font-size:16px; transition:transform .1s, opacity .2s;}
+  .btn:active{transform:translateY(2px);}
+  .btn-primary{background:var(--sky); color:#11182e; width:100%; margin-top:20px;}
+  .btn-soft{background:var(--panel2); color:var(--ink); border:1px solid var(--line);}
+  .btn-danger{background:transparent; color:var(--rose); border:1px solid rgba(255,143,163,.4);}
+  .row2{display:flex; gap:10px; margin-top:20px;}
+  .row2 .btn{flex:1;}
+
+  /* Grid screen header */
+  .head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .greet{font-family:var(--display); font-size:clamp(20px,5vw,26px); font-weight:700; margin:0;}
+  .sub{color:var(--muted); margin:4px 0 0; font-size:14px;}
+  .edit-btn{background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:9px 14px; font-weight:600; font-size:13.5px; white-space:nowrap;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin:14px 0 10px; font-size:12.5px; color:var(--muted);}
+  .legend span{display:flex; align-items:center; gap:6px;}
+  .swatch{width:13px; height:13px; border-radius:4px; background:var(--cell);}
+  .swatch.filled{background:var(--cell-filled);}
+  .swatch.mile{background:var(--cell-milestone);}
+  .swatch.today{background:transparent; border:2px solid var(--mint);}
+
+  /* The grid */
+  .grid-scroll{flex:1; overflow-y:auto; padding:6px 2px 10px; -webkit-overflow-scrolling:touch;}
+  .year-row{display:flex; align-items:center; gap:8px; margin-bottom:5px;}
+  .year-label{flex:none; width:44px; text-align:right; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; opacity:.85;}
+  .year-label.decade{color:var(--gold); font-weight:700; opacity:1;}
+  .months{display:grid; grid-template-columns:repeat(12,1fr); gap:4px; flex:1;}
+  .cell{aspect-ratio:1; border-radius:5px; background:var(--cell); border:none; padding:0; position:relative; transition:transform .1s;}
+  .cell:active{transform:scale(1.25); z-index:2;}
+  .cell.future{background:var(--cell-future); opacity:.55;}
+  .cell.filled{background:var(--cell-filled);}
+  .cell.milestone{background:var(--cell-milestone);}
+  .cell.today{box-shadow:0 0 0 2px var(--mint); }
+  .cell.haspic::after{content:""; position:absolute; right:1px; bottom:1px; width:5px; height:5px; border-radius:50%; background:#11182e; opacity:.75;}
+
+  .stats-strip{display:flex; gap:14px; margin:8px 0 4px; font-size:12.5px; color:var(--muted); flex-wrap:wrap;}
+  .stats-strip b{color:var(--ink);}
+
+  /* Month modal */
+  .modal-back{position:fixed; inset:0; background:rgba(10,14,28,.7); backdrop-filter:blur(3px); display:flex; align-items:flex-end; justify-content:center; z-index:50;}
+  @media(min-width:560px){ .modal-back{align-items:center;} }
+  .modal{background:var(--panel); width:100%; max-width:560px; max-height:90dvh; border-radius:24px 24px 0 0; padding:22px; display:flex; flex-direction:column; border:1px solid var(--line);}
+  @media(min-width:560px){ .modal{border-radius:24px;} }
+  .modal h2{font-family:var(--display); font-weight:700; margin:0 0 4px; font-size:24px;}
+  .modal .age{color:var(--muted); font-size:13.5px; margin:0 0 8px;}
+  .modal-scroll{flex:1; overflow-y:auto; margin:0 -6px; padding:0 6px;}
+  .photo-list{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px;}
+  .photo-wrap{position:relative; border-radius:12px; overflow:hidden; aspect-ratio:1; background:var(--panel2);}
+  .photo-wrap img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-x{position:absolute; top:5px; right:5px; width:24px; height:24px; border-radius:50%; background:rgba(10,14,28,.75); color:#fff; font-weight:700; font-size:13px; line-height:1;}
+  .add-photo{margin-top:10px; width:100%; padding:12px; border-radius:12px; background:var(--panel2); border:1px dashed var(--line); color:var(--muted); font-weight:600;}
+  .mile-toggle{margin-top:14px; width:100%; padding:13px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); color:var(--muted); font-weight:700;}
+  .mile-toggle.on{background:rgba(245,198,107,.15); border-color:var(--gold); color:var(--gold);}
+  .modal-actions{display:flex; gap:10px; margin-top:16px;}
+  .modal-actions .btn{flex:1;}
+  .btn-save{background:var(--sky); color:#11182e;}
+
+  .loading{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted);}
+  .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--sky); border-radius:50%; animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .footer{font-size:11.5px; color:#56618a; text-align:center; margin-top:10px;}
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important;} }
+</style>
+</head>
+<body>
+<div class="wrap" id="root"><div class="loading"><div class="spinner"></div>Loading your life map…</div></div>
+<script>
+"use strict";
+/* ===== Life Grid — your life in months (PWA) =====
+   Text data in localStorage; photos in IndexedDB (too large for localStorage). */
+
+const YEARS = 90, MONTHS_PER_YEAR = 12;
+const STORAGE_KEY = "life_map_months_v1";
+const PROFILE_KEY = "life_map_profile_v1";
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/* ---------- IndexedDB photo store ---------- */
+const PhotoDB = (() => {
+  let dbp = null;
+  function open() {
+    if (dbp) return dbp;
+    dbp = new Promise((res, rej) => {
+      const r = indexedDB.open("lifegrid-photos", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("photos");
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return dbp;
+  }
+  const tx = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction("photos", mode), s = t.objectStore("photos");
+      const out = fn(s);
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined);
+      t.onerror = () => rej(t.error);
+    });
+  };
+  return {
+    put: (id, blob) => tx("readwrite", s => s.put(blob, id)),
+    get: async (id) => { const db = await open(); return new Promise((res)=>{ const r = db.transaction("photos").objectStore("photos").get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>res(null); }); },
+    del: (id) => tx("readwrite", s => s.delete(id)),
+  };
+})();
+const photoURLCache = new Map();
+async function photoURL(id) {
+  if (photoURLCache.has(id)) return photoURLCache.get(id);
+  const blob = await PhotoDB.get(id);
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  photoURLCache.set(id, url);
+  return url;
+}
+
+/* ---------- Data ---------- */
+function createEmptyMonths() {
+  const months = [];
+  for (let y=0; y<YEARS; y++) for (let m=0; m<MONTHS_PER_YEAR; m++)
+    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", isMilestone:false, photoIds:[] });
+  return months;
+}
+let months = [];
+let profile = null; // {name, birthYear, birthMonthIndex}
+function loadAll() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      months = JSON.parse(raw).map(m => ({ ...m, photoIds: Array.isArray(m.photoIds) ? m.photoIds : [] }));
+      if (months.length !== YEARS*MONTHS_PER_YEAR) months = createEmptyMonths();
+    } else { months = createEmptyMonths(); saveMonths(); }
+  } catch { months = createEmptyMonths(); }
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || "null");
+    if (p && p.name && p.birthYear && typeof p.birthMonthIndex === "number") profile = p;
+  } catch {}
+}
+function saveMonths(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(months)); } catch (e) { alert("Couldn't save — storage may be full. Try removing some photos."); } }
+function saveProfile(){ try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {} }
+
+function currentAbsoluteIndex() {
+  if (!profile) return null;
+  const by = parseInt(profile.birthYear, 10);
+  if (isNaN(by)) return null;
+  const now = new Date();
+  const off = (now.getFullYear()-by)*12 + (now.getMonth()-profile.birthMonthIndex);
+  return (off >= 0 && off <= YEARS*12-1) ? off : null;
+}
+function labelFor(month) {
+  const by = parseInt(profile?.birthYear, 10);
+  if (!isNaN(by) && profile.birthMonthIndex != null) {
+    const abs = profile.birthMonthIndex + month.yearIndex*12 + month.monthIndex;
+    return `${MONTH_NAMES[abs%12]} ${by + Math.floor(abs/12)}`;
+  }
+  return `Year ${month.yearIndex+1}, ${MONTH_NAMES[month.monthIndex]}`;
+}
+
+/* ---------- Tiny DOM helpers ---------- */
+const root = document.getElementById("root");
+const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+
+/* ---------- Screens ---------- */
+function render() {
+  root.innerHTML = "";
+  if (!profile) renderForm();
+  else renderGrid();
+}
+
+function renderForm(editing=false) {
+  root.innerHTML = "";
+  root.append(el("h1","app", editing ? "Edit Profile" : "Life Grid"));
+  root.append(el("p","tagline", editing
+    ? "Update your name or birth details. This affects labels and the “today” marker."
+    : "Your life in months — 90 years, one cell each. Everything stays on your device."));
+  const card = el("div","card");
+  card.innerHTML = `
+    <label>Your name</label><input type="text" id="fName" placeholder="e.g. Gil" autocomplete="off">
+    <label>Birth month (1–12)</label><input type="number" id="fMonth" placeholder="e.g. 7" min="1" max="12">
+    <label>Birth year</label><input type="number" id="fYear" placeholder="e.g. 1995">
+    <div class="err" id="fErr" hidden></div>`;
+  const nameI = card.querySelector("#fName"), monI = card.querySelector("#fMonth"), yrI = card.querySelector("#fYear"), err = card.querySelector("#fErr");
+  if (editing && profile){ nameI.value=profile.name; monI.value=profile.birthMonthIndex+1; yrI.value=profile.birthYear; }
+  const submit = () => {
+    const name = nameI.value.trim(), mn = parseInt(monI.value,10), yr = parseInt(yrI.value,10);
+    const fail = (m)=>{ err.textContent=m; err.hidden=false; };
+    if (!name) return fail("Please enter your name.");
+    if (isNaN(mn)||mn<1||mn>12) return fail("Birth month must be a number between 1 and 12.");
+    if (isNaN(yr)||String(yrI.value).length<4) return fail("Birth year should be a 4-digit number (e.g. 1995).");
+    profile = { name, birthYear:String(yrI.value), birthMonthIndex:mn-1 };
+    saveProfile(); render();
+  };
+  if (editing) {
+    const row = el("div","row2");
+    const cancel = el("button","btn btn-soft","Cancel"); cancel.onclick = render;
+    const save = el("button","btn btn-save","Save"); save.onclick = submit;
+    row.append(cancel,save); card.appendChild(row);
+  } else {
+    const go = el("button","btn btn-primary","Continue to my life grid"); go.onclick = submit; card.appendChild(go);
+  }
+  root.appendChild(card);
+}
+
+function renderGrid() {
+  const cur = currentAbsoluteIndex();
+  const head = el("div","head");
+  const left = el("div");
+  left.append(el("h2","greet",`Hi ${profile.name} 👋`));
+  left.append(el("p","sub",`Born ${MONTH_NAMES[profile.birthMonthIndex]} ${profile.birthYear}. Tap a month to add a story.`));
+  const edit = el("button","edit-btn","Edit profile"); edit.onclick = () => renderForm(true);
+  head.append(left, edit);
+  root.appendChild(head);
+
+  // stats
+  const filled = months.filter(m => m.title||m.notes||m.tags||m.photoIds.length).length;
+  const miles = months.filter(m => m.isMilestone).length;
+  const lived = cur != null ? cur+1 : 0;
+  const stats = el("div","stats-strip",
+    `<span><b>${lived.toLocaleString()}</b> months lived</span>
+     <span><b>${filled}</b> with stories</span>
+     <span><b>${miles}</b> milestones</span>
+     <span><b>${(YEARS*12-lived).toLocaleString()}</b> still ahead ✨</span>`);
+  root.appendChild(stats);
+
+  root.appendChild(el("div","legend",
+    `<span><i class="swatch"></i>Empty</span>
+     <span><i class="swatch filled"></i>Story / photos</span>
+     <span><i class="swatch mile"></i>Milestone</span>
+     <span><i class="swatch today"></i>Today</span>`));
+
+  const scroll = el("div","grid-scroll");
+  const frag = document.createDocumentFragment();
+  const by = parseInt(profile.birthYear,10);
+  for (let y=0; y<YEARS; y++) {
+    const row = el("div","year-row");
+    const lbl = el("div","year-label" + (y%10===0 ? " decade":""), isNaN(by) ? `Y${y+1}` : String(by+y));
+    const mwrap = el("div","months");
+    for (let m=0; m<12; m++) {
+      const month = months[y*12+m];
+      const abs = y*12+m;
+      const has = month.title||month.notes||month.tags||month.photoIds.length;
+      let cls = "cell";
+      if (month.isMilestone) cls += " milestone";
+      else if (has) cls += " filled";
+      if (cur!=null && abs===cur) cls += " today";
+      if (cur!=null && abs>cur) cls += " future";
+      if (month.photoIds.length) cls += " haspic";
+      const c = el("button",cls);
+      c.setAttribute("aria-label", labelFor(month));
+      c.onclick = () => openMonth(month);
+      mwrap.appendChild(c);
+    }
+    row.append(lbl,mwrap); frag.appendChild(row);
+  }
+  scroll.appendChild(frag);
+  root.appendChild(scroll);
+  root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · data lives only on this device"));
+  // auto-scroll to today
+  if (cur != null) requestAnimationFrame(() => {
+    const rows = scroll.querySelectorAll(".year-row");
+    const r = rows[Math.floor(cur/12)];
+    if (r) r.scrollIntoView({ block:"center" });
+  });
+}
+
+async function openMonth(month) {
+  let photoIds = month.photoIds.slice();
+  let isMile = !!month.isMilestone;
+
+  const back = el("div","modal-back");
+  const box = el("div","modal");
+  box.innerHTML = `
+    <h2>${labelFor(month)}</h2>
+    <p class="age">Age ${month.yearIndex} · month ${month.monthIndex+1}</p>
+    <div class="modal-scroll">
+      <label>Title / story</label><input type="text" id="mTitle" placeholder="What happened this month?">
+      <label>Notes</label><textarea id="mNotes" placeholder="Details, reflections, lessons…"></textarea>
+      <label>Tags (comma separated)</label><input type="text" id="mTags" placeholder="career, love, health…">
+      <label>Photos</label>
+      <div class="photo-list" id="mPhotos"></div>
+      <button class="add-photo" id="mAdd">＋ Add a photo</button>
+      <input type="file" id="mFile" accept="image/*" hidden>
+      <button class="mile-toggle" id="mMile"></button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="mClear">Clear</button>
+      <button class="btn btn-soft" id="mCancel">Cancel</button>
+      <button class="btn btn-save" id="mSave">Save</button>
+    </div>`;
+  back.appendChild(box);
+  document.body.appendChild(back);
+  back.onclick = (e)=>{ if (e.target===back) back.remove(); };
+
+  const t = box.querySelector("#mTitle"), n = box.querySelector("#mNotes"), g = box.querySelector("#mTags");
+  t.value = month.title; n.value = month.notes; g.value = month.tags;
+  const mileBtn = box.querySelector("#mMile");
+  const paintMile = () => { mileBtn.className = "mile-toggle" + (isMile?" on":""); mileBtn.textContent = isMile ? "✓ Marked as milestone" : "Mark this month as a milestone"; };
+  paintMile();
+  mileBtn.onclick = () => { isMile = !isMile; paintMile(); };
+
+  const photosEl = box.querySelector("#mPhotos");
+  async function paintPhotos() {
+    photosEl.innerHTML = "";
+    for (const id of photoIds) {
+      const w = el("div","photo-wrap");
+      const img = document.createElement("img");
+      photoURL(id).then(u => { if (u) img.src = u; });
+      const x = el("button","photo-x","✕");
+      x.onclick = () => { photoIds = photoIds.filter(p=>p!==id); paintPhotos(); };
+      w.append(img,x); photosEl.appendChild(w);
+    }
+  }
+  paintPhotos();
+
+  const file = box.querySelector("#mFile");
+  box.querySelector("#mAdd").onclick = () => file.click();
+  file.onchange = async () => {
+    const f = file.files[0]; if (!f) return;
+    const blob = await downscale(f, 1280, 0.8);
+    const id = `${month.id}-${Date.now()}`;
+    await PhotoDB.put(id, blob);
+    photoIds.push(id); file.value = ""; paintPhotos();
+  };
+
+  box.querySelector("#mCancel").onclick = () => back.remove();
+  box.querySelector("#mSave").onclick = () => {
+    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, isMilestone:isMile, photoIds });
+    saveMonths(); back.remove(); render();
+  };
+  box.querySelector("#mClear").onclick = () => {
+    if (!confirm("Clear everything in this month?")) return;
+    photoIds.forEach(id => PhotoDB.del(id));
+    Object.assign(month, { title:"", notes:"", tags:"", isMilestone:false, photoIds:[] });
+    saveMonths(); back.remove(); render();
+  };
+}
+
+/* Downscale photos before storing so the DB stays light */
+function downscale(fileBlob, maxSide, quality) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(1, maxSide/Math.max(img.width, img.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(img.width*ratio); cv.height = Math.round(img.height*ratio);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => res(b || fileBlob), "image/jpeg", quality);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => res(fileBlob);
+    img.src = URL.createObjectURL(fileBlob);
+  });
+}
+
+/* ---------- Boot ---------- */
+loadAll();
+render();
+if ("serviceWorker" in navigator) addEventListener("load", ()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
