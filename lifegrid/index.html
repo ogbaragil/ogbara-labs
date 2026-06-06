@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1c2541">
+<meta name="theme-color" content="#f6f7f9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Life Grid">
 <title>Life Grid — your life in months</title>
@@ -15,9 +15,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#11182e; --panel:#1c2541; --panel2:#222d4f; --ink:#eef1f8; --muted:#9aa7c7;
-    --line:rgba(238,241,248,.1); --sky:#9ad7ff; --gold:#f5c66b; --rose:#ff8fa3; --mint:#9ce8c8;
-    --cell:#2a3458; --cell-filled:#9ad7ff; --cell-milestone:#f5c66b; --cell-future:#1a2240;
+    --bg:#f6f7f9; --panel:#ffffff; --panel2:#f1f2f5; --ink:#16181d; --muted:#74798a;
+    --line:#e4e6eb; --sky:#16181d; --gold:#d9a425; --rose:#e5484d; --mint:#21ba8b;
+    --cell:#1b1d23; --cell-filled:#f87171; --cell-milestone:#e3a008; --cell-future:#e7e9ee;
     --display:"Fraunces", Georgia, serif; --body:"Public Sans", system-ui, sans-serif;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -44,7 +44,7 @@
   .err{color:var(--rose); font-size:14px; margin:12px 0 0; font-weight:600;}
   .btn{display:inline-block; border-radius:14px; padding:13px 20px; font-weight:700; font-size:16px; transition:transform .1s, opacity .2s;}
   .btn:active{transform:translateY(2px);}
-  .btn-primary{background:var(--sky); color:#11182e; width:100%; margin-top:20px;}
+  .btn-primary{background:var(--ink); color:#fff; width:100%; margin-top:20px;}
   .btn-soft{background:var(--panel2); color:var(--ink); border:1px solid var(--line);}
   .btn-danger{background:transparent; color:var(--rose); border:1px solid rgba(255,143,163,.4);}
   .row2{display:flex; gap:10px; margin-top:20px;}
@@ -75,13 +75,13 @@
   .cell.filled{background:var(--cell-filled);}
   .cell.milestone{background:var(--cell-milestone);}
   .cell.today{box-shadow:0 0 0 2px var(--mint); }
-  .cell.haspic::after{content:""; position:absolute; right:1px; bottom:1px; width:5px; height:5px; border-radius:50%; background:#11182e; opacity:.75;}
+  .cell.haspic::after{content:""; position:absolute; right:1px; bottom:1px; width:5px; height:5px; border-radius:50%; background:#ffffff; opacity:.9;}
 
   .stats-strip{display:flex; gap:14px; margin:8px 0 4px; font-size:12.5px; color:var(--muted); flex-wrap:wrap;}
   .stats-strip b{color:var(--ink);}
 
   /* Month modal */
-  .modal-back{position:fixed; inset:0; background:rgba(10,14,28,.7); backdrop-filter:blur(3px); display:flex; align-items:flex-end; justify-content:center; z-index:70;}
+  .modal-back{position:fixed; inset:0; background:rgba(18,20,26,.45); backdrop-filter:blur(3px); display:flex; align-items:flex-end; justify-content:center; z-index:70;}
   @media(min-width:560px){ .modal-back{align-items:center;} }
   .modal{background:var(--panel); width:100%; max-width:560px; max-height:88dvh; border-radius:24px 24px 0 0;
          padding:22px 22px calc(22px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; border:1px solid var(--line);}
@@ -92,13 +92,13 @@
   .photo-list{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px;}
   .photo-wrap{position:relative; border-radius:12px; overflow:hidden; aspect-ratio:1; background:var(--panel2);}
   .photo-wrap img{width:100%; height:100%; object-fit:cover; display:block;}
-  .photo-x{position:absolute; top:5px; right:5px; width:24px; height:24px; border-radius:50%; background:rgba(10,14,28,.75); color:#fff; font-weight:700; font-size:13px; line-height:1;}
+  .photo-x{position:absolute; top:5px; right:5px; width:24px; height:24px; border-radius:50%; background:rgba(18,20,26,.7); color:#fff; font-weight:700; font-size:13px; line-height:1;}
   .add-photo{margin-top:10px; width:100%; padding:12px; border-radius:12px; background:var(--panel2); border:1px dashed var(--line); color:var(--muted); font-weight:600;}
   .mile-toggle{margin-top:14px; width:100%; padding:13px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); color:var(--muted); font-weight:700;}
-  .mile-toggle.on{background:rgba(245,198,107,.15); border-color:var(--gold); color:var(--gold);}
+  .mile-toggle.on{background:rgba(217,164,37,.14); border-color:var(--gold); color:var(--gold);}
   .modal-actions{display:flex; gap:10px; margin-top:16px;}
   .modal-actions .btn{flex:1;}
-  .btn-save{background:var(--sky); color:#11182e;}
+  .btn-save{background:var(--ink); color:#fff;}
 
   /* Tools row (backup / restore) */
   .tools{display:flex; gap:8px; margin:2px 0 8px; flex-wrap:wrap;}
@@ -121,22 +121,20 @@
   .memory-item .when{color:var(--muted); font-size:12px; display:block;}
 
   /* Backup nudge */
-  .nudge{background:rgba(245,198,107,.1); border:1px solid rgba(245,198,107,.35); border-radius:16px; padding:13px 16px; margin:0 0 12px; font-size:13.5px; color:var(--ink); display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+  .nudge{background:#fdf6e3; border:1px solid #ecd9a0; border-radius:16px; padding:13px 16px; margin:0 0 12px; font-size:13.5px; color:var(--ink); display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
   .nudge .n-act{display:flex; gap:8px;}
   .nudge button{border-radius:10px; padding:8px 12px; font-weight:700; font-size:12.5px;}
-  .nudge .n-go{background:var(--gold); color:#11182e;}
+  .nudge .n-go{background:var(--ink); color:#fff;}
   .nudge .n-no{background:transparent; color:var(--muted); border:1px solid var(--line);}
 
   /* Styled confirm + install button */
   .confirm-msg{margin:0 0 16px; font-size:15px;}
-  #installBtn{position:fixed; right:14px; bottom:16px; z-index:60; background:var(--sky); color:#11182e; border-radius:999px; padding:10px 18px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  #installBtn{position:fixed; right:14px; bottom:16px; z-index:60; background:var(--ink); color:#fff; border-radius:999px; padding:10px 18px; font-weight:700; box-shadow:0 6px 18px rgba(20,22,28,.22);}
 
   /* Whole-life overview (v3): the entire grid on one screen, tap to zoom */
   .head-btns{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
-  .ov-wrap{flex:1; min-height:0; display:flex; gap:8px; margin-top:10px;}
-  .ov-rail{position:relative; width:26px; flex:none;}
-  .ov-rail span{position:absolute; right:2px; transform:translateY(-50%); font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums;}
-  .ov-rail span.gold{color:var(--gold); font-weight:700;}
+  .ov-wrap{margin-top:14px;}
+  .stat-line{margin:0 0 4px;}
   .ov-grid{display:grid; grid-template-columns:repeat(48, var(--c, 5px)); grid-auto-rows:var(--c, 5px); gap:1px;
            align-content:start; cursor:zoom-in; transition:transform .35s ease, opacity .32s ease; will-change:transform;}
   .ov-grid.zoom{transform:scale(4); opacity:0;}
@@ -146,26 +144,26 @@
   .ov-cell.milestone{background:var(--cell-milestone);}
   .ov-cell.today{background:var(--mint); animation:ovPulse 2.2s ease-in-out infinite;}
   .ov-cell.pre{background:var(--cell-future);}
-  @keyframes ovPulse{0%,100%{box-shadow:0 0 0 0 rgba(156,232,200,.7);} 50%{box-shadow:0 0 0 3px rgba(156,232,200,0);}}
+  @keyframes ovPulse{0%,100%{box-shadow:0 0 0 0 rgba(33,186,139,.65);} 50%{box-shadow:0 0 0 3px rgba(33,186,139,0);}}
   .ov-hint{text-align:center; color:var(--muted); font-size:12px; margin:10px 0 0;}
   .year-row{border-radius:8px;}
   .year-row.flash{animation:rowFlash 1.4s ease both;}
-  @keyframes rowFlash{0%{background:rgba(245,198,107,.22);} 100%{background:transparent;}}
+  @keyframes rowFlash{0%{background:rgba(217,164,37,.2);} 100%{background:transparent;}}
 
   /* v4: bottom tab navigation */
   .wrap{padding-bottom:84px;}
-  .tabbar{position:fixed; left:0; right:0; bottom:0; z-index:55; background:rgba(28,37,65,.97);
+  .tabbar{position:fixed; left:0; right:0; bottom:0; z-index:55; background:rgba(255,255,255,.96);
           border-top:1px solid var(--line); display:flex; backdrop-filter:blur(8px);
           padding-bottom:env(safe-area-inset-bottom);}
   .tab-item{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
             padding:10px 0 8px; background:transparent; color:var(--muted); font-size:11px; font-weight:600;}
   .tab-item svg{display:block;}
-  .tab-item.active{color:var(--sky);}
+  .tab-item.active{color:var(--ink);}
 
   /* v4: floating zoom button */
   #zoomFab{position:fixed; right:14px; bottom:calc(74px + env(safe-area-inset-bottom)); z-index:56;
-           width:54px; height:54px; border-radius:50%; background:var(--sky); color:#11182e;
-           font-size:28px; font-weight:700; line-height:1; box-shadow:0 8px 22px rgba(0,0,0,.45);
+           width:54px; height:54px; border-radius:50%; background:var(--ink); color:#fff;
+           font-size:28px; font-weight:700; line-height:1; box-shadow:0 8px 22px rgba(20,22,28,.25);
            display:grid; place-items:center;}
   #zoomFab:active{transform:scale(.92);}
   #installBtn{bottom:calc(140px + env(safe-area-inset-bottom));}
@@ -198,7 +196,7 @@
   .progress-card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; text-align:center;}
   .progress-card h3{font-family:var(--display); margin:0 0 12px; font-size:18px;}
   .pbar{height:8px; border-radius:999px; background:var(--panel2); overflow:hidden;}
-  .pbar span{display:block; height:100%; background:var(--sky); border-radius:999px;}
+  .pbar span{display:block; height:100%; background:var(--ink); border-radius:999px;}
   .pbar-lab{color:var(--muted); font-size:13px; margin:10px 0 0;}
   .action-list{margin-top:14px;}
   .action-row{display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left;
@@ -216,11 +214,11 @@
           padding:12px 14px; color:var(--ink);}
   .wk-row .wk-lab{flex:none; font-weight:700; font-size:13px; color:var(--muted); width:54px;}
   .wk-row .wk-prev{flex:1; font-size:13.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .wk-row.has{border-color:rgba(154,215,255,.45);}
+  .wk-row.has{border-color:rgba(248,113,113,.55);}
   .wk-row.has .wk-prev{color:var(--ink);}
   .wk-row .go{flex:none; color:var(--muted);}
   .reflect-btn{display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%;
-               background:var(--panel); border:1px solid rgba(154,215,255,.4); border-radius:14px;
+               background:var(--panel); border:1.5px solid var(--ink); border-radius:14px;
                padding:13px 16px; margin:0 0 10px; color:var(--ink); font-weight:700; font-size:14.5px; text-align:left;}
   .reflect-btn .r-sub{color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap;}
   .week-ta{width:100%; box-sizing:border-box; background:var(--panel2); color:var(--ink);
@@ -232,9 +230,9 @@
   #cloudChip{display:none !important;}
 
   .loading{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted);}
-  .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--sky); border-radius:50%; animation:spin .8s linear infinite;}
+  .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .footer{font-size:11.5px; color:#56618a; text-align:center; margin-top:10px;}
+  .footer{font-size:11.5px; color:#9aa0ae; text-align:center; margin-top:10px;}
   @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important;} }
 </style>
 </head>
@@ -616,16 +614,20 @@ function reflectButton() {
 /* ---- Whole-life view: 90 years on one screen, tap anywhere to zoom ---- */
 function renderLife() {
   const cur = currentAbsoluteIndex();
-  const head = el("div","head");
-  const left = el("div");
-  left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
-  left.append(el("p","sub","Your whole life on one screen. Tap anywhere — or ＋ — to zoom in."));
-  head.append(left);
-  root.appendChild(head);
+  const lived = cur != null ? cur+1 : 0;
+  const by = parseInt(profile.birthYear,10);
+  const birthDate = new Date(by, profile.birthMonthIndex, 1);
+  const weeksLived = Math.max(0, Math.floor((Date.now() - birthDate.getTime())/(7*864e5)));
+  const pct = (lived/(YEARS*12)*100).toFixed(1);
+  const filled = months.filter(monthHasContent).length;
+  root.appendChild(el("h1","tab-title","Life in Weeks"));
+  root.appendChild(el("p","tab-sub stat-line",
+    `${weeksLived.toLocaleString()} weeks lived (${pct}% of ${YEARS} years)`));
+  root.appendChild(el("p","tab-sub stat-line",
+    `${filled} ${filled===1?"memory":"memories"} recorded`));
   const rb = reflectButton(); if (rb) root.appendChild(rb);
 
   // backup nudge lives on the grid tab, where it'll be seen
-  const filled = months.filter(monthHasContent).length;
   const signedIn = !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn());
   if (filled >= 5 && !signedIn && localStorage.getItem(NUDGE_KEY) !== "1") {
     const nudge = el("div","nudge");
@@ -640,7 +642,6 @@ function renderLife() {
   }
 
   const wrap = el("div","ov-wrap");
-  const rail = el("div","ov-rail");
   const grid = el("div","ov-grid");
   const reveal = sessionStorage.getItem(REVEAL_KEY) === "1";
   /* Weeks grid: 48 cells per year — 4 per month, aligned exactly to the data.
@@ -666,28 +667,19 @@ function renderLife() {
     }
   }
   grid.appendChild(frag);
-  wrap.append(rail, grid);
+  wrap.append(grid);
   root.appendChild(wrap);
-  root.appendChild(el("p","ov-hint","each square is one week · milestones glow gold · mint = this week"));
 
   // size the cells so all 90 years fit the available space, no scrolling.
   // Derive height from the viewport, not the flex box — some webviews (iOS
   // in-app browsers) let ov-wrap stretch to its content, which made the grid
   // a 2,400px scrolling strip. Double-rAF so layout has settled first.
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const top = wrap.getBoundingClientRect().top;
-    const viewportH = Math.max(320, (window.innerHeight || 640) - top - 110); // 110 ≈ tab bar + hint line
-    const boxH = wrap.clientHeight || viewportH;
-    const h = Math.min(boxH > 0 ? boxH : viewportH, viewportH);
+    // Width-first: the grid spans the full width like the reference design.
+    // 90 rows then take whatever height they need; the page scrolls if taller.
     const w = wrap.clientWidth || 340;
-    const cell = Math.max(3, Math.floor(Math.min((h - (YEARS-1)) / YEARS, (w - 26 - 8 - 47) / 48)));
+    const cell = Math.max(4, Math.min(12, Math.floor((w - 47) / 48)));
     grid.style.setProperty("--c", cell + "px");
-    rail.innerHTML = "";
-    for (let d = 0; d < YEARS; d += 10) {
-      const lab = el("span", d % 20 === 0 ? "gold" : "", String(d));   // age, not year
-      lab.style.top = (d * (cell+1) + cell/2) + "px";
-      rail.appendChild(lab);
-    }
     // first-run reveal: lived months sweep in year by year
     if (reveal) {
       try { sessionStorage.removeItem(REVEAL_KEY); } catch {}
@@ -735,7 +727,7 @@ function renderMemories() {
       const what = m.title || (m.notes ? m.notes.slice(0,60)+(m.notes.length>60?"…":"") : `${m.photoIds.length} photo${m.photoIds.length===1?"":"s"}`);
       const item = el("button","memory-item",
         `<span class="when">${esc(labelFor(m))} · ${yearsAgo} year${yearsAgo===1?"":"s"} ago</span>${esc(what)}`);
-      item.onclick = () => openMonth(m);
+      item.onclick = () => openMemoryView(m);
       card.appendChild(item);
     }
     root.appendChild(card);
@@ -778,7 +770,7 @@ function renderMemories() {
       photoURL(m.photoIds[0]).then(u => { if (u) img.src = u; });
       card.appendChild(img);
     }
-    card.onclick = () => openMonth(m);
+    card.onclick = () => openMemoryView(m);
     list.appendChild(card);
   }
   if (!shown) {
@@ -860,18 +852,87 @@ function renderProfile() {
     }),
     impFile,
   );
+  const resetRow = el("button","action-row",`<span style="color:var(--rose)">Reset all data</span><span class="go">›</span>`);
+  resetRow.onclick = async () => {
+    const yes = await confirmDialog(
+      "This permanently deletes your profile and every story, reflection and photo on this device. If you're signed in, your cloud copy will be replaced by the empty state. This cannot be undone.",
+      "Delete everything");
+    if (!yes) return;
+    for (const m of months) if (m.photoIds.length || monthHasContent(m)) await deleteMonthData(m);
+    try {
+      localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(PROFILE_KEY);
+      localStorage.removeItem(NUDGE_KEY); localStorage.removeItem(VIEW_KEY); localStorage.removeItem(TAB_KEY);
+    } catch {}
+    months = createEmptyMonths(); profile = null; activeTag = null;
+    setView("life"); setTab("grid");
+    render();
+  };
+  actions.appendChild(resetRow);
   root.appendChild(actions);
   root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · works offline"));
 }
 
+/* ---- Memory view (v6): tap a memory to expand it; edit or delete from there ---- */
+async function deleteMonthData(m) {
+  for (const id of m.photoIds) {
+    try { await PhotoDB.del(id); } catch {}
+    try { if (window.Cloud && Cloud.deletePhoto) Cloud.deletePhoto(id); } catch {}
+    if (photoURLCache.has(id)) { try { URL.revokeObjectURL(photoURLCache.get(id)); } catch {} photoURLCache.delete(id); }
+  }
+  Object.assign(m, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[] });
+  saveMonths();
+}
+function openMemoryView(m) {
+  const abs = months.indexOf(m);
+  const ageY = Math.floor(abs/12), ageM = abs%12;
+  const back = el("div","modal-back");
+  const box = el("div","modal");
+  box.innerHTML = `
+    <h2>${esc(m.title || labelFor(m))}</h2>
+    <p class="age">Month ${abs+1} • ${esc(labelFor(m))}</p>
+    <p class="age">Age ${ageY} years, ${ageM} month${ageM===1?"":"s"}${m.isMilestone ? " • ★ milestone" : ""}</p>
+    <div class="modal-scroll" id="mvScroll"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="mvDel">Delete</button>
+      <button class="btn btn-soft" id="mvEdit">Edit</button>
+      <button class="btn btn-save" id="mvClose">Close</button>
+    </div>`;
+  const scroll = box.querySelector("#mvScroll");
+  if (m.notes) {
+    const p = el("p"); p.style.whiteSpace = "pre-wrap"; p.style.lineHeight = "1.6";
+    p.textContent = m.notes; scroll.appendChild(p);
+  }
+  const wk = (m.weeks||[]).map((w,i)=>({w,i})).filter(x=>x.w && x.w.trim());
+  for (const {w,i} of wk) {
+    const p = el("p"); p.style.whiteSpace = "pre-wrap"; p.style.lineHeight = "1.55";
+    const b = document.createElement("b"); b.textContent = `Week ${i+1}: `;
+    p.appendChild(b); p.appendChild(document.createTextNode(w));
+    scroll.appendChild(p);
+  }
+  for (const id of m.photoIds) {
+    const img = document.createElement("img");
+    img.className = "mem-photo"; img.alt = "";
+    photoURL(id).then(u => { if (u) img.src = u; });
+    scroll.appendChild(img);
+  }
+  back.appendChild(box);
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.onclick = (e) => { if (e.target === back) close(); };
+  box.querySelector("#mvClose").onclick = close;
+  box.querySelector("#mvEdit").onclick = () => { close(); openMonth(m); };
+  box.querySelector("#mvDel").onclick = async () => {
+    const yes = await confirmDialog("Delete this memory? The story, reflections and photos for this month will be removed permanently.", "Delete");
+    if (!yes) return;
+    await deleteMonthData(m);
+    close(); render();
+  };
+}
+
 function renderGrid() {
   const cur = currentAbsoluteIndex();
-  const head = el("div","head");
-  const left = el("div");
-  left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
-  left.append(el("p","sub","Tap a month to add a story. − zooms back out."));
-  head.append(left);
-  root.appendChild(head);
+  root.appendChild(el("h1","tab-title","Life in Months"));
+  root.appendChild(el("p","tab-sub","Tap a month to add a story"));
   const rb2 = reflectButton(); if (rb2) root.appendChild(rb2);
 
 
