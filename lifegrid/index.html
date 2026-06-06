@@ -27,7 +27,7 @@
        padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
   button,input,textarea{font-family:inherit;}
   button{cursor:pointer; border:none;}
-  .wrap{flex:1; width:100%; max-width:720px; margin:0 auto; padding:18px 16px 24px; display:flex; flex-direction:column;}
+  .wrap{flex:1; width:100%; max-width:720px; margin:0 auto; padding:8px 16px 24px; display:flex; flex-direction:column;}
 
   h1.app{font-family:var(--display); font-weight:700; font-size:clamp(26px,6vw,34px); margin:4px 0 2px; letter-spacing:-.3px;}
   .tagline{color:var(--muted); margin:0 0 18px; font-size:15px;}
@@ -133,9 +133,9 @@
 
   /* Whole-life overview (v3): the entire grid on one screen, tap to zoom */
   .head-btns{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
-  .ov-wrap{margin-top:14px;}
-  .stat-line{margin:0 0 4px;}
+  .ov-wrap{margin-top:10px;}
   .ov-grid{display:grid; grid-template-columns:repeat(48, var(--c, 5px)); grid-auto-rows:var(--c, 5px); gap:1px;
+           width:max-content; margin:0 auto;
            align-content:start; cursor:zoom-in; transition:transform .35s ease, opacity .32s ease; will-change:transform;}
   .ov-grid.zoom{transform:scale(4); opacity:0;}
   .ov-cell{background:var(--cell-future); border-radius:1.5px;}
@@ -169,8 +169,9 @@
   #installBtn{bottom:calc(140px + env(safe-area-inset-bottom));}
 
   /* v4: tab headers */
-  .tab-title{font-family:var(--display); font-weight:700; font-size:26px; text-align:center; margin:8px 0 2px;}
-  .tab-sub{text-align:center; color:var(--muted); font-size:14px; margin:0 0 16px;}
+  .tab-title{font-family:var(--display); font-weight:700; font-size:24px; text-align:center; margin:2px 0 2px;}
+  .tab-sub{text-align:center; color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .stat-line{margin:0 0 3px;}
 
   /* v4: memories list */
   .mem-card{display:block; width:100%; text-align:left; background:var(--panel); border:1px solid var(--line);
@@ -219,7 +220,7 @@
   .wk-row .go{flex:none; color:var(--muted);}
   .reflect-btn{display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%;
                background:var(--panel); border:1.5px solid var(--ink); border-radius:14px;
-               padding:13px 16px; margin:0 0 10px; color:var(--ink); font-weight:700; font-size:14.5px; text-align:left;}
+               padding:11px 16px; margin:6px 0 8px; color:var(--ink); font-weight:700; font-size:14.5px; text-align:left;}
   .reflect-btn .r-sub{color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap;}
   .week-ta{width:100%; box-sizing:border-box; background:var(--panel2); color:var(--ink);
            border:1px solid var(--line); border-radius:14px; padding:14px; font-size:16px;
@@ -615,14 +616,11 @@ function reflectButton() {
 function renderLife() {
   const cur = currentAbsoluteIndex();
   const lived = cur != null ? cur+1 : 0;
-  const by = parseInt(profile.birthYear,10);
-  const birthDate = new Date(by, profile.birthMonthIndex, 1);
-  const weeksLived = Math.max(0, Math.floor((Date.now() - birthDate.getTime())/(7*864e5)));
   const pct = (lived/(YEARS*12)*100).toFixed(1);
   const filled = months.filter(monthHasContent).length;
-  root.appendChild(el("h1","tab-title","Life in Weeks"));
+  root.appendChild(el("h1","tab-title","Your Life's Grid"));
   root.appendChild(el("p","tab-sub stat-line",
-    `${weeksLived.toLocaleString()} weeks lived (${pct}% of ${YEARS} years)`));
+    `${lived.toLocaleString()} months lived (${pct}% of ${YEARS} years)`));
   root.appendChild(el("p","tab-sub stat-line",
     `${filled} ${filled===1?"memory":"memories"} recorded`));
   const rb = reflectButton(); if (rb) root.appendChild(rb);
