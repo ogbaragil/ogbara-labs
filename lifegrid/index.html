@@ -137,7 +137,7 @@
   .ov-rail{position:relative; width:26px; flex:none;}
   .ov-rail span{position:absolute; right:2px; transform:translateY(-50%); font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums;}
   .ov-rail span.gold{color:var(--gold); font-weight:700;}
-  .ov-grid{display:grid; grid-template-columns:repeat(12, var(--c, 7px)); grid-auto-rows:var(--c, 7px); gap:1px;
+  .ov-grid{display:grid; grid-template-columns:repeat(48, var(--c, 5px)); grid-auto-rows:var(--c, 5px); gap:1px;
            align-content:start; cursor:zoom-in; transition:transform .35s ease, opacity .32s ease; will-change:transform;}
   .ov-grid.zoom{transform:scale(4); opacity:0;}
   .ov-cell{background:var(--cell-future); border-radius:1.5px;}
@@ -567,22 +567,32 @@ function renderLife() {
   const rail = el("div","ov-rail");
   const grid = el("div","ov-grid");
   const reveal = sessionStorage.getItem(REVEAL_KEY) === "1";
+  /* Weeks grid: 48 cells per year — 4 per month, aligned exactly to the data.
+     A week-cell lights up for its own weekly note, or for month-level content. */
+  const WPY = 48;
+  const curWeekOfMonth = Math.min(3, Math.floor((new Date().getDate()-1)/7));
   const frag = document.createDocumentFragment();
-  for (let abs = 0; abs < YEARS*12; abs++) {
-    const m = months[abs];
-    let cls = "ov-cell";
-    if (cur != null && abs === cur) cls += " today";
-    else if (m.isMilestone) cls += " milestone";
-    else if (monthHasContent(m)) cls += " filled";
-    else if (cur != null && abs < cur) cls += " lived";
-    const c = el("div", cls);
-    if (reveal && cur != null && abs <= cur) c.classList.add("pre");
-    frag.appendChild(c);
+  for (let y = 0; y < YEARS; y++) {
+    for (let w = 0; w < WPY; w++) {
+      const abs = y*12 + Math.floor(w/4);
+      const wk = w % 4;
+      const m = months[abs];
+      const weekNote = !!(m.weeks && m.weeks[wk] && m.weeks[wk].trim());
+      const monthCore = !!(m.title || m.notes || m.tags || m.photoIds.length);  // month-level only
+      let cls = "ov-cell";
+      if (cur != null && abs === cur && wk === curWeekOfMonth) cls += " today";
+      else if (m.isMilestone) cls += " milestone";
+      else if (weekNote || monthCore) cls += " filled";
+      else if (cur != null && (abs < cur || (abs === cur && wk < curWeekOfMonth))) cls += " lived";
+      const c = el("div", cls);
+      if (reveal && cur != null && abs <= cur) c.classList.add("pre");
+      frag.appendChild(c);
+    }
   }
   grid.appendChild(frag);
   wrap.append(rail, grid);
   root.appendChild(wrap);
-  root.appendChild(el("p","ov-hint","▦ milestones glow gold · the mint dot is today"));
+  root.appendChild(el("p","ov-hint","each square is one week · milestones glow gold · mint = this week"));
 
   // size the cells so all 90 years fit the available space, no scrolling.
   // Derive height from the viewport, not the flex box — some webviews (iOS
@@ -594,7 +604,7 @@ function renderLife() {
     const boxH = wrap.clientHeight || viewportH;
     const h = Math.min(boxH > 0 ? boxH : viewportH, viewportH);
     const w = wrap.clientWidth || 340;
-    const cell = Math.max(3, Math.floor(Math.min((h - (YEARS-1)) / YEARS, (w - 26 - 8 - 11) / 12)));
+    const cell = Math.max(3, Math.floor(Math.min((h - (YEARS-1)) / YEARS, (w - 26 - 8 - 47) / 48)));
     grid.style.setProperty("--c", cell + "px");
     rail.innerHTML = "";
     for (let d = 0; d < YEARS; d += 10) {
@@ -609,7 +619,7 @@ function renderLife() {
       const lastYear = cur != null ? Math.floor(cur/12) : 0;
       for (let y = 0; y <= lastYear; y++) {
         setTimeout(() => {
-          for (let m = 0; m < 12; m++) { const c = cells[y*12+m]; if (c) c.classList.remove("pre"); }
+          for (let w = 0; w < 48; w++) { const c = cells[y*48+w]; if (c) c.classList.remove("pre"); }
         }, 80 + y * 14);
       }
     }
