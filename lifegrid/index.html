@@ -304,13 +304,14 @@ const EMPTY_WEEKS = () => ["","","",""];
 function createEmptyMonths() {
   const months = [];
   for (let y=0; y<YEARS; y++) for (let m=0; m<MONTHS_PER_YEAR; m++)
-    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[] });
+    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[], updatedAt:0 });
   return months;
 }
 const normalizeMonth = (m) => ({
   ...m,
   photoIds: Array.isArray(m.photoIds) ? m.photoIds : [],
   weeks: (Array.isArray(m.weeks) && m.weeks.length === 4) ? m.weeks.map(w=>String(w??"")) : EMPTY_WEEKS(),
+  updatedAt: Number(m.updatedAt) || 0,   // per-month clock for cross-device merge
 });
 let months = [];
 let profile = null; // {name, birthYear, birthMonthIndex}
@@ -412,7 +413,7 @@ function renderForm(editing=false) {
     if (!name) return fail("Please enter your name.");
     if (isNaN(mn)||mn<1||mn>12) return fail("Birth month must be a number between 1 and 12.");
     if (isNaN(yr)||String(yrI.value).length<4) return fail("Birth year should be a 4-digit number (e.g. 1995).");
-    profile = { name, birthYear:String(yrI.value), birthMonthIndex:mn-1 };
+    profile = { name, birthYear:String(yrI.value), birthMonthIndex:mn-1, updatedAt:Date.now() };
     try { sessionStorage.setItem(REVEAL_KEY, "1"); } catch {}
     setView("life");
     saveProfile(); render();
@@ -549,8 +550,9 @@ async function importBackup(fileBlob) {
   }
   for (const [id, u] of photoURLCache) { try { URL.revokeObjectURL(u); } catch {} }
   photoURLCache.clear();
-  profile = data.profile;
-  months = data.months.map(m => normalizeMonth({ title:"", notes:"", tags:"", isMilestone:false, ...m }));
+  const restoreStamp = Date.now();   // an explicit restore is the user's newest intent — it wins the merge
+  profile = { ...data.profile, updatedAt: restoreStamp };
+  months = data.months.map(m => ({ ...normalizeMonth({ title:"", notes:"", tags:"", isMilestone:false, ...m }), updatedAt: restoreStamp }));
   saveProfile(); saveMonths(); activeTag = null; render();
 }
 
@@ -600,6 +602,7 @@ function reflectThisWeek() {
     onSave: (text) => {
       if (!Array.isArray(m.weeks) || m.weeks.length !== 4) m.weeks = EMPTY_WEEKS();
       m.weeks[wk] = text;
+      m.updatedAt = Date.now();
       saveMonths(); render();   // the week's square lights up right away
     },
   });
@@ -899,7 +902,7 @@ async function deleteMonthData(m) {
     try { if (window.Cloud && Cloud.deletePhoto) Cloud.deletePhoto(id); } catch {}
     if (photoURLCache.has(id)) { try { URL.revokeObjectURL(photoURLCache.get(id)); } catch {} photoURLCache.delete(id); }
   }
-  Object.assign(m, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[] });
+  Object.assign(m, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[], updatedAt:Date.now() });
   saveMonths();
 }
 function openMemoryView(m) {
@@ -1129,7 +1132,7 @@ async function openMonth(month) {
       const u = photoURLCache.get(id);
       if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
     }
-    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, weeks:readWeeks(), isMilestone:isMile, photoIds });
+    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, weeks:readWeeks(), isMilestone:isMile, photoIds, updatedAt:Date.now() });
     saveMonths(); back.remove(); render();
   };
   box.querySelector("#mClear").onclick = async () => {
@@ -1141,7 +1144,7 @@ async function openMonth(month) {
       const u = photoURLCache.get(id);
       if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
     });
-    Object.assign(month, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[] });
+    Object.assign(month, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[], updatedAt:Date.now() });
     saveMonths(); back.remove(); render();
   };
 }
@@ -1179,8 +1182,35 @@ window.addEventListener("beforeinstallprompt", (e) => {
 });
 
 /* ---------------- Cloud sync (optional account) ---------------- */
+/* Cross-device merge: month-by-month, newest edit wins. Two devices editing
+   DIFFERENT months both survive; the same month edited on both keeps the
+   newer version of just that month. Ties (legacy data without stamps) prefer
+   this device and push to converge. */
+function mergeStates(localS, remoteS) {
+  const L = localS || {}, R = remoteS || {};
+  const lOK = Array.isArray(L.months) && L.months.length === YEARS*MONTHS_PER_YEAR;
+  const rOK = Array.isArray(R.months) && R.months.length === YEARS*MONTHS_PER_YEAR;
+  if (!rOK) return { state: L, needsPush: true,  needsApply: false };
+  if (!lOK) return { state: R, needsPush: false, needsApply: true  };
+  let needsPush = false, needsApply = false;
+  const mergedMonths = L.months.map((lm, i) => {
+    const l = normalizeMonth(lm), r = normalizeMonth(R.months[i]);
+    if (r.updatedAt > l.updatedAt) { needsApply = true; return r; }
+    if (l.updatedAt > r.updatedAt) { needsPush = true;  return l; }
+    if (JSON.stringify(l) !== JSON.stringify(r)) needsPush = true;  // tie, differs → local wins, publish it
+    return l;
+  });
+  const lp = L.profile, rp = R.profile;
+  const lt = (lp && lp.updatedAt) || 0, rt = (rp && rp.updatedAt) || 0;
+  let prof = lp || rp || null;
+  if (rp && (!lp || rt > lt)) { prof = rp; needsApply = true; }
+  else if (lp && (!rp || lt > rt || JSON.stringify(lp) !== JSON.stringify(rp))) { prof = lp; needsPush = true; }
+  return { state: { months: mergedMonths, profile: prof }, needsPush, needsApply };
+}
+
 if (window.Cloud) Cloud.init("lifegrid", {
   collect: () => ({ profile, months }),
+  merge: mergeStates,
   apply: (st) => {
     if (st.profile && st.profile.name) { profile = st.profile; try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }catch{} }
     if (Array.isArray(st.months) && st.months.length === YEARS*MONTHS_PER_YEAR) {

@@ -4,7 +4,9 @@
    When supabase-config.js is filled in, a ☁️ account button appears.
    Signed-in users get: state backup/sync (table public.app_state) and
    photo/avatar storage (bucket "photos", path {uid}/{app}/{id}.jpg).
-   Sync model: debounced push on change, pull on sign-in, last-write-wins.
+   Sync model: debounced push on change, pull on sign-in/open/focus.
+   If the app supplies a merge(local, remote) hook, sync is merge-aware
+   (read-merge-write with optimistic concurrency); otherwise last-write-wins.
    ===================================================================== */
 (function () {
   "use strict";
@@ -125,18 +127,38 @@
   }
 
   /* ---------------- Sync core ---------------- */
+  let lastPullAt = 0;
+
+  async function fetchRemote() {
+    const { data, error } = await client.from("app_state")
+      .select("state, updated_at").eq("user_id", user.id).eq("app", appKey).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+  async function applyState(st) {
+    applying = true;
+    try { await hooks.apply(st); } finally { applying = false; }
+  }
+
   async function pull(force) {
     if (!client || !user || !hooks.collect || !hooks.apply) return;
-    setStatus("sync");
+    setStatus("sync"); lastPullAt = Date.now();
     try {
-      const { data, error } = await client.from("app_state")
-        .select("state, updated_at").eq("user_id", user.id).eq("app", appKey).maybeSingle();
-      if (error) throw error;
+      const data = await fetchRemote();
+      if (hooks.merge) {
+        // Merge-aware: reconcile field-by-field; never blindly replace either side.
+        if (!data || !data.state) { await pushNow(); setStatus("idle"); return; }
+        const m = hooks.merge(hooks.collect(), data.state);
+        if (m.needsApply) await applyState(m.state);
+        localStorage.setItem(touchKey(), data.updated_at);
+        if (m.needsPush) await pushNow();
+        setStatus("idle"); return;
+      }
+      // Legacy whole-document behaviour for apps without a merge hook
       if (data && data.state) {
         const localTouched = localStorage.getItem(touchKey()) || "1970-01-01";
         if (force || data.updated_at > localTouched) {
-          applying = true;
-          try { await hooks.apply(data.state); } finally { applying = false; }
+          await applyState(data.state);
           localStorage.setItem(touchKey(), data.updated_at);
         } else {
           await pushNow(); // local is newer → publish it
@@ -152,9 +174,48 @@
     if (!client || !user || !hooks.collect || applying) return;
     setStatus("sync");
     try {
+      if (!hooks.merge) {  // legacy: unconditional upsert
+        const stamp = now();
+        const { error } = await client.from("app_state").upsert(
+          { user_id: user.id, app: appKey, state: hooks.collect(), updated_at: stamp },
+          { onConflict: "user_id,app" });
+        if (error) throw error;
+        localStorage.setItem(touchKey(), stamp);
+        setStatus("idle"); return;
+      }
+      // Merge-aware: read → merge → conditional write. If another device pushed
+      // between our read and write, the conditional update misses and we retry
+      // against the fresh remote, so no edit is ever silently dropped.
+      let merged = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const data = await fetchRemote();
+        const stamp = now();
+        if (!data || !data.state) {
+          const { error } = await client.from("app_state").upsert(
+            { user_id: user.id, app: appKey, state: hooks.collect(), updated_at: stamp },
+            { onConflict: "user_id,app" });
+          if (error) throw error;
+          localStorage.setItem(touchKey(), stamp);
+          setStatus("idle"); return;
+        }
+        const m = hooks.merge(hooks.collect(), data.state);
+        merged = m.state;
+        if (m.needsApply) await applyState(m.state);
+        const { data: upd, error } = await client.from("app_state")
+          .update({ state: merged, updated_at: stamp })
+          .eq("user_id", user.id).eq("app", appKey).eq("updated_at", data.updated_at)
+          .select("updated_at");
+        if (error) throw error;
+        if (upd && upd.length) {   // our write landed on the version we merged against
+          localStorage.setItem(touchKey(), stamp);
+          setStatus("idle"); return;
+        }
+        // someone else won the race — loop: re-fetch, re-merge, try again
+      }
+      // three races in a row is vanishingly unlikely; land the last merge unconditionally
       const stamp = now();
       const { error } = await client.from("app_state").upsert(
-        { user_id: user.id, app: appKey, state: hooks.collect(), updated_at: stamp },
+        { user_id: user.id, app: appKey, state: merged || hooks.collect(), updated_at: stamp },
         { onConflict: "user_id,app" });
       if (error) throw error;
       localStorage.setItem(touchKey(), stamp);
@@ -211,6 +272,18 @@
       if (user && !was) pull().catch(() => {});
     });
     if (user) { setStatus("idle"); pull().catch(() => {}); }
+    // Re-pull when the app comes back to the foreground, so a tab that sat in
+    // the background all day doesn't push stale state tonight. Throttled.
+    const onWake = () => {
+      if (!user) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      if (Date.now() - lastPullAt < 15000) return;
+      pull().catch(() => {});
+    };
+    try {
+      document.addEventListener("visibilitychange", onWake);
+      window.addEventListener("focus", onWake);
+    } catch {}
   };
 
   window.Cloud = Cloud;
