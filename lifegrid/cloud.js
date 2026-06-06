@@ -106,16 +106,29 @@
     } else {
       box.innerHTML = `
         <h3>Your account ☁️</h3>
-        <p>Progress in this app syncs automatically while you're signed in. Same login works in every Ogbara Labs app.</p>
+        <p>Changes sync automatically while you're signed in. <b>Back up</b> sends this device's data to the cloud now; <b>Restore</b> replaces this device's data with the cloud copy.</p>
         <div class="cloud-acct">${user.email || user.id}</div>
-        <button class="cloud-btn pri" id="clSync">Sync now</button>
+        <button class="cloud-btn pri" id="clBackup">⬆ Back up now</button>
+        <button class="cloud-btn soft" id="clRestore">⬇ Restore from cloud</button>
         <button class="cloud-btn danger" id="clOut">Sign out</button>
         <div class="cloud-msg"></div>
         <button class="cloud-close" id="clClose">Close</button>`;
-      box.querySelector("#clSync").onclick = async () => {
-        say("Syncing…");
-        try { await pull(true); await pushNow(); say("Everything is up to date.", "ok"); }
-        catch (e) { say("Sync failed: " + (e.message || e), "err"); }
+      box.querySelector("#clBackup").onclick = async () => {
+        say("Backing up…");
+        try { await pushNow(); say("Backed up — your cloud copy is current.", "ok"); }
+        catch (e) { say("Backup failed: " + (e.message || e), "err"); }
+      };
+      let restoreArmed = false;
+      box.querySelector("#clRestore").onclick = async () => {
+        if (!restoreArmed) {
+          restoreArmed = true;
+          say("This replaces the data on THIS device with the cloud copy. Tap Restore again to confirm.", "err");
+          return;
+        }
+        restoreArmed = false;
+        say("Restoring…");
+        try { await pull(true); say("Restored from the cloud copy.", "ok"); }
+        catch (e) { say("Restore failed: " + (e.message || e), "err"); }
       };
       box.querySelector("#clOut").onclick = async () => {
         await client.auth.signOut();
@@ -146,6 +159,13 @@
     try {
       const data = await fetchRemote();
       if (hooks.merge) {
+        if (force) {
+          // Explicit restore: the cloud copy wins wholesale (the escape hatch from bad local state).
+          if (!data || !data.state) throw new Error("No cloud copy yet — back up first.");
+          await applyState(data.state);
+          localStorage.setItem(touchKey(), data.updated_at);
+          setStatus("idle"); return;
+        }
         // Merge-aware: reconcile field-by-field; never blindly replace either side.
         if (!data || !data.state) { await pushNow(); setStatus("idle"); return; }
         const m = hooks.merge(hooks.collect(), data.state);
@@ -286,5 +306,7 @@
     } catch {}
   };
 
+  Cloud._pull = (f) => pull(f);   // test hooks
+  Cloud._push = () => pushNow();
   window.Cloud = Cloud;
 })();

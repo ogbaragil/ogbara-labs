@@ -225,6 +225,11 @@
                background:var(--panel); border:1.5px solid var(--ink); border-radius:14px;
                padding:11px 16px; margin:6px 0 8px; color:var(--ink); font-weight:700; font-size:14.5px; text-align:left;}
   .reflect-btn .r-sub{color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap;}
+  .hl-chips{display:flex; gap:8px;}
+  .hl-chip{flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--line); background:var(--panel2);
+           color:var(--muted); font-weight:700; font-size:13px;}
+  .hl-chip.on{background:rgba(248,113,113,.16); border-color:#f87171; color:var(--ink);}
+  .lab-hint{font-weight:400; text-transform:none; letter-spacing:0; color:var(--muted);}
   .week-ta{width:100%; box-sizing:border-box; background:var(--panel2); color:var(--ink);
            border:1px solid var(--line); border-radius:14px; padding:14px; font-size:16px;
            line-height:1.6; min-height:38dvh; resize:vertical; outline:none;}
@@ -304,13 +309,14 @@ const EMPTY_WEEKS = () => ["","","",""];
 function createEmptyMonths() {
   const months = [];
   for (let y=0; y<YEARS; y++) for (let m=0; m<MONTHS_PER_YEAR; m++)
-    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[], updatedAt:0 });
+    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), hl:[true,true,true,true], isMilestone:false, photoIds:[], updatedAt:0 });
   return months;
 }
 const normalizeMonth = (m) => ({
   ...m,
   photoIds: Array.isArray(m.photoIds) ? m.photoIds : [],
   weeks: (Array.isArray(m.weeks) && m.weeks.length === 4) ? m.weeks.map(w=>String(w??"")) : EMPTY_WEEKS(),
+  hl: (Array.isArray(m.hl) && m.hl.length === 4) ? m.hl.map(Boolean) : [true,true,true,true],  // which weeks carry the month's story on the grid
   updatedAt: Number(m.updatedAt) || 0,   // per-month clock for cross-device merge
 });
 let months = [];
@@ -679,7 +685,7 @@ function renderLife() {
       let cls = "ov-cell";
       if (cur != null && abs === cur && wk === curWeekOfMonth) cls += " today";
       else if (m.isMilestone) cls += " milestone";
-      else if (weekNote || monthCore) cls += " filled";
+      else if (weekNote || (monthCore && (m.hl ? m.hl[wk] : true))) cls += " filled";
       else if (cur != null && (abs < cur || (abs === cur && wk < curWeekOfMonth))) cls += " lived";
       const c = el("div", cls);
       if (reveal && cur != null && abs <= cur) c.classList.add("pre");
@@ -780,7 +786,7 @@ function renderMemories() {
     const weekNotes = (m.weeks||[]).filter(w=>w&&w.trim()).length;
     card.innerHTML = `
       ${m.title ? `<h3>${esc(m.title)}</h3>` : `<h3>${esc(labelFor(m))}</h3>`}
-      <p class="mem-when">Month ${abs+1} · ${esc(labelFor(m))} · Age ${ageY}y ${ageM}m${m.isMilestone ? " · ★ milestone" : ""}</p>
+      <p class="mem-when">Month ${abs+1} · ${esc(labelFor(m))}${(()=>{const w=(m.hl||[]).reduce((a,v,i)=>v?a.concat(i):a,[]);return w.length===1?` · Week ${w[0]+1}`:"";})()} · Age ${ageY}y ${ageM}m${m.isMilestone ? " · ★ milestone" : ""}</p>
       ${m.notes ? `<p class="mem-snippet">${esc(m.notes.slice(0,110))}${m.notes.length>110?"…":""}</p>` : ""}
       ${weekNotes ? `<span class="mem-badge">📝 ${weekNotes} weekly note${weekNotes===1?"":"s"}</span>` : ""}
       ${m.photoIds.length>1 ? `<span class="mem-badge">+${m.photoIds.length-1} more photo${m.photoIds.length>2?"s":""}</span>` : ""}`;
@@ -902,7 +908,7 @@ async function deleteMonthData(m) {
     try { if (window.Cloud && Cloud.deletePhoto) Cloud.deletePhoto(id); } catch {}
     if (photoURLCache.has(id)) { try { URL.revokeObjectURL(photoURLCache.get(id)); } catch {} photoURLCache.delete(id); }
   }
-  Object.assign(m, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[], updatedAt:Date.now() });
+  Object.assign(m, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), hl:[true,true,true,true], isMilestone:false, photoIds:[], updatedAt:Date.now() });
   saveMonths();
 }
 function openMemoryView(m) {
@@ -912,7 +918,7 @@ function openMemoryView(m) {
   const box = el("div","modal");
   box.innerHTML = `
     <h2>${esc(m.title || labelFor(m))}</h2>
-    <p class="age">Month ${abs+1} • ${esc(labelFor(m))}</p>
+    <p class="age">Month ${abs+1} • ${esc(labelFor(m))}${(()=>{const w=(m.hl||[]).reduce((a,v,i)=>v?a.concat(i):a,[]);return w.length===1?` • Week ${w[0]+1}`:"";})()}</p>
     <p class="age">Age ${ageY} years, ${ageM} month${ageM===1?"":"s"}${m.isMilestone ? " • ★ milestone" : ""}</p>
     <div class="modal-scroll" id="mvScroll"></div>
     <div class="modal-actions">
@@ -1033,6 +1039,11 @@ async function openMonth(month) {
       <label>Title / story</label><input type="text" id="mTitle" placeholder="What happened this month?">
       <label>Notes</label><textarea id="mNotes" placeholder="Details, reflections, lessons…"></textarea>
       <label>Tags (comma separated)</label><input type="text" id="mTags" placeholder="career, love, health…">
+      <label>Show on grid <span class="lab-hint">— which week(s) does this belong to?</span></label>
+      <div class="hl-chips" id="mHl">
+        <button class="hl-chip">W1</button><button class="hl-chip">W2</button>
+        <button class="hl-chip">W3</button><button class="hl-chip">W4</button>
+      </div>
       <label>Weekly reflections</label>
       <div class="weeks" id="mWeeks"></div>
       <label>Photos</label>
@@ -1053,6 +1064,14 @@ async function openMonth(month) {
   const t = box.querySelector("#mTitle"), n = box.querySelector("#mNotes"), g = box.querySelector("#mTags");
   t.value = month.title; n.value = month.notes; g.value = month.tags;
   let weeks = (Array.isArray(month.weeks) && month.weeks.length===4 ? month.weeks : EMPTY_WEEKS()).map(w=>String(w??""));
+  let hl = (Array.isArray(month.hl) && month.hl.length===4) ? month.hl.map(Boolean) : [true,true,true,true];
+  const hlBtns = [...box.querySelectorAll(".hl-chip")];
+  const paintHl = () => hlBtns.forEach((b,i)=>b.classList.toggle("on", hl[i]));
+  hlBtns.forEach((b,i)=>{ b.onclick = () => {
+    if (hl[i] && hl.filter(Boolean).length === 1) return;   // a story must sit somewhere — keep at least one week
+    hl[i] = !hl[i]; paintHl();
+  };});
+  paintHl();
   const readWeeks = () => weeks.slice();
   const weeksEl = box.querySelector("#mWeeks");
   const weekRange = (i) => `days ${i*7+1}–${i<3 ? (i+1)*7 : "end"}`;
@@ -1078,7 +1097,7 @@ async function openMonth(month) {
   }
   paintWeeks();
   /* dirty check: a stray backdrop tap must never eat typed words */
-  const snapshot = () => JSON.stringify({ t:t.value, n:n.value, g:g.value, w:readWeeks(), mi:isMile, p:photoIds });
+  const snapshot = () => JSON.stringify({ t:t.value, n:n.value, g:g.value, w:readWeeks(), h:hl, mi:isMile, p:photoIds });
   const initial = snapshot();
   const isDirty = () => snapshot() !== initial || pendingAdds.length > 0;
   closeDiscard = async () => {
@@ -1132,7 +1151,7 @@ async function openMonth(month) {
       const u = photoURLCache.get(id);
       if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
     }
-    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, weeks:readWeeks(), isMilestone:isMile, photoIds, updatedAt:Date.now() });
+    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, weeks:readWeeks(), hl:hl.slice(), isMilestone:isMile, photoIds, updatedAt:Date.now() });
     saveMonths(); back.remove(); render();
   };
   box.querySelector("#mClear").onclick = async () => {
@@ -1144,7 +1163,7 @@ async function openMonth(month) {
       const u = photoURLCache.get(id);
       if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
     });
-    Object.assign(month, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[], updatedAt:Date.now() });
+    Object.assign(month, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), hl:[true,true,true,true], isMilestone:false, photoIds:[], updatedAt:Date.now() });
     saveMonths(); back.remove(); render();
   };
 }
