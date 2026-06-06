@@ -1,5 +1,5 @@
 /* How Many? PWA service worker — precache the whole app for offline play */
-const CACHE = "howmany-v4";
+const CACHE = "howmany-v5";
 const ASSETS = [
   "./",
   "./index.html",
