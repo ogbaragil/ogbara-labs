@@ -57,13 +57,12 @@ const BADGE_EMOJI = ["🥉","🥈","🥇","🏅","💎","👑"];
 const MAX_STICKERS = 100;
 const MAX_COUNT_SKILL = 8;
 
-/* v6 audio sources:
-   - JUNGLE_URL: tiny local file, bundled & precached, plays on every Memory entry.
-   - MUSIC_URL: the "Kids Happy Music" track (Pixabay Content License, by MFCC),
-     streamed from your own Supabase public bucket — NOT bundled (2.3 MB).
-     If the stream fails or the URL is empty, the synthesised loop takes over. */
+/* v6 audio sources — both bundled with the app and precached for offline:
+   - JUNGLE_URL: plays on every Memory entry (67 KB).
+   - MUSIC_URL: "Kids Happy Music" by MFCC (Pixabay Content License), default
+     background loop, compressed to 577 KB. Synth melody remains the fallback. */
 const JUNGLE_URL = "jungle_intro.mp3";
-const MUSIC_URL  = "https://qfjudxzxyvqraogwskwc.supabase.co/storage/v1/object/public/assets/kids-happy-music.mp3";
+const MUSIC_URL  = "kids-happy-music.mp3";
 
 /* v5: Journey worlds — visible progression driven by lifetime stickers */
 const WORLDS = [

@@ -1,10 +1,11 @@
 /* How Many? PWA service worker — precache the whole app for offline play */
-const CACHE = "howmany-v8";
+const CACHE = "howmany-v9";
 const ASSETS = [
   "./",
   "./index.html",
   "./app.js",
   "./jungle_intro.mp3",
+  "./kids-happy-music.mp3",
   "./manifest.webmanifest","./supabase-config.js","./cloud.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
