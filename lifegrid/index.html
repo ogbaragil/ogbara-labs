@@ -627,7 +627,22 @@ function renderLife() {
 
   // backup nudge lives on the grid tab, where it'll be seen
   const signedIn = !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn());
-  if (filled >= 5 && !signedIn && localStorage.getItem(NUDGE_KEY) !== "1") {
+  const standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const RISK_KEY = "lifegrid_storage_warn_until";
+  const riskSnoozed = Number(localStorage.getItem(RISK_KEY) || 0) > Date.now();
+  if (filled >= 1 && !signedIn && !standalone && !riskSnoozed) {
+    // Browser-tab storage is evictable (iOS: ~7 idle days). Be honest about it.
+    const warn = el("div","nudge");
+    warn.append(el("span",null,
+      `⚠️ Your stories live in browser storage, which the system can clear (iOS: after about a week of not visiting). <b>Install the app</b>, sign in, or export a backup to keep them safe.`));
+    const acts = el("div","n-act");
+    const go = el("button","n-go","Back up");
+    go.onclick = () => { setTab("profile"); render(); };
+    const later = el("button","n-no","Remind me later");
+    later.onclick = () => { try{ localStorage.setItem(RISK_KEY, String(Date.now() + 7*864e5)); }catch{} render(); };
+    acts.append(go, later); warn.appendChild(acts);
+    root.appendChild(warn);
+  } else if (filled >= 5 && !signedIn && localStorage.getItem(NUDGE_KEY) !== "1") {
     const nudge = el("div","nudge");
     nudge.append(el("span",null,`You have <b>${filled}</b> stories on this device only. Back them up so they can't be lost.`));
     const acts = el("div","n-act");
@@ -828,9 +843,12 @@ function renderProfile() {
 
   const about = el("div","about-card");
   about.innerHTML = `<b>About Life Grid</b><br>
-    Life is finite. Each square on your grid is one month of a ${YEARS}-year life — a quiet reminder to
-    appreciate the time you have and record the moments that matter.<br><br>
-    Your data lives on this device, and never leaves it unless you sign in to back it up.`;
+    Life is finite. Your grid shows every week of a ${YEARS}-year life — ${(YEARS*48).toLocaleString()} squares,
+    a quiet reminder to appreciate the time you have. Zoom in and each month becomes a page for
+    stories, photos and weekly reflections.<br><br>
+    Your data is stored privately in this browser and never leaves your device unless you sign in.
+    Browsers can clear that storage — iOS may delete it after a week of not visiting unless the app is
+    installed on your Home Screen. Keep what matters: install the app, sign in to sync, or export a backup.`;
   root.appendChild(about);
 
   const actions = el("div","action-list");
