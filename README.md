@@ -1,8 +1,10 @@
 # Ogbara Labs — monorepo
 
 A tiny studio of joyful web apps. Every app is a standalone PWA: installable to
-the home screen, fully offline, zero build step, zero external assets (all audio
-is synthesised in the browser, all data stays on the user's device).
+the home screen, fully offline, zero build step, zero bundled media assets (all
+audio is synthesised in the browser). Apps are local-first, with an optional
+shared Ogbara Labs account (Supabase) for cross-device sync — see
+SETUP-SUPABASE.md.
 
 ## Layout
 
@@ -46,15 +48,24 @@ Edit, commit, push — Cloudflare redeploys automatically. When you ship changes
 bump the cache version in that app's `sw.js` (e.g. `supersnakes-v1` → `-v2`)
 so installed users pick up the new version promptly.
 
+## Cloud sync (optional)
+
+Each app folder contains `cloud.js` (shared sync module) and
+`supabase-config.js` (empty by default). With the config empty, apps are 100%
+local. Fill in your Supabase URL + anon key (same values in all four apps) and
+a ☁️ account button appears: email+password sign-in, automatic state sync
+(last-write-wins), and photo/avatar upload to a private storage bucket.
+Full setup including SQL: **SETUP-SUPABASE.md**.
+
 ## Notes per app
 
 - **How Many?** — sounds synthesised (Web Audio), speech via Web Speech API,
-  progress in localStorage.
-- **Life Grid** — text data in localStorage; photos are downscaled and stored
-  in IndexedDB. Nothing ever leaves the device.
+  progress in localStorage; cloud-syncs stars/VIP/stickers/settings.
+- **Life Grid** — months/profile in localStorage, photos downscaled into
+  IndexedDB; cloud-syncs the journal and uploads photos to storage so they
+  follow you to new devices.
 - **Couples S&L** — names/settings in localStorage (same `snl_*` keys as the
-  original Expo app), optional photo avatars in IndexedDB, romantic music loop
-  synthesised.
-- **Super Snakes** — editable family names with emoji avatars by default and
-  optional photos (IndexedDB). Quest rules, power-ups, and the exact-100 rule
-  match the original.
+  original Expo app), avatars in IndexedDB; cloud-syncs prefs + avatars.
+- **Super Snakes** — editable family names, emoji avatars with optional photos;
+  cloud-syncs the family roster + avatars. Quest rules, power-ups, and the
+  exact-100 rule match the original.

@@ -1,6 +1,6 @@
 /* Couples Snakes & Ladders service worker */
-const CACHE = "couples-v1";
-const ASSETS = ["./","./index.html","./manifest.webmanifest",
+const CACHE = "couples-v2";
+const ASSETS = ["./","./index.html","./manifest.webmanifest","./supabase-config.js","./cloud.js",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
   "./icons/apple-touch-icon.png","./icons/favicon-32.png"];
 self.addEventListener("install",(e)=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));});

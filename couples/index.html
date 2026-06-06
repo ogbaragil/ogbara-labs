@@ -147,6 +147,9 @@
 </div>
 <div id="overlay"></div>
 
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="cloud.js"></script>
 <script>
 "use strict";
 /* ===== Couples Snakes & Ladders — PWA port =====
@@ -210,6 +213,7 @@ function savePrefs(){
   set("snl_p1_gender",S.p1.gender); set("snl_p2_gender",S.p2.gender);
   set("snl_final_prompt",S.ultimatePrompt); set("snl_music_enabled",S.musicEnabled);
   set("snl_love_mode",S.loveMode); set("snl_difficulty",S.difficulty);
+  if (window.Cloud) Cloud.schedulePush();
 }
 
 /* ---------- Avatar store (IndexedDB) ---------- */
@@ -224,7 +228,11 @@ const AvatarDB = (()=>{ let dbp=null;
 })();
 const avatarURL = { 1:null, 2:null };
 async function loadAvatars(){
-  for (const i of [1,2]) { const b = await AvatarDB.get("p"+i); if (b) avatarURL[i] = URL.createObjectURL(b); }
+  for (const i of [1,2]) {
+    let b = await AvatarDB.get("p"+i);
+    if (!b && window.Cloud && Cloud.isSignedIn()) { b = await Cloud.getPhoto("avatar-p"+i); if (b) await AvatarDB.put("p"+i, b); }
+    if (b) avatarURL[i] = URL.createObjectURL(b);
+  }
 }
 
 /* ---------- Audio: synthesised romantic loop + SFX ---------- */
@@ -459,10 +467,11 @@ function openSetup(firstRun=false){
     up.onclick=()=>file.click();
     file.onchange=async()=>{ const f=file.files[0]; if(!f)return;
       const blob=await downscale(f,300,0.82); await AvatarDB.put("p"+i,blob);
+      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+i, blob);
       if (avatarURL[i]) URL.revokeObjectURL(avatarURL[i]);
       avatarURL[i]=URL.createObjectURL(blob); prev.innerHTML=pawnFace(i); };
     const clr=el("button","mini-btn","✕"); clr.title="Remove photo";
-    clr.onclick=async()=>{ await AvatarDB.del("p"+i); if(avatarURL[i])URL.revokeObjectURL(avatarURL[i]); avatarURL[i]=null; prev.innerHTML=pawnFace(i); };
+    clr.onclick=async()=>{ await AvatarDB.del("p"+i); if (window.Cloud) Cloud.deletePhoto("avatar-p"+i); if(avatarURL[i])URL.revokeObjectURL(avatarURL[i]); avatarURL[i]=null; prev.innerHTML=pawnFace(i); };
     row.append(prev,seg,up,clr,file); fields.append(row);
   };
   mkName(1); mkName(2);
@@ -523,6 +532,29 @@ addEventListener("pointerdown",function once(){ Music.unlock(); if(S.musicEnable
   if (!haveNames){ setHint("Enter your names to start!"); openSetup(true); }
   else setHint(`${name(1)}, ${startRule()}`);
   paintStatus();
+
+  /* ---------------- Cloud sync (optional account) ---------------- */
+  if (window.Cloud) Cloud.init("couples", {
+    collect: () => ({
+      p1:{ name:S.p1.name, gender:S.p1.gender }, p2:{ name:S.p2.name, gender:S.p2.gender },
+      ultimatePrompt:S.ultimatePrompt, musicEnabled:S.musicEnabled, loveMode:S.loveMode, difficulty:S.difficulty,
+    }),
+    apply: async (st) => {
+      if (st.p1){ S.p1.name=st.p1.name||S.p1.name; S.p1.gender=st.p1.gender||S.p1.gender; }
+      if (st.p2){ S.p2.name=st.p2.name||S.p2.name; S.p2.gender=st.p2.gender||S.p2.gender; }
+      if (st.ultimatePrompt!==undefined) S.ultimatePrompt=st.ultimatePrompt;
+      if (st.musicEnabled!==undefined){ S.musicEnabled=!!st.musicEnabled; Music.setOn(S.musicEnabled); paintMusicBtn(); }
+      if (st.loveMode && LOVE_QUESTS[st.loveMode]) S.loveMode=st.loveMode;
+      if (st.difficulty==="Easy"||st.difficulty==="Hard") S.difficulty=st.difficulty;
+      set("snl_p1_name",S.p1.name); set("snl_p2_name",S.p2.name);
+      set("snl_p1_gender",S.p1.gender); set("snl_p2_gender",S.p2.gender);
+      set("snl_final_prompt",S.ultimatePrompt); set("snl_music_enabled",S.musicEnabled);
+      set("snl_love_mode",S.loveMode); set("snl_difficulty",S.difficulty);
+      await loadAvatars();
+      buildBoard(); paintStatus();
+      if (!S.winner && !S.spinning && !S.animating) setHint(`${name(S.current)}, ${startRule()}`);
+    },
+  });
 })();
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>

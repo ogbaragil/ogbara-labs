@@ -73,6 +73,7 @@ function persist() {
   Store.set("sound", S.soundOn); Store.set("music", S.musicOn); Store.set("speech", S.speechOn); Store.set("speech.rate", S.speechRate);
   Store.set("wb.mode", S.wbMode); Store.setJSON("wb.stats", S.wbStats);
   Store.set("mm.mode", S.mmMode); Store.set("mm.freeDiff", S.mmFreeDiff); Store.set("mm.campaignIdx", S.mmCampaignIdx);
+  if (window.Cloud) Cloud.schedulePush();
 }
 
 /* ---------------- Helpers ---------------- */
@@ -658,3 +659,20 @@ if ("serviceWorker" in navigator) {
 }
 
 render();
+
+/* ---------------- Cloud sync (optional account) ---------------- */
+if (window.Cloud) Cloud.init("howmany", {
+  collect: () => ({
+    stars:S.stars, correct:S.correct, vip:S.vip,
+    stickerCount:S.stickerCount, stickerTier:S.stickerTier, stickerTotal:S.stickerTotal,
+    soundOn:S.soundOn, musicOn:S.musicOn, speechOn:S.speechOn, speechRate:S.speechRate,
+    wbMode:S.wbMode, wbStats:S.wbStats,
+    mmMode:S.mmMode, mmFreeDiff:S.mmFreeDiff, mmCampaignIdx:S.mmCampaignIdx,
+  }),
+  apply: (st) => {
+    const KEYS = ["stars","correct","vip","stickerCount","stickerTier","stickerTotal",
+      "soundOn","musicOn","speechOn","speechRate","wbMode","wbStats","mmMode","mmFreeDiff","mmCampaignIdx"];
+    for (const k of KEYS) if (st[k] !== undefined) S[k] = st[k];
+    persist(); render();
+  },
+});

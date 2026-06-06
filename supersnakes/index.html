@@ -169,6 +169,9 @@
 </div>
 <div id="overlay"></div>
 
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="cloud.js"></script>
 <script>
 "use strict";
 /* ===== Super Snakes — PWA port of the family Expo edition =====
@@ -208,7 +211,7 @@ let players;
 try { players = JSON.parse(localStorage.getItem("ss_players")||"null") || DEFAULT_PLAYERS; }
 catch { players = DEFAULT_PLAYERS; }
 players = players.map((p,i)=>({ ...DEFAULT_PLAYERS[i], ...p, position:1, nextTurnBoost:false, snakeShield:false }));
-const savePlayers = () => { try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{} };
+const savePlayers = () => { try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{} if (window.Cloud) Cloud.schedulePush(); };
 
 /* Avatar photos in IndexedDB */
 const AvatarDB = (()=>{ let dbp=null;
@@ -221,7 +224,13 @@ const AvatarDB = (()=>{ let dbp=null;
   };
 })();
 const avatarURL = {};
-async function loadAvatars(){ for (const p of players){ const b=await AvatarDB.get("p"+p.id); if(b) avatarURL[p.id]=URL.createObjectURL(b); } }
+async function loadAvatars(){
+  for (const p of players){
+    let b = await AvatarDB.get("p"+p.id);
+    if (!b && window.Cloud && Cloud.isSignedIn()){ b = await Cloud.getPhoto("avatar-p"+p.id); if (b) await AvatarDB.put("p"+p.id, b); }
+    if (b) avatarURL[p.id]=URL.createObjectURL(b);
+  }
+}
 const face = (p) => avatarURL[p.id] ? `<img src="${avatarURL[p.id]}" alt="">` : (p.emoji||"🙂");
 
 /* ---------- Audio (synthesised) ---------- */
@@ -442,7 +451,7 @@ function resetGame(){
 /* ---------- Family setup ---------- */
 function openFamily(){
   const back=el("div","modal-back"), box=el("div","modal");
-  box.innerHTML=`<h2>Your family 👨‍👩‍👧‍👦</h2><p style="color:var(--muted);font-size:14px;margin:0">Names, emoji and optional photos. Photos stay on this device only.</p>`;
+  box.innerHTML=`<h2>Your family 👨‍👩‍👧‍👦</h2><p style="color:var(--muted);font-size:14px;margin:0">Names, emoji and optional photos. Sign in (☁️) to sync photos to your private account.</p>`;
   players.forEach((p)=>{
     box.appendChild(el("label",null,`Player ${p.id+1}`));
     const row=el("div","p-edit");
@@ -456,9 +465,10 @@ function openFamily(){
     up.onclick=()=>file.click();
     file.onchange=async()=>{ const ff=file.files[0]; if(!ff)return;
       const blob=await downscale(ff,300,0.82); await AvatarDB.put("p"+p.id,blob);
+      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+p.id, blob);
       if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); avatarURL[p.id]=URL.createObjectURL(blob); f.innerHTML=face(p); };
     const clr=el("button","mini-btn","✕");
-    clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
+    clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
     row.append(f,nameI,emo,up,clr,file); box.appendChild(row);
   });
   const save=el("button","primary-btn","Save family");
@@ -484,7 +494,23 @@ musicBtn.onclick=()=>{ Sound.unlock(); Sound.setOn(!Sound.musicOn); paintMusicBt
 paintMusicBtn();
 addEventListener("pointerdown",function once(){ Sound.unlock(); if(Sound.musicOn)Sound.start(); removeEventListener("pointerdown",once); });
 
-(async ()=>{ await loadAvatars(); buildBoard(); paintTurn(); })();
+(async ()=>{
+  await loadAvatars(); buildBoard(); paintTurn();
+
+  /* ---------------- Cloud sync (optional account) ---------------- */
+  if (window.Cloud) Cloud.init("supersnakes", {
+    collect: () => ({ players: players.map(({id,name,emoji})=>({id,name,emoji})), music: Sound.musicOn }),
+    apply: async (st) => {
+      if (Array.isArray(st.players)) {
+        st.players.forEach(rp => { const p = players.find(x=>x.id===rp.id); if (p){ p.name=rp.name||p.name; p.emoji=rp.emoji||p.emoji; } });
+        try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{}
+      }
+      if (st.music!==undefined){ Sound.setOn(!!st.music); paintMusicBtn(); }
+      await loadAvatars();
+      paintPawns(); paintTurn();
+    },
+  });
+})();
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>
 </body>

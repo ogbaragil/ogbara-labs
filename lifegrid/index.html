@@ -108,6 +108,9 @@
 </head>
 <body>
 <div class="wrap" id="root"><div class="loading"><div class="spinner"></div>Loading your life map…</div></div>
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="cloud.js"></script>
 <script>
 "use strict";
 /* ===== Life Grid — your life in months (PWA) =====
@@ -149,7 +152,11 @@ const PhotoDB = (() => {
 const photoURLCache = new Map();
 async function photoURL(id) {
   if (photoURLCache.has(id)) return photoURLCache.get(id);
-  const blob = await PhotoDB.get(id);
+  let blob = await PhotoDB.get(id);
+  if (!blob && window.Cloud && Cloud.isSignedIn()) {
+    blob = await Cloud.getPhoto(id);              // fetch from cloud on a new device
+    if (blob) await PhotoDB.put(id, blob);        // cache locally for offline
+  }
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   photoURLCache.set(id, url);
@@ -178,8 +185,8 @@ function loadAll() {
     if (p && p.name && p.birthYear && typeof p.birthMonthIndex === "number") profile = p;
   } catch {}
 }
-function saveMonths(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(months)); } catch (e) { alert("Couldn't save — storage may be full. Try removing some photos."); } }
-function saveProfile(){ try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {} }
+function saveMonths(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(months)); } catch (e) { alert("Couldn't save — storage may be full. Try removing some photos."); } if (window.Cloud) Cloud.schedulePush(); }
+function saveProfile(){ try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {} if (window.Cloud) Cloud.schedulePush(); }
 
 function currentAbsoluteIndex() {
   if (!profile) return null;
@@ -214,7 +221,7 @@ function renderForm(editing=false) {
   root.append(el("h1","app", editing ? "Edit Profile" : "Life Grid"));
   root.append(el("p","tagline", editing
     ? "Update your name or birth details. This affects labels and the “today” marker."
-    : "Your life in months — 90 years, one cell each. Everything stays on your device."));
+    : "Your life in months — 90 years, one cell each. Works offline, with optional cloud backup."));
   const card = el("div","card");
   card.innerHTML = `
     <label>Your name</label><input type="text" id="fName" placeholder="e.g. Gil" autocomplete="off">
@@ -296,7 +303,7 @@ function renderGrid() {
   }
   scroll.appendChild(frag);
   root.appendChild(scroll);
-  root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · data lives only on this device"));
+  root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · works offline · optional cloud backup"));
   // auto-scroll to today
   if (cur != null) requestAnimationFrame(() => {
     const rows = scroll.querySelectorAll(".year-row");
@@ -361,6 +368,7 @@ async function openMonth(month) {
     const blob = await downscale(f, 1280, 0.8);
     const id = `${month.id}-${Date.now()}`;
     await PhotoDB.put(id, blob);
+    if (window.Cloud) Cloud.uploadPhoto(id, blob);
     photoIds.push(id); file.value = ""; paintPhotos();
   };
 
@@ -371,7 +379,7 @@ async function openMonth(month) {
   };
   box.querySelector("#mClear").onclick = () => {
     if (!confirm("Clear everything in this month?")) return;
-    photoIds.forEach(id => PhotoDB.del(id));
+    photoIds.forEach(id => { PhotoDB.del(id); if (window.Cloud) Cloud.deletePhoto(id); });
     Object.assign(month, { title:"", notes:"", tags:"", isMilestone:false, photoIds:[] });
     saveMonths(); back.remove(); render();
   };
@@ -397,6 +405,20 @@ function downscale(fileBlob, maxSide, quality) {
 /* ---------- Boot ---------- */
 loadAll();
 render();
+
+/* ---------------- Cloud sync (optional account) ---------------- */
+if (window.Cloud) Cloud.init("lifegrid", {
+  collect: () => ({ profile, months }),
+  apply: (st) => {
+    if (st.profile && st.profile.name) { profile = st.profile; try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }catch{} }
+    if (Array.isArray(st.months) && st.months.length === YEARS*MONTHS_PER_YEAR) {
+      months = st.months.map(m => ({ ...m, photoIds: Array.isArray(m.photoIds) ? m.photoIds : [] }));
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(months)); }catch{}
+    }
+    render();
+  },
+});
+
 if ("serviceWorker" in navigator) addEventListener("load", ()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>
 </body>
