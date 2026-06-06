@@ -151,6 +151,72 @@
   .year-row.flash{animation:rowFlash 1.4s ease both;}
   @keyframes rowFlash{0%{background:rgba(245,198,107,.22);} 100%{background:transparent;}}
 
+  /* v4: bottom tab navigation */
+  .wrap{padding-bottom:84px;}
+  .tabbar{position:fixed; left:0; right:0; bottom:0; z-index:55; background:rgba(28,37,65,.97);
+          border-top:1px solid var(--line); display:flex; backdrop-filter:blur(8px);
+          padding-bottom:env(safe-area-inset-bottom);}
+  .tab-item{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+            padding:10px 0 8px; background:transparent; color:var(--muted); font-size:11px; font-weight:600;}
+  .tab-item svg{display:block;}
+  .tab-item.active{color:var(--sky);}
+
+  /* v4: floating zoom button */
+  #zoomFab{position:fixed; right:14px; bottom:calc(74px + env(safe-area-inset-bottom)); z-index:56;
+           width:54px; height:54px; border-radius:50%; background:var(--sky); color:#11182e;
+           font-size:28px; font-weight:700; line-height:1; box-shadow:0 8px 22px rgba(0,0,0,.45);
+           display:grid; place-items:center;}
+  #zoomFab:active{transform:scale(.92);}
+  #installBtn{bottom:calc(140px + env(safe-area-inset-bottom));}
+
+  /* v4: tab headers */
+  .tab-title{font-family:var(--display); font-weight:700; font-size:26px; text-align:center; margin:8px 0 2px;}
+  .tab-sub{text-align:center; color:var(--muted); font-size:14px; margin:0 0 16px;}
+
+  /* v4: memories list */
+  .mem-card{display:block; width:100%; text-align:left; background:var(--panel); border:1px solid var(--line);
+            border-radius:18px; padding:16px; margin-bottom:12px; color:var(--ink);}
+  .mem-card h3{font-family:var(--display); font-weight:700; font-size:20px; margin:0 0 4px;}
+  .mem-when{color:var(--muted); font-size:13px; margin:0 0 2px;}
+  .mem-snippet{color:var(--muted); font-size:13.5px; margin:6px 0 0;}
+  .mem-photo{width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:12px; margin-top:10px; background:var(--panel2); display:block;}
+  .mem-badge{display:inline-block; background:var(--panel2); border:1px solid var(--line); border-radius:999px;
+             padding:3px 9px; font-size:11px; color:var(--muted); margin-top:8px; margin-right:6px;}
+
+  /* v4: profile cards */
+  .prof-head{text-align:center; margin-bottom:16px;}
+  .prof-head .nm{font-family:var(--display); font-weight:700; font-size:22px; margin:0 0 4px;}
+  .prof-head p{margin:2px 0; color:var(--muted); font-size:14px;}
+  .prof-head .motto{color:var(--ink); font-weight:600; margin-top:6px;}
+  .stat-card{display:flex; align-items:center; gap:16px; background:var(--panel); border:1px solid var(--line);
+             border-radius:16px; padding:16px 18px; margin-bottom:10px;}
+  .stat-ic{font-size:20px; color:var(--muted); flex:none; width:28px; text-align:center;}
+  .stat-card .lab{color:var(--muted); font-size:13px; margin:0;}
+  .stat-card .val{font-family:var(--display); font-weight:700; font-size:24px; margin:1px 0;}
+  .stat-card .sub2{color:var(--muted); font-size:12.5px; margin:0;}
+  .progress-card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; text-align:center;}
+  .progress-card h3{font-family:var(--display); margin:0 0 12px; font-size:18px;}
+  .pbar{height:8px; border-radius:999px; background:var(--panel2); overflow:hidden;}
+  .pbar span{display:block; height:100%; background:var(--sky); border-radius:999px;}
+  .pbar-lab{color:var(--muted); font-size:13px; margin:10px 0 0;}
+  .action-list{margin-top:14px;}
+  .action-row{display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left;
+              background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px;
+              margin-bottom:8px; color:var(--ink); font-weight:600; font-size:14.5px;}
+  .action-row span.go{color:var(--muted);}
+  .about-card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px 18px;
+              margin:14px 0; color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .about-card b{color:var(--ink);}
+
+  /* v4: weekly notes inside the month modal */
+  .weeks{display:grid; gap:8px;}
+  .wk-input{width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line);
+            border-radius:10px; padding:10px 12px; font-size:14px; outline:none;}
+  .wk-input:focus{border-color:var(--sky);}
+
+  /* account chip lives behind Profile now */
+  #cloudChip{display:none !important;}
+
   .loading{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted);}
   .spinner{width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--sky); border-radius:50%; animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -217,19 +283,25 @@ async function photoURL(id) {
 }
 
 /* ---------- Data ---------- */
+const EMPTY_WEEKS = () => ["","","",""];
 function createEmptyMonths() {
   const months = [];
   for (let y=0; y<YEARS; y++) for (let m=0; m<MONTHS_PER_YEAR; m++)
-    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", isMilestone:false, photoIds:[] });
+    months.push({ id:`${y}-${m}`, yearIndex:y, monthIndex:m, title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[] });
   return months;
 }
+const normalizeMonth = (m) => ({
+  ...m,
+  photoIds: Array.isArray(m.photoIds) ? m.photoIds : [],
+  weeks: (Array.isArray(m.weeks) && m.weeks.length === 4) ? m.weeks.map(w=>String(w??"")) : EMPTY_WEEKS(),
+});
 let months = [];
 let profile = null; // {name, birthYear, birthMonthIndex}
 function loadAll() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      months = JSON.parse(raw).map(m => ({ ...m, photoIds: Array.isArray(m.photoIds) ? m.photoIds : [] }));
+      months = JSON.parse(raw).map(normalizeMonth);
       if (months.length !== YEARS*MONTHS_PER_YEAR) months = createEmptyMonths();
     } else { months = createEmptyMonths(); saveMonths(); }
   } catch { months = createEmptyMonths(); }
@@ -292,13 +364,19 @@ const b64ToBlob = (b64, type) => fetch(`data:${type || "image/jpeg"};base64,${b6
 /* ---------- Screens ---------- */
 function render() {
   root.innerHTML = "";
-  if (!profile) renderForm();
+  editingForm = false;
+  if (!profile) { renderForm(); }
+  else if (tab === "memories") renderMemories();
+  else if (tab === "profile") renderProfile();
   else if (viewMode === "life") renderLife();
   else renderGrid();
+  updateChrome();
 }
 
 function renderForm(editing=false) {
   root.innerHTML = "";
+  editingForm = editing;
+  if (tabbarEl) updateChrome();
   root.append(el("h1","app", editing ? "Edit Profile" : "Life Grid"));
   root.append(el("p","tagline", editing
     ? "Update your name or birth details. This affects labels and the “today” marker."
@@ -333,6 +411,56 @@ function renderForm(editing=false) {
   root.appendChild(card);
 }
 
+/* ---------- v4: bottom-tab navigation ---------- */
+const TAB_KEY = "lifegrid_tab_v1";
+let tab = ["grid","memories","profile"].includes(localStorage.getItem(TAB_KEY)) ? localStorage.getItem(TAB_KEY) : "grid";
+function setTab(v) { tab = v; try { localStorage.setItem(TAB_KEY, v); } catch {} }
+let tabbarEl = null, fabEl = null;
+
+const TAB_ICONS = {
+  grid: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
+  memories: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>',
+  profile: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.6"/><path d="M5 20.2c.8-3.6 3.7-5.4 7-5.4s6.2 1.8 7 5.4"/></svg>',
+};
+function ensureChrome() {
+  if (!tabbarEl) {
+    tabbarEl = el("nav","tabbar");
+    [["grid","Grid"],["memories","Memories"],["profile","Profile"]].forEach(([id,label]) => {
+      const b = el("button","tab-item", TAB_ICONS[id] + `<span>${label}</span>`);
+      b.dataset = b.dataset || {}; b._tab = id;
+      b.onclick = () => { setTab(id); render(); };
+      tabbarEl.appendChild(b);
+    });
+    document.body.appendChild(tabbarEl);
+  }
+  if (!fabEl) {
+    fabEl = el("button");
+    fabEl.id = "zoomFab";
+    fabEl.setAttribute("aria-label","Zoom");
+    document.body.appendChild(fabEl);
+  }
+}
+function updateChrome() {
+  ensureChrome();
+  const show = !!profile && !editingForm;
+  tabbarEl.style.display = show ? "flex" : "none";
+  for (const b of tabbarEl.children) b.classList.toggle("active", b._tab === tab);
+  // FAB: only on the grid tab — "+" zooms into today, "−" zooms back out
+  const fabShow = show && tab === "grid";
+  fabEl.style.display = fabShow ? "grid" : "none";
+  if (fabShow) {
+    fabEl.textContent = viewMode === "life" ? "＋" : "−";
+    fabEl.onclick = () => {
+      if (viewMode === "life") {
+        const cur = currentAbsoluteIndex();
+        zoomFromOverview(cur != null ? Math.floor(cur/12) : 0, null);
+      } else { setView("life"); render(); }
+    };
+  }
+}
+let editingForm = false;
+let zoomFromOverview = (year) => { detailTargetYear = year; setView("detail"); render(); }; // replaced by renderLife when grid is mounted
+
 /* ---------- v3: two-level view ---------- */
 const VIEW_KEY = "lifegrid_view_v1";
 const REVEAL_KEY = "lifegrid_reveal_pending";
@@ -349,7 +477,7 @@ function allTags() {
   for (const m of months) for (const t of tagsOf(m)) freq.set(t, (freq.get(t)||0)+1);
   return [...freq.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([t])=>t);
 }
-const monthHasContent = (m) => !!(m.title || m.notes || m.tags || m.photoIds.length);
+const monthHasContent = (m) => !!(m.title || m.notes || m.tags || m.photoIds.length || (m.weeks && m.weeks.some(w => w && w.trim())));
 
 function pastThisMonth(cur) {
   if (cur == null || !profile) return [];
@@ -405,7 +533,7 @@ async function importBackup(fileBlob) {
   for (const [id, u] of photoURLCache) { try { URL.revokeObjectURL(u); } catch {} }
   photoURLCache.clear();
   profile = data.profile;
-  months = data.months.map(m => ({ title:"", notes:"", tags:"", isMilestone:false, ...m, photoIds: Array.isArray(m.photoIds) ? m.photoIds : [] }));
+  months = data.months.map(m => normalizeMonth({ title:"", notes:"", tags:"", isMilestone:false, ...m }));
   saveProfile(); saveMonths(); activeTag = null; render();
 }
 
@@ -415,22 +543,24 @@ function renderLife() {
   const head = el("div","head");
   const left = el("div");
   left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
-  left.append(el("p","sub","Your whole life on one screen. Tap anywhere to zoom in."));
-  const btns = el("div","head-btns");
-  const detailBtn = el("button","edit-btn","☰ Detail view");
-  detailBtn.onclick = () => { detailTargetYear = null; setView("detail"); render(); };
-  btns.appendChild(detailBtn);
-  head.append(left, btns);
+  left.append(el("p","sub","Your whole life on one screen. Tap anywhere — or ＋ — to zoom in."));
+  head.append(left);
   root.appendChild(head);
 
+  // backup nudge lives on the grid tab, where it'll be seen
   const filled = months.filter(monthHasContent).length;
-  const miles = months.filter(m => m.isMilestone).length;
-  const lived = cur != null ? cur+1 : 0;
-  root.appendChild(el("div","stats-strip",
-    `<span><b>${lived.toLocaleString()}</b> months lived</span>
-     <span><b>${filled}</b> with stories</span>
-     <span><b>${miles}</b> milestones</span>
-     <span><b>${(YEARS*12-lived).toLocaleString()}</b> still ahead ✨</span>`));
+  const signedIn = !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn());
+  if (filled >= 5 && !signedIn && localStorage.getItem(NUDGE_KEY) !== "1") {
+    const nudge = el("div","nudge");
+    nudge.append(el("span",null,`You have <b>${filled}</b> stories on this device only. Back them up so they can't be lost.`));
+    const acts = el("div","n-act");
+    const goBtn = el("button","n-go","Back up");
+    goBtn.onclick = () => { setTab("profile"); render(); };
+    const no = el("button","n-no","Dismiss");
+    no.onclick = () => { try{ localStorage.setItem(NUDGE_KEY,"1"); }catch{} render(); };
+    acts.append(goBtn, no); nudge.appendChild(acts);
+    root.appendChild(nudge);
+  }
 
   const wrap = el("div","ov-wrap");
   const rail = el("div","ov-rail");
@@ -458,10 +588,9 @@ function renderLife() {
     const h = wrap.clientHeight || 520, w = wrap.clientWidth || 340;
     const cell = Math.max(3, Math.floor(Math.min((h - (YEARS-1)) / YEARS, (w - 26 - 8 - 11) / 12)));
     grid.style.setProperty("--c", cell + "px");
-    const by = parseInt(profile.birthYear, 10);
     rail.innerHTML = "";
     for (let d = 0; d < YEARS; d += 10) {
-      const lab = el("span", d % 20 === 0 ? "gold" : "", isNaN(by) ? String(d) : String(by + d));
+      const lab = el("span", d % 20 === 0 ? "gold" : "", String(d));   // age, not year
       lab.style.top = (d * (cell+1) + cell/2) + "px";
       rail.appendChild(lab);
     }
@@ -478,65 +607,38 @@ function renderLife() {
     }
   });
 
-  // tap → auto-pinch zoom into that year
+  // shared auto-pinch: used by grid taps AND the ＋ FAB (which targets today)
+  zoomFromOverview = (year, originPx) => {
+    const zoomIn = () => { detailTargetYear = year; setView("detail"); render(); };
+    if (reduceMotion()) { zoomIn(); return; }
+    const cell = parseFloat(grid.style.getPropertyValue("--c")) || 7;
+    const o = originPx || { x: 6*(cell+1), y: year*(cell+1) + cell/2 };  // default: centre of that year's row
+    grid.style.transformOrigin = `${o.x}px ${o.y}px`;
+    grid.classList.add("zoom");
+    setTimeout(zoomIn, 330);
+  };
   grid.onclick = (e) => {
     const rect = grid.getBoundingClientRect();
     const cell = parseFloat(grid.style.getPropertyValue("--c")) || 7;
     const year = Math.max(0, Math.min(YEARS-1, Math.floor((e.clientY - rect.top) / (cell + 1))));
-    const zoomIn = () => { detailTargetYear = year; setView("detail"); render(); };
-    if (reduceMotion()) { zoomIn(); return; }
-    grid.style.transformOrigin = `${e.clientX - rect.left}px ${e.clientY - rect.top}px`;
-    grid.classList.add("zoom");
-    setTimeout(zoomIn, 330);
+    zoomFromOverview(year, { x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 }
 
-function renderGrid() {
+/* ---- Memories tab (v4): every story, newest first ---- */
+function renderMemories() {
   const cur = currentAbsoluteIndex();
-  const head = el("div","head");
-  const left = el("div");
-  left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
-  left.append(el("p","sub",`Born ${MONTH_NAMES[profile.birthMonthIndex]} ${profile.birthYear}. Tap a month to add a story.`));
-  const btns = el("div","head-btns");
-  const lifeBtn = el("button","edit-btn","▦ Whole life");
-  lifeBtn.onclick = () => { setView("life"); render(); };
-  const edit = el("button","edit-btn","Edit profile"); edit.onclick = () => renderForm(true);
-  btns.append(lifeBtn, edit);
-  head.append(left, btns);
-  root.appendChild(head);
+  const entries = [];
+  for (let abs = YEARS*12 - 1; abs >= 0; abs--) if (monthHasContent(months[abs])) entries.push(abs);
+  root.appendChild(el("h1","tab-title","Memories"));
+  root.appendChild(el("p","tab-sub", `${entries.length} ${entries.length===1?"memory":"memories"} recorded`));
 
-  // stats
-  const filled = months.filter(monthHasContent).length;
-  const miles = months.filter(m => m.isMilestone).length;
-  const lived = cur != null ? cur+1 : 0;
-  const stats = el("div","stats-strip",
-    `<span><b>${lived.toLocaleString()}</b> months lived</span>
-     <span><b>${filled}</b> with stories</span>
-     <span><b>${miles}</b> milestones</span>
-     <span><b>${(YEARS*12-lived).toLocaleString()}</b> still ahead ✨</span>`);
-  root.appendChild(stats);
-
-  // backup nudge — shown once stories accumulate with no cloud account
-  const signedIn = !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn());
-  if (filled >= 5 && !signedIn && localStorage.getItem(NUDGE_KEY) !== "1") {
-    const nudge = el("div","nudge");
-    nudge.append(el("span",null,`You have <b>${filled}</b> stories on this device only. Back them up so they can't be lost.`));
-    const acts = el("div","n-act");
-    const go = el("button","n-go","☁️ Sign in");
-    go.onclick = () => { const chip = document.getElementById("cloudChip"); if (chip) chip.click(); };
-    const no = el("button","n-no","Dismiss");
-    no.onclick = () => { try{ localStorage.setItem(NUDGE_KEY,"1"); }catch{} render(); };
-    acts.append(go, no); nudge.appendChild(acts);
-    root.appendChild(nudge);
-  }
-
-  // "this month in your past" — the reason to come back
-  const memories = pastThisMonth(cur);
-  if (memories.length) {
+  const past = pastThisMonth(cur);
+  if (past.length) {
     const card = el("div","memories");
     card.appendChild(el("h3",null,"✨ This month in your past"));
-    for (const { m, yearsAgo } of memories) {
-      const what = m.title || (m.notes ? m.notes.slice(0,60) + (m.notes.length>60?"…":"") : `${m.photoIds.length} photo${m.photoIds.length===1?"":"s"}`);
+    for (const { m, yearsAgo } of past) {
+      const what = m.title || (m.notes ? m.notes.slice(0,60)+(m.notes.length>60?"…":"") : `${m.photoIds.length} photo${m.photoIds.length===1?"":"s"}`);
       const item = el("button","memory-item",
         `<span class="when">${esc(labelFor(m))} · ${yearsAgo} year${yearsAgo===1?"":"s"} ago</span>${esc(what)}`);
       item.onclick = () => openMonth(m);
@@ -545,25 +647,6 @@ function renderGrid() {
     root.appendChild(card);
   }
 
-  root.appendChild(el("div","legend",
-    `<span><i class="swatch"></i>Empty</span>
-     <span><i class="swatch filled"></i>Story / photos</span>
-     <span><i class="swatch mile"></i>Milestone</span>
-     <span><i class="swatch today"></i>Today</span>`));
-
-  // backup tools
-  const tools = el("div","tools");
-  const exp = el("button","tool-btn","⬇ Export backup");
-  exp.onclick = () => exportBackup(exp);
-  const impBtn = el("button","tool-btn","⬆ Import");
-  const impFile = document.createElement("input");
-  impFile.type = "file"; impFile.accept = "application/json,.json"; impFile.hidden = true;
-  impBtn.onclick = () => impFile.click();
-  impFile.onchange = () => { if (impFile.files[0]) importBackup(impFile.files[0]); impFile.value = ""; };
-  tools.append(exp, impBtn, impFile);
-  root.appendChild(tools);
-
-  // tag filter chips
   const tags = allTags();
   if (tags.length) {
     const row = el("div","tag-row");
@@ -573,24 +656,148 @@ function renderGrid() {
       row.appendChild(chip);
     }
     if (activeTag) {
-      const clear = el("button","tag-chip active","✕ clear filter");
+      const clear = el("button","tag-chip active","✕ clear");
       clear.onclick = () => { activeTag = null; render(); };
       row.appendChild(clear);
     }
     root.appendChild(row);
   }
 
+  const list = el("div");
+  let shown = 0;
+  for (const abs of entries) {
+    const m = months[abs];
+    if (activeTag && !tagsOf(m).includes(activeTag)) continue;
+    shown++;
+    const ageY = Math.floor(abs/12), ageM = abs%12;
+    const card = el("button","mem-card");
+    const weekNotes = (m.weeks||[]).filter(w=>w&&w.trim()).length;
+    card.innerHTML = `
+      ${m.title ? `<h3>${esc(m.title)}</h3>` : `<h3>${esc(labelFor(m))}</h3>`}
+      <p class="mem-when">Month ${abs+1} · ${esc(labelFor(m))} · Age ${ageY}y ${ageM}m${m.isMilestone ? " · ★ milestone" : ""}</p>
+      ${m.notes ? `<p class="mem-snippet">${esc(m.notes.slice(0,110))}${m.notes.length>110?"…":""}</p>` : ""}
+      ${weekNotes ? `<span class="mem-badge">📝 ${weekNotes} weekly note${weekNotes===1?"":"s"}</span>` : ""}
+      ${m.photoIds.length>1 ? `<span class="mem-badge">+${m.photoIds.length-1} more photo${m.photoIds.length>2?"s":""}</span>` : ""}`;
+    if (m.photoIds.length) {
+      const img = document.createElement("img");
+      img.className = "mem-photo"; img.alt = "";
+      photoURL(m.photoIds[0]).then(u => { if (u) img.src = u; });
+      card.appendChild(img);
+    }
+    card.onclick = () => openMonth(m);
+    list.appendChild(card);
+  }
+  if (!shown) {
+    list.appendChild(el("p","tab-sub", activeTag
+      ? `No memories tagged “${esc(activeTag)}” yet.`
+      : "No memories yet — tap a month on the grid to write your first."));
+  }
+  root.appendChild(list);
+}
+
+/* ---- Profile tab (v4): the numbers, the about, the tools ---- */
+function renderProfile() {
+  const cur = currentAbsoluteIndex();
+  const lived = cur != null ? cur+1 : 0;
+  const total = YEARS*12;
+  const pct = (lived/total*100);
+  const ageY = cur != null ? Math.floor(cur/12) : 0, ageM = cur != null ? cur%12 : 0;
+  const filled = months.filter(monthHasContent).length;
+  const by = parseInt(profile.birthYear,10);
+  const birthDate = new Date(by, profile.birthMonthIndex, 1);
+  const daysLived = Math.max(0, Math.floor((Date.now() - birthDate.getTime())/864e5));
+  const nextMile = (Math.floor(ageY/5)+1)*5;
+  const mileAway = nextMile*12 - cur;
+  const nowY = new Date().getFullYear();
+  const calYearOf = (abs) => by + Math.floor((profile.birthMonthIndex + abs)/12);
+  const inYear = (yr) => months.filter((m,abs) => monthHasContent(m) && calYearOf(abs)===yr).length;
+
+  root.appendChild(el("h1","tab-title","Profile"));
+  const head = el("div","prof-head");
+  head.innerHTML = `
+    <p class="nm">${esc(profile.name)}</p>
+    <p>Born ${MONTH_NAMES[profile.birthMonthIndex]} ${esc(profile.birthYear)}</p>
+    <p>Horizon: ${YEARS} years · ${MONTH_NAMES[profile.birthMonthIndex]} ${by+YEARS}</p>
+    <p class="motto">Make it count.</p>`;
+  root.appendChild(head);
+
+  const prog = el("div","progress-card");
+  prog.innerHTML = `<h3>Life Progress</h3>
+    <div class="pbar"><span style="width:${Math.min(100,pct).toFixed(2)}%"></span></div>
+    <p class="pbar-lab">${pct.toFixed(2)}% complete</p>`;
+  root.appendChild(prog);
+
+  const stat = (ic, lab, val, sub) => {
+    const c = el("div","stat-card");
+    c.innerHTML = `<div class="stat-ic">${ic}</div><div><p class="lab">${lab}</p><p class="val">${val}</p><p class="sub2">${sub}</p></div>`;
+    return c;
+  };
+  root.append(
+    stat("▦","Months lived", lived.toLocaleString(), `${pct.toFixed(1)}% of ${YEARS} years`),
+    stat("◷","Current age", `${ageY} years`, `${ageM} month${ageM===1?"":"s"}`),
+    stat("♥","Total memories", String(filled), `${(filled/Math.max(1,lived)*100).toFixed(1)}% of months documented`),
+    stat("✶","This year", String(inYear(nowY)), `memories captured · ${inYear(nowY-1)} last year`),
+    stat("⚡","Days lived", daysLived.toLocaleString(), `${(daysLived*24).toLocaleString()} hours`),
+    stat("◎","Next milestone", `${nextMile} years`, `${mileAway} month${mileAway===1?"":"s"} away`),
+    stat("✨","Months remaining", (total-lived).toLocaleString(), `~${Math.round((total-lived)/12)} years ahead`),
+  );
+
+  const about = el("div","about-card");
+  about.innerHTML = `<b>About Life Grid</b><br>
+    Life is finite. Each square on your grid is one month of a ${YEARS}-year life — a quiet reminder to
+    appreciate the time you have and record the moments that matter.<br><br>
+    Your data lives on this device, and never leaves it unless you sign in to back it up.`;
+  root.appendChild(about);
+
+  const actions = el("div","action-list");
+  const act = (label, fn) => { const b = el("button","action-row",`<span>${label}</span><span class="go">›</span>`); b.onclick = fn; return b; };
+  const expRow = act("⬇ Export backup", ()=>{});
+  expRow.onclick = () => exportBackup(expRow.querySelector("span"));
+  const impFile = document.createElement("input");
+  impFile.type = "file"; impFile.accept = "application/json,.json"; impFile.hidden = true;
+  impFile.onchange = () => { if (impFile.files[0]) importBackup(impFile.files[0]); impFile.value = ""; };
+  actions.append(
+    act("Edit profile", () => renderForm(true)),
+    expRow,
+    act("⬆ Import backup", () => impFile.click()),
+    act("☁️ Account & sync", () => {
+      const chip = document.getElementById("cloudChip");
+      if (chip) chip.click(); else confirmDialog("Cloud sync isn't configured.", "OK", false);
+    }),
+    impFile,
+  );
+  root.appendChild(actions);
+  root.appendChild(el("p","footer","Life Grid · an Ogbara Labs experiment · works offline"));
+}
+
+function renderGrid() {
+  const cur = currentAbsoluteIndex();
+  const head = el("div","head");
+  const left = el("div");
+  left.append(el("h2","greet",`Hi ${esc(profile.name)} 👋`));
+  left.append(el("p","sub","Tap a month to add a story. − zooms back out."));
+  head.append(left);
+  root.appendChild(head);
+
+
+  root.appendChild(el("div","legend",
+    `<span><i class="swatch"></i>Empty</span>
+     <span><i class="swatch filled"></i>Story / photos</span>
+     <span><i class="swatch mile"></i>Milestone</span>
+     <span><i class="swatch today"></i>Today</span>`));
+
+
   const scroll = el("div","grid-scroll");
   const frag = document.createDocumentFragment();
   const by = parseInt(profile.birthYear,10);
   for (let y=0; y<YEARS; y++) {
     const row = el("div","year-row");
-    const lbl = el("div","year-label" + (y%10===0 ? " decade":""), isNaN(by) ? `Y${y+1}` : String(by+y));
+    const lbl = el("div","year-label" + (y%10===0 ? " decade":""), String(y));   // age, not calendar year
     const mwrap = el("div","months");
     for (let m=0; m<12; m++) {
       const month = months[y*12+m];
       const abs = y*12+m;
-      const has = month.title||month.notes||month.tags||month.photoIds.length;
+      const has = monthHasContent(month);
       let cls = "cell";
       if (month.isMilestone) cls += " milestone";
       else if (has) cls += " filled";
@@ -636,7 +843,7 @@ async function openMonth(month) {
     }
     pendingAdds = [];
   }
-  const closeDiscard = () => { discardPending(); back.remove(); };
+  let closeDiscard = () => { discardPending(); back.remove(); };   // re-bound below once fields exist
 
   const back = el("div","modal-back");
   const box = el("div","modal");
@@ -647,6 +854,13 @@ async function openMonth(month) {
       <label>Title / story</label><input type="text" id="mTitle" placeholder="What happened this month?">
       <label>Notes</label><textarea id="mNotes" placeholder="Details, reflections, lessons…"></textarea>
       <label>Tags (comma separated)</label><input type="text" id="mTags" placeholder="career, love, health…">
+      <label>Weekly notes</label>
+      <div class="weeks" id="mWeeks">
+        <input type="text" class="wk-input" placeholder="Week 1">
+        <input type="text" class="wk-input" placeholder="Week 2">
+        <input type="text" class="wk-input" placeholder="Week 3">
+        <input type="text" class="wk-input" placeholder="Week 4">
+      </div>
       <label>Photos</label>
       <div class="photo-list" id="mPhotos"></div>
       <button class="add-photo" id="mAdd">＋ Add a photo</button>
@@ -664,6 +878,20 @@ async function openMonth(month) {
 
   const t = box.querySelector("#mTitle"), n = box.querySelector("#mNotes"), g = box.querySelector("#mTags");
   t.value = month.title; n.value = month.notes; g.value = month.tags;
+  const wkInputs = [...box.querySelectorAll(".wk-input")];
+  wkInputs.forEach((w,i) => { w.value = (month.weeks && month.weeks[i]) || ""; });
+  const readWeeks = () => wkInputs.map(w => w.value);
+  /* dirty check: a stray backdrop tap must never eat typed words */
+  const snapshot = () => JSON.stringify({ t:t.value, n:n.value, g:g.value, w:readWeeks(), mi:isMile, p:photoIds });
+  const initial = snapshot();
+  const isDirty = () => snapshot() !== initial || pendingAdds.length > 0;
+  closeDiscard = async () => {
+    if (isDirty()) {
+      const yes = await confirmDialog("Discard your changes to this month?", "Discard");
+      if (!yes) return;
+    }
+    discardPending(); back.remove();
+  };
   const mileBtn = box.querySelector("#mMile");
   const paintMile = () => { mileBtn.className = "mile-toggle" + (isMile?" on":""); mileBtn.textContent = isMile ? "✓ Marked as milestone" : "Mark this month as a milestone"; };
   paintMile();
@@ -708,7 +936,7 @@ async function openMonth(month) {
       const u = photoURLCache.get(id);
       if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
     }
-    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, isMilestone:isMile, photoIds });
+    Object.assign(month, { title:t.value, notes:n.value, tags:g.value, weeks:readWeeks(), isMilestone:isMile, photoIds });
     saveMonths(); back.remove(); render();
   };
   box.querySelector("#mClear").onclick = async () => {
@@ -720,7 +948,7 @@ async function openMonth(month) {
       const u = photoURLCache.get(id);
       if (u) { try { URL.revokeObjectURL(u); } catch {} photoURLCache.delete(id); }
     });
-    Object.assign(month, { title:"", notes:"", tags:"", isMilestone:false, photoIds:[] });
+    Object.assign(month, { title:"", notes:"", tags:"", weeks:EMPTY_WEEKS(), isMilestone:false, photoIds:[] });
     saveMonths(); back.remove(); render();
   };
 }
@@ -763,7 +991,7 @@ if (window.Cloud) Cloud.init("lifegrid", {
   apply: (st) => {
     if (st.profile && st.profile.name) { profile = st.profile; try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }catch{} }
     if (Array.isArray(st.months) && st.months.length === YEARS*MONTHS_PER_YEAR) {
-      months = st.months.map(m => ({ ...m, photoIds: Array.isArray(m.photoIds) ? m.photoIds : [] }));
+      months = st.months.map(normalizeMonth);
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(months)); }catch{}
     }
     render();
