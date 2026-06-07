@@ -33,6 +33,10 @@ module.exports = async function (t) {
   h.ids["overlay"].children.length = 0;
 
   BTApp.enterTestMode();
+  BTApp.startSet("time.oclock", "practice");
+  const svgDrawn = String(h.ids["promptCard"]._inner).includes("<svg") && String(h.ids["promptCard"]._inner).includes("circle");
+  t("clock question renders a drawn SVG clock", svgDrawn);
+  BTApp.exitPlay();
   let locked = 0;
   walk(h.ids["mapRoot"], e => { if (e.dataset && e.dataset.skill && e.classList.contains("locked")) locked++; });
   t("test mode unlocks everything", BTApp.state().profile === "_test");

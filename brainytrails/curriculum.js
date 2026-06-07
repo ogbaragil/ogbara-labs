@@ -227,7 +227,8 @@ const BT = (() => {
           format: "keypad",
           prompt: `${t} tens and ${o} ones make…?`,
           say: `${t} tens and ${o} ones make what number?`,
-          visual: rep("📦", t) + (o ? "  " + rep("🔹", o) : ""),
+          visual: null,
+          pic: { kind: "blocks", tens: t, ones: o },
           answer: t * 10 + o,
           hint: "Each 📦 is worth ten. Each 🔹 is worth one.",
           steps: [`Count the tens: ${Array.from({ length: t }, (_, i) => (i + 1) * 10).join(", ")}.`, `Now add the ${o} ones.`, `${t * 10} and ${o} make ${t * 10 + o}!`],
@@ -331,7 +332,8 @@ const BT = (() => {
           format: "choice",
           prompt: "What time is it?",
           say: "Look at the clock. What time is it?",
-          visual: face,
+          visual: null,
+          pic: { kind: "clock", h, half },
           choices: shuffle([{ label: right, correct: true }, ...[...wrongs].map(w => ({ label: w, correct: false }))]),
           hint: half ? "The long hand points straight down for half past." : "The long hand points straight up for o'clock.",
           steps: ["The short hand tells the hour.", half ? "The long hand at the bottom means half past." : "The long hand at the top means o'clock.", `So it's ${right}!`],
@@ -349,7 +351,8 @@ const BT = (() => {
           format: "keypad",
           prompt: `${picks.map(c => c + "c").join(" + ")} = ❓ cents`,
           say: `How many cents is ${picks.map(c => c + " cents").join(" plus ")}?`,
-          visual: rep("🪙", n),
+          visual: null,
+          pic: { kind: "coins", values: picks },
           answer: sum,
           hint: "Add the biggest coin first!",
           steps: [`Start with the biggest: ${Math.max(...picks)}c.`, "Count on the others one at a time.", `All together that's ${sum} cents!`],
@@ -471,6 +474,7 @@ const BT = (() => {
           prompt: `${m} m is ${claim ? "longer" : "shorter"} than ${cm} cm`,
           say: `True or false: ${m} metres is ${claim ? "longer" : "shorter"} than ${cm} centimetres?`,
           visual: null,
+          pic: { kind: "compare", a: { label: m + " m", len: m * 100 }, b: { label: cm + " cm", len: cm } },
           answer: claim ? truthy : !truthy,
           hint: "1 metre is 100 centimetres.",
           steps: [`Change metres to centimetres: ${m} m = ${m * 100} cm.`, `Compare ${m * 100} cm with ${cm} cm.`, `${m * 100} is ${truthy ? "bigger" : "smaller"}, so the claim is ${(claim ? truthy : !truthy) ? "TRUE" : "FALSE"}!`] };
@@ -486,7 +490,8 @@ const BT = (() => {
         return { format: "choice",
           prompt: `A pizza is cut into ${n} equal slices. You eat ${k}. What fraction did you eat?`,
           say: `A pizza is cut into ${n} equal slices and you eat ${k}. What fraction is that?`,
-          visual: "🍕",
+          visual: null,
+          pic: { kind: "pie", n, k },
           choices: shuffle([{ label: right, correct: true }, ...[...wrongSet].slice(0, 2).map(w => ({ label: w, correct: false }))]),
           hint: "Slices you ate on top, total slices on the bottom.",
           steps: [`The bottom number is ALL the slices: ${n}.`, `The top number is what you ate: ${k}.`, `So it's ${right}!`] };
@@ -575,6 +580,7 @@ const BT = (() => {
         return { format: "choice", prompt: `Which equals ${base[0]}/${base[1]}?`,
           say: `Which fraction is the same as ${base[0]} over ${base[1]}?`,
           visual: null,
+          pic: { kind: "pie", n: base[1], k: base[0] },
           choices: shuffle([{ label: right, correct: true }, ...[...wrongs].slice(0, 2).map(w => ({ label: w, correct: false }))]),
           hint: "Multiply the top AND bottom by the same number.",
           steps: [`Multiply top and bottom of ${base[0]}/${base[1]} by ${m}.`, `Top: ${base[0]} × ${m} = ${base[0] * m}. Bottom: ${base[1]} × ${m} = ${base[1] * m}.`, `So ${base[0]}/${base[1]} = ${right} — twins!`] };
@@ -599,7 +605,8 @@ const BT = (() => {
         const l = ri(2, lerp(6, 12, d)), w = ri(1, l - 1);
         return { format: "keypad", prompt: `A rectangle is ${l} long and ${w} wide. Perimeter?`,
           say: `A rectangle is ${l} long and ${w} wide. What is its perimeter?`,
-          visual: "▭", answer: 2 * (l + w),
+          visual: null,
+          pic: { kind: "rect", l, w }, answer: 2 * (l + w),
           hint: "Perimeter = all the way around the outside.",
           steps: [`Add length and width: ${l} + ${w} = ${l + w}.`, "That's only halfway around — double it.", `${l + w} × 2 = ${2 * (l + w)}!`] };
       },
@@ -610,7 +617,8 @@ const BT = (() => {
         const l = ri(2, lerp(6, 12, d)), w = ri(2, lerp(5, 9, d));
         return { format: "keypad", prompt: `A rectangle is ${l} long and ${w} wide. Area?`,
           say: `A rectangle is ${l} long and ${w} wide. What is its area?`,
-          visual: "🟫", answer: l * w,
+          visual: null,
+          pic: { kind: "rect", l, w }, answer: l * w,
           hint: "Area = length × width.",
           steps: [`Imagine ${w} rows of ${l} tiles.`, `${l} × ${w}…`, `…is ${l * w} tiles of area!`] };
       },
@@ -644,14 +652,18 @@ const BT = (() => {
           let n = ri(110, 940);   // keep rounded result ≤ 900 (keypad is 3 digits)
           if (n % 100 === 50) n += ri(1, 9);
           const ans = Math.round(n / 100) * 100;
-          return { format: "keypad", prompt: `Round ${n} to the nearest 100`, say: `Round ${n} to the nearest hundred.`, visual: null, answer: ans,
+          return { format: "keypad", prompt: `Round ${n} to the nearest 100`, say: `Round ${n} to the nearest hundred.`, visual: null,
+            pic: { kind: "numline", lo: Math.floor(n / 100) * 100, hi: Math.floor(n / 100) * 100 + 100, mark: n, ticks: 10 },
+            answer: ans,
             hint: "Look at the tens digit: 5 or more rounds up.",
             steps: [`${n} sits between ${Math.floor(n / 100) * 100} and ${Math.floor(n / 100) * 100 + 100}.`, `The tens digit is ${Math.floor(n / 10) % 10}.`, `So it rounds to ${ans}!`] };
         }
         let n = ri(11, 98);
         if (n % 10 === 5) n += ri(1, 4);
         const ans = Math.round(n / 10) * 10;
-        return { format: "keypad", prompt: `Round ${n} to the nearest 10`, say: `Round ${n} to the nearest ten.`, visual: null, answer: ans,
+        return { format: "keypad", prompt: `Round ${n} to the nearest 10`, say: `Round ${n} to the nearest ten.`, visual: null,
+          pic: { kind: "numline", lo: Math.floor(n / 10) * 10, hi: Math.floor(n / 10) * 10 + 10, mark: n, ticks: 10 },
+          answer: ans,
           hint: "Look at the ones digit: 5 or more rounds up.",
           steps: [`${n} sits between ${Math.floor(n / 10) * 10} and ${Math.floor(n / 10) * 10 + 10}.`, `The ones digit is ${n % 10}.`, `So it rounds to ${ans}!`] };
       },
@@ -707,6 +719,7 @@ const BT = (() => {
         return { format: "choice", prompt: `An angle measures ${deg}°. What kind is it?`,
           say: `An angle measures ${deg} degrees. What kind of angle is it?`,
           visual: null,
+          pic: { kind: "angle", deg },
           choices: shuffle(pool.map(([k]) => ({ label: k, correct: k === kind }))),
           hint: "Right = exactly 90°. Less is acute, more is obtuse.",
           steps: ["A right angle is exactly 90°, a straight line is 180°.", `Smaller than 90° = acute, between 90° and 180° = obtuse.`, `${deg}° is ${kind}!`] };
@@ -724,7 +737,9 @@ const BT = (() => {
         }
         const a = ri(15, 160);
         return { format: "keypad", prompt: `Two angles make a straight line. One is ${a}°. The other?`,
-          say: `Two angles together make a straight line. One is ${a} degrees. What is the other?`, visual: null, answer: 180 - a,
+          say: `Two angles together make a straight line. One is ${a} degrees. What is the other?`, visual: null,
+          pic: { kind: "suppl", a },
+          answer: 180 - a,
           hint: "A straight line is 180° in total.",
           steps: ["Angles on a straight line add to 180°.", `180 − ${a}…`, `…is ${180 - a}!`] };
       },
@@ -739,7 +754,8 @@ const BT = (() => {
         return { format: "keypad",
           prompt: `Each ▇ = ${k}. How many ${fruits[ti]}?`,
           say: `On this graph, each block is worth ${k}. How many of the ${ti === 0 ? "first" : ti === 1 ? "second" : "third"} fruit are there?`,
-          visual: fruits.map((f, i) => `${f} ${"▇".repeat(bars[i])}`).join("\n"),
+          visual: null,
+          pic: { kind: "bars", items: fruits.map((f, i) => ({ label: f, val: bars[i] })) },
           answer: bars[ti] * k,
           hint: `Count the blocks, then multiply by ${k}.`,
           steps: [`${fruits[ti]} has ${bars[ti]} blocks.`, `Each block = ${k}.`, `${bars[ti]} × ${k} = ${bars[ti] * k}!`] };
@@ -756,7 +772,8 @@ const BT = (() => {
         return { format: "choice",
           prompt: `Which has the ${most ? "MOST" : "FEWEST"}?`,
           say: `Look at the graph. Which one has the ${most ? "most" : "fewest"}?`,
-          visual: fruits.map((f, i) => `${f} ${"▇".repeat(bars[i])}`).join("\n"),
+          visual: null,
+          pic: { kind: "bars", items: fruits.map((f, i) => ({ label: f, val: bars[i] })) },
           choices: shuffle(fruits.map((f, i) => ({ label: f, correct: i === ti }))),
           hint: `The ${most ? "longest" : "shortest"} bar wins.`,
           steps: ["Compare the lengths of the bars.", `The ${most ? "longest" : "shortest"} bar belongs to ${fruits[ti]}.`, "That's the answer!"] };
@@ -802,12 +819,13 @@ const BT = (() => {
       gen(d) {
         const BASE = d < 0.5 ? [[1, 2], [1, 3], [3, 4]] : [[1, 2], [1, 3], [2, 3], [3, 4], [2, 5]];
         const [p, q] = pick(BASE);
-        const m = ri(2, 4);
+        const m = ri(2, Math.max(2, Math.min(4, Math.floor(12 / q))));   // pie stays ≤12 slices — drawable
         const right = `${p}/${q}`;
         const wrongs = [`${p * m}/${q}`, `${p}/${q * m}`, `${p + 1}/${q + 1}`].filter(w => w !== right);
         return { format: "choice", prompt: `Simplify ${p * m}/${q * m}`,
           say: `Make ${p * m} over ${q * m} as simple as possible.`,
           visual: null,
+          pic: { kind: "pie", n: q * m, k: p * m },
           choices: shuffle([{ label: right, correct: true }, ...[...new Set(wrongs)].slice(0, 2).map(w => ({ label: w, correct: false }))]),
           hint: `Divide top and bottom by the same number.`,
           steps: [`Both ${p * m} and ${q * m} can be divided by ${m}.`, `Top: ${p * m} ÷ ${m} = ${p}. Bottom: ${q * m} ÷ ${m} = ${q}.`, `Shrunk to ${right}!`] };

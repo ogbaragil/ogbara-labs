@@ -23,6 +23,14 @@ module.exports = async function (t) {
     } else if (q.format === "tf") {
       if (typeof q.answer !== "boolean") return fail("tf corrupt");
     } else return fail("unknown format");
+    if (q.pic) {
+      const KINDS = { pie: ["n", "k"], clock: ["h"], blocks: ["tens", "ones"], rect: ["l", "w"], angle: ["deg"], suppl: ["a"], bars: ["items"], coins: ["values"], compare: ["a", "b"], numline: ["lo", "hi", "mark"] };
+      if (!KINDS[q.pic.kind]) return fail("unknown pic kind " + q.pic.kind);
+      for (const key of KINDS[q.pic.kind]) if (q.pic[key] === undefined) return fail(`pic ${q.pic.kind} missing ${key}`);
+      if (q.pic.kind === "pie" && (q.pic.k > q.pic.n || q.pic.n > 12)) return fail("pie corrupt");
+      if (q.pic.kind === "numline" && (q.pic.mark < q.pic.lo || q.pic.mark > q.pic.hi)) return fail("numline mark outside range");
+      if (q.pic.kind === "blocks" && (q.pic.tens > 9 || q.pic.ones > 9)) return fail("blocks overflow");
+    }
   };
   for (const id of Object.keys(BT.SKILLS))
     for (const d of [0, 0.5, 1])
@@ -40,4 +48,6 @@ module.exports = async function (t) {
   let grew = true;
   while (grew) { grew = false; for (const i of ids) if (!reach.has(i) && BT.SKILLS[i].prereqs.every(p => reach.has(p))) { reach.add(i); grew = true; } }
   t("every skill is reachable", reach.size === ids.length);
+  const withPics = ids.filter(id => { try { return !!BT.SKILLS[id].gen(0.6).pic || !!BT.SKILLS[id].gen(0.3).pic; } catch { return false; } });
+  t("14 skills carry maths pictures", withPics.length >= 14, "got " + withPics.length + ": " + withPics.join(","));
 };

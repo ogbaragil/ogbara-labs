@@ -75,6 +75,126 @@ const dueSkills = () => Object.keys(P().skills).filter(id => {
 /* unlock rule: every prerequisite at least Familiar */
 const unlocked = (id) => inTest() || BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1);
 
+/* ---------------- maths pictures (pic spec → inline SVG) ---------------- */
+function pic(p) {
+  const INK = "var(--ink)", VIO = "var(--violet)", LINE = "#cfc6e6", FILL = "#efe9ff";
+  const wrap = (vb, body, h) => `<svg class="qpic" viewBox="${vb}" style="max-height:${h || 130}px" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${body}</svg>`;
+  try {
+    if (p.kind === "pie") {
+      const cx = 70, cy = 70, r = 56, n = p.n, k = p.k;
+      let body = "";
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * 2 * Math.PI - Math.PI / 2, a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2;
+        const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+        const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+        body += `<path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z"
+          fill="${i < k ? VIO : "#fff"}" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>`;
+      }
+      return wrap("0 0 140 140", body, 132);
+    }
+    if (p.kind === "clock") {
+      const cx = 70, cy = 70;
+      let body = `<circle cx="${cx}" cy="${cy}" r="62" fill="#fff" stroke="${INK}" stroke-width="3"/>`;
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * 2 * Math.PI;
+        body += `<line x1="${cx + 54 * Math.sin(a)}" y1="${cy - 54 * Math.cos(a)}" x2="${cx + 60 * Math.sin(a)}" y2="${cy - 60 * Math.cos(a)}" stroke="${INK}" stroke-width="${i % 3 ? 2 : 3.5}"/>`;
+        const num = i === 0 ? 12 : i;
+        body += `<text x="${cx + 44 * Math.sin(a)}" y="${cy - 44 * Math.cos(a) + 4.5}" text-anchor="middle" font-size="12" font-weight="800" fill="${INK}">${num}</text>`;
+      }
+      const hourA = ((p.h % 12) / 12 + (p.half ? 1 / 24 : 0)) * 2 * Math.PI;
+      const minA = p.half ? Math.PI : 0;
+      body += `<line x1="${cx}" y1="${cy}" x2="${cx + 26 * Math.sin(hourA)}" y2="${cy - 26 * Math.cos(hourA)}" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>`;
+      body += `<line x1="${cx}" y1="${cy}" x2="${cx + 42 * Math.sin(minA)}" y2="${cy - 42 * Math.cos(minA)}" stroke="${VIO}" stroke-width="3.5" stroke-linecap="round"/>`;
+      body += `<circle cx="${cx}" cy="${cy}" r="4" fill="${INK}"/>`;
+      return wrap("0 0 140 140", body, 140);
+    }
+    if (p.kind === "blocks") {
+      let body = "", x = 6;
+      for (let i = 0; i < p.tens; i++) {
+        body += `<rect x="${x}" y="8" width="16" height="84" rx="3" fill="${VIO}" stroke="${INK}" stroke-width="2"/>`;
+        for (let j = 1; j < 10; j++) body += `<line x1="${x}" y1="${8 + j * 8.4}" x2="${x + 16}" y2="${8 + j * 8.4}" stroke="#fff" stroke-width="1.4" opacity=".75"/>`;
+        x += 24;
+      }
+      x += p.tens ? 8 : 0;
+      for (let i = 0; i < p.ones; i++) {
+        const col = Math.floor(i / 5), row = i % 5;
+        body += `<rect x="${x + col * 20}" y="${8 + row * 17}" width="15" height="15" rx="3" fill="#fff" stroke="${INK}" stroke-width="2"/>`;
+      }
+      const w = x + Math.ceil(p.ones / 5) * 20 + 6;
+      return wrap(`0 0 ${Math.max(w, 60)} 100`, body, 110);
+    }
+    if (p.kind === "rect") {
+      const W = 200, H = Math.max(50, Math.round(200 * (p.w / p.l) * 0.7));
+      return wrap(`0 0 ${W + 50} ${H + 40}`,
+        `<rect x="25" y="10" width="${W}" height="${H}" rx="6" fill="${FILL}" stroke="${INK}" stroke-width="3"/>
+         <text x="${25 + W / 2}" y="${H + 34}" text-anchor="middle" font-size="17" font-weight="900" fill="${INK}">${p.l}</text>
+         <text x="${W + 42}" y="${10 + H / 2 + 6}" text-anchor="middle" font-size="17" font-weight="900" fill="${INK}">${p.w}</text>`, 130);
+    }
+    if (p.kind === "angle") {
+      const cx = 26, cy = 104, L = 96, rad = (p.deg * Math.PI) / 180;
+      const x2 = cx + L * Math.cos(rad), y2 = cy - L * Math.sin(rad);
+      let body = `<line x1="${cx}" y1="${cy}" x2="${cx + L}" y2="${cy}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="${cx}" y1="${cy}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`;
+      if (p.deg === 90) body += `<path d="M${cx + 16},${cy} L${cx + 16},${cy - 16} L${cx},${cy - 16}" fill="none" stroke="${VIO}" stroke-width="2.5"/>`;
+      else {
+        const r = 22, ex = cx + r * Math.cos(rad), ey = cy - r * Math.sin(rad);
+        body += `<path d="M${cx + r},${cy} A${r},${r} 0 ${p.deg > 180 ? 1 : 0} 0 ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="${VIO}" stroke-width="2.5"/>`;
+      }
+      return wrap("0 0 150 116", body, 108);
+    }
+    if (p.kind === "suppl") {
+      const cx = 110, cy = 78, rad = (p.a * Math.PI) / 180;
+      return wrap("0 0 220 92",
+        `<line x1="8" y1="${cy}" x2="212" y2="${cy}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>
+         <line x1="${cx}" y1="${cy}" x2="${(cx + 80 * Math.cos(rad)).toFixed(1)}" y2="${(cy - 80 * Math.sin(rad)).toFixed(1)}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>
+         <text x="${cx + 34 * Math.cos(rad / 2)}" y="${cy - 30 * Math.sin(rad / 2) + 4}" font-size="14" font-weight="900" fill="${VIO}">${p.a}°</text>
+         <text x="${cx - 36}" y="${cy - 12}" font-size="15" font-weight="900" fill="${INK}">?</text>`, 90);
+    }
+    if (p.kind === "bars") {
+      const max = Math.max(...p.items.map(i => i.val));
+      let body = "";
+      p.items.forEach((it, i) => {
+        const y = 8 + i * 30;
+        body += `<text x="14" y="${y + 16}" font-size="17" text-anchor="middle">${it.label}</text>
+          <rect x="30" y="${y}" width="${(150 * it.val) / max}" height="21" rx="6" fill="${VIO}" stroke="${INK}" stroke-width="2"/>
+          <text x="${36 + (150 * it.val) / max}" y="${y + 15.5}" font-size="12" font-weight="900" fill="${INK}">${it.val}</text>`;
+      });
+      return wrap(`0 0 210 ${8 + p.items.length * 30}`, body, 26 + p.items.length * 30);
+    }
+    if (p.kind === "coins") {
+      const COL = { 5: "#cfd6dd", 10: "#cfd6dd", 20: "#cfd6dd", 50: "#cfd6dd", 100: "#f4cf6b", 200: "#f4cf6b" };
+      let body = "";
+      p.values.forEach((v, i) => {
+        const x = 36 + i * 70;
+        body += `<circle cx="${x}" cy="36" r="30" fill="${COL[v] || "#f4cf6b"}" stroke="${INK}" stroke-width="2.5"/>
+          <circle cx="${x}" cy="36" r="24" fill="none" stroke="${INK}" stroke-width="1" opacity=".35"/>
+          <text x="${x}" y="42" text-anchor="middle" font-size="15" font-weight="900" fill="${INK}">${v}c</text>`;
+      });
+      return wrap(`0 0 ${p.values.length * 70 + 4} 72`, body, 76);
+    }
+    if (p.kind === "compare") {
+      const max = Math.max(p.a.len, p.b.len);
+      const row = (it, y) => `<rect x="6" y="${y}" width="${(190 * it.len) / max}" height="20" rx="6" fill="${y === 8 ? VIO : "#38bdf8"}" stroke="${INK}" stroke-width="2"/>
+        <text x="${14 + (190 * it.len) / max}" y="${y + 15}" font-size="13" font-weight="900" fill="${INK}">${it.label}</text>`;
+      return wrap("0 0 264 64", row(p.a, 8) + row(p.b, 38), 66);
+    }
+    if (p.kind === "numline") {
+      const W = 220, lo = p.lo, hi = p.hi;
+      const X = (v) => 14 + ((v - lo) / (hi - lo)) * W;
+      let body = `<line x1="14" y1="40" x2="${14 + W}" y2="40" stroke="${INK}" stroke-width="3"/>`;
+      const step = (hi - lo) / (p.ticks || 10);
+      for (let v = lo; v <= hi; v += step)
+        body += `<line x1="${X(v)}" y1="34" x2="${X(v)}" y2="46" stroke="${INK}" stroke-width="2"/>`;
+      body += `<text x="${X(lo)}" y="62" text-anchor="middle" font-size="13" font-weight="900" fill="${INK}">${lo}</text>
+        <text x="${X(hi)}" y="62" text-anchor="middle" font-size="13" font-weight="900" fill="${INK}">${hi}</text>
+        <circle cx="${X(p.mark)}" cy="40" r="6.5" fill="${VIO}" stroke="${INK}" stroke-width="2"/>
+        <text x="${X(p.mark)}" y="20" text-anchor="middle" font-size="14" font-weight="900" fill="var(--violet)">${p.mark}</text>`;
+      return wrap(`0 0 ${W + 28} 68`, body, 70);
+    }
+  } catch { }
+  return "";
+}
+
 /* ---------------- sound effects ---------------- */
 const SFX = (() => {
   let ctx = null;
@@ -468,6 +588,7 @@ function renderQuestion(q) {
   const card = $("promptCard");
   card.innerHTML = `<button class="say-btn" aria-label="Hear it again">🔊</button>
     <p class="q-prompt">${esc(q.prompt)}</p>` +
+    (q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : "") +
     (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "");
   const dock = $("answerArea");
   dock.innerHTML = "";
@@ -860,6 +981,7 @@ function openParents() {
           ${st && st.attempts ? `<p class="sheet-acc">${st.correct}/${st.attempts} right (${Math.round(100 * st.correct / st.attempts)}%)</p>` : ""}
           <p class="p-section">Sample question</p>
           <p class="sheet-acc" style="font-weight:800; color:var(--ink);">${esc(q.prompt)}</p>
+          ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
           ${q.visual ? `<p class="sheet-acc">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
           <p class="sheet-acc">Answer: <b>${esc(correctLabel(q))}</b></p>`;
         const cl = el("button", "soft-btn", "Close");
