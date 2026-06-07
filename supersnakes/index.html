@@ -39,7 +39,7 @@
   .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
 
   /* Board — the hero. */
-  .board{position:relative; width:100%; max-width:min(600px, calc(100dvh - 300px)); margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
+  .board{position:relative; width:100%; max-width:min(94vw, calc(100dvh - 290px)); margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
          display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
          box-shadow:0 18px 44px rgba(5,25,18,.55), inset 0 0 0 1px rgba(10,53,40,.4);}
   .tile{position:relative;}
@@ -77,7 +77,7 @@
         background:rgba(11,60,46,.95); backdrop-filter:blur(10px);
         border-top:1px solid var(--line);
         padding:10px 14px calc(12px + env(safe-area-inset-bottom));}
-  .dock-inner{max-width:600px; margin:0 auto;}
+  .dock-inner{max-width:min(94vw, calc(100dvh - 290px)); margin:0 auto;}
   .status{margin:0 0 8px; color:var(--muted); font-size:12.5px; line-height:1.45; min-height:36px; text-align:center;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
   .dock-row{display:flex; align-items:center; gap:12px;}
@@ -116,9 +116,16 @@
   .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
   @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
 
-  .help{width:100%; max-width:min(600px, calc(100dvh - 300px)); background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:12px 16px; font-size:13px; color:var(--muted);}
-  .help summary{font-weight:800; color:var(--ink); cursor:pointer;}
-  .help li{margin:6px 0;}
+  .help-fab{position:fixed; right:14px; bottom:calc(188px + env(safe-area-inset-bottom)); z-index:41;
+    width:42px; height:42px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); font-weight:900; font-size:18px; box-shadow:0 6px 16px rgba(5,25,18,.45); backdrop-filter:blur(6px);}
+  .help-modal{text-align:left;}
+  .help-modal h2{text-align:center;}
+  .help-list{margin:10px 0 0; padding-left:6px; color:var(--muted); font-size:14px; line-height:1.75; list-style:none;}
+  .help-list li{margin:7px 0;}
+  .seg{display:flex; gap:8px; margin:6px 0 2px;}
+  .seg button{flex:1; padding:10px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); color:inherit; font-weight:800;}
+  .seg button.sel{background:rgba(255,211,92,.16); border-color:var(--sun);}
 
   /* Modals */
   .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.8); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
@@ -158,19 +165,11 @@
   <div class="layout">
     <div class="board" id="board"></div>
 
-    <details class="help">
-        <summary>How to play</summary>
-        <ul>
-          <li>🎲 Take turns rolling. Climb 🪜 ladders, dodge 🐍 snakes.</li>
-          <li>⭐ Land on every 5th tile for a fun family quest — with an easy version for the littlest player.</li>
-          <li>🎁 Quests can give bonus steps, boosts, or a snake shield.</li>
-          <li>🏁 You need an exact roll to land on 100 and win!</li>
-        </ul>
-      </details>
     <p class="footer">An Ogbara Labs experiment · made for family game night<br><a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
   </div>
 </div>
 
+<button class="help-fab" id="helpBtn" aria-label="How to play">?</button>
 <div class="dock">
   <div class="dock-inner">
     <p class="status" id="status">Tap the dice to begin your family adventure!</p>
@@ -243,11 +242,25 @@ const DEFAULT_PLAYERS = [
   { id:2, name:"Player 3", emoji:"🌟" },
   { id:3, name:"Player 4", emoji:"🚀" },
 ];
-let players;
-try { players = JSON.parse(localStorage.getItem("ss_players")||"null") || DEFAULT_PLAYERS; }
-catch { players = DEFAULT_PLAYERS; }
-players = players.map((p,i)=>({ ...DEFAULT_PLAYERS[i], ...p, position:1, nextTurnBoost:false, snakeShield:false }));
-const savePlayers = () => { try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{} if (window.Cloud) Cloud.schedulePush(); };
+let roster;
+try { roster = JSON.parse(localStorage.getItem("ss_players")||"null") || DEFAULT_PLAYERS; }
+catch { roster = DEFAULT_PLAYERS; }
+roster = DEFAULT_PLAYERS.map((d,i)=>({ ...d, ...(roster[i]||{}) }));
+let playerCount = (()=>{ const n=parseInt(localStorage.getItem("ss_player_count")||"4",10); return (n>=2&&n<=4)?n:4; })();
+let players = roster.slice(0,playerCount).map(p=>({ ...p, position:1, nextTurnBoost:false, snakeShield:false }));
+const savePlayers = () => { try{
+  players.forEach(p=>{ roster[p.id].name=p.name; roster[p.id].emoji=p.emoji; });
+  localStorage.setItem("ss_players", JSON.stringify(roster.map(({id,name,emoji})=>({id,name,emoji}))));
+  localStorage.setItem("ss_player_count", String(playerCount));
+}catch{} if (window.Cloud) Cloud.schedulePush(); };
+function setPlayerCount(n){
+  playerCount=n;
+  players = roster.slice(0,n).map(p=>({ ...p, position:1, nextTurnBoost:false, snakeShield:false }));
+  currentTurn=0; winner=null; moving=false;
+  buildBoard(); paintPawns(); paintTurn();
+  setStatus(`Adventure restarted for ${n} players. ${players[0].name} goes first!`);
+  savePlayers();
+}
 
 /* Avatar photos in IndexedDB */
 const AvatarDB = (()=>{ let dbp=null;
@@ -265,7 +278,7 @@ const avPushed = (()=>{ try { return new Set(JSON.parse(localStorage.getItem(AV_
 function avMark(id, on=true){ on ? avPushed.add(id) : avPushed.delete(id); try{ localStorage.setItem(AV_PUSHED_KEY, JSON.stringify([...avPushed])); }catch{} }
 async function avatarSync(){
   if (!window.Cloud || !Cloud.isSignedIn()) return;
-  for (const p of players){
+  for (const p of roster){
     if (avPushed.has("p"+p.id)) continue;
     try {
       const b = await AvatarDB.get("p"+p.id);
@@ -274,7 +287,7 @@ async function avatarSync(){
   }
 }
 async function loadAvatars(){
-  for (const p of players){
+  for (const p of roster){
     let b = await AvatarDB.get("p"+p.id);
     if (!b && window.Cloud && Cloud.isSignedIn()){ b = await Cloud.getPhoto("avatar-p"+p.id); if (b) await AvatarDB.put("p"+p.id, b); }
     if (b) avatarURL[p.id]=URL.createObjectURL(b);
@@ -417,6 +430,10 @@ async function animateAlong(playerIdx, from, to){
     e.classList.remove("hop");
   }
 }
+function questChampion(idx){
+  if (players[idx].position>=100) return players[idx];
+  return players.find(p=>p.position>=100) || null;
+}
 function applyQuestReward(quest, idx){
   switch(quest.type){
     case "bonus": players[idx].position=clampToBoard(players[idx].position+(quest.amount||1)); break;
@@ -507,7 +524,12 @@ async function runTurn(rolled){
     showQuest(quest, async ()=>{
       applyQuestReward(quest, idx);
       if (players[idx].position!==target) await animateAlong(idx,target,players[idx].position);
-      if (players[idx].position===FINAL_TILE){ moving=false; showWin(players[idx]); return; }
+      const champ = questChampion(idx);   // any player a team boost carried to 100 wins — not just the roller
+      if (champ){
+        setStatus(`${message} Quest done: ${quest.title}. ${champ.name} reached tile 100!`);
+        moving=false; savePlayers(); showWin(champ);
+        return;
+      }
       const upcoming=players[(idx+1)%players.length];
       setStatus(`${message} Quest done: ${quest.title}. Now it's ${upcoming.name}'s turn.`);
       currentTurn=(idx+1)%players.length; moving=false; paintPawns(); paintTurn();
@@ -541,9 +563,20 @@ function resetGame(){
 function openFamily(){
   const back=el("div","modal-back"), box=el("div","modal");
   box.innerHTML=`<h2>Your family 👨‍👩‍👧‍👦</h2><p style="color:var(--muted);font-size:14px;margin:0">Names, emoji and optional photos. Sign in (☁️) to sync photos to your private account.</p>`;
-  players.forEach((p)=>{
-    box.appendChild(el("label",null,`Player ${p.id+1}`));
-    const row=el("div","p-edit");
+  let tempCount=playerCount;
+  const rows=[], labels=[];
+  const refreshRows=()=>{ rows.forEach((r,i)=>{ r.hidden=i>=tempCount; labels[i].hidden=i>=tempCount; }); };
+  box.appendChild(el("label",null,"How many players?"));
+  const seg=el("div","seg");
+  [2,3,4].forEach((n)=>{
+    const b=el("button", n===tempCount?"sel":"", `${n} players`);
+    b.onclick=()=>{ tempCount=n; [...seg.children].forEach((c,j)=>c.className=(j===n-2?"sel":"")); refreshRows(); };
+    seg.appendChild(b);
+  });
+  box.appendChild(seg);
+  roster.forEach((p)=>{
+    const lab=el("label",null,`Player ${p.id+1}`); labels.push(lab); box.appendChild(lab);
+    const row=el("div","p-edit"); rows.push(row);
     const f=el("span","face",face(p));
     const nameI=el("input"); nameI.type="text"; nameI.value=p.name; nameI.oninput=()=>{ p.name=nameI.value||`Player ${p.id+1}`; };
     const emo=el("button","mini-btn",p.emoji); emo.title="Cycle emoji";
@@ -561,13 +594,19 @@ function openFamily(){
     clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); avMark("p"+p.id,false); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
     row.append(f,nameI,emo,up,clr,file); box.appendChild(row);
   });
+  refreshRows();
   const rr = el("button","reset-row","↺ Restart adventure — everyone back to tile 1");
   rr.onclick = () => { if (confirm("Restart the adventure?")){ resetGame(); savePlayers(); back.remove(); } };
   box.appendChild(rr);
+  const commit=()=>{
+    players.forEach(pl=>{ pl.name=roster[pl.id].name; pl.emoji=roster[pl.id].emoji; });
+    if (tempCount!==playerCount) setPlayerCount(tempCount);
+    else { savePlayers(); paintPawns(); paintTurn(); }
+  };
   const save=el("button","primary-btn","Save family");
-  save.onclick=()=>{ savePlayers(); back.remove(); paintPawns(); paintTurn(); };
+  save.onclick=()=>{ commit(); back.remove(); };
   box.appendChild(save); back.appendChild(box);
-  back.onclick=(e)=>{ if(e.target===back){ savePlayers(); back.remove(); paintPawns(); paintTurn(); } };
+  back.onclick=(e)=>{ if(e.target===back){ commit(); back.remove(); } };
   document.getElementById("overlay").appendChild(back);
 }
 function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=new Image();
@@ -577,9 +616,23 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
     cv.toBlob(b=>res(b||fileBlob),"image/jpeg",q); URL.revokeObjectURL(img.src); };
   img.onerror=()=>res(fileBlob); img.src=URL.createObjectURL(fileBlob); }); }
 
+function openHelp(){
+  const back=el("div","modal-back"), box=el("div","modal help-modal");
+  box.innerHTML=`<h2>How to play 🎲</h2><ul class="help-list">
+    <li>🎲 Take turns rolling. Climb 🪜 ladders, dodge 🐍 snakes.</li>
+    <li>⭐ Land on every 5th tile for a fun family quest — with an easy version for the littlest player.</li>
+    <li>🎁 Quests can give bonus steps, boosts, or a snake shield.</li>
+    <li>🏁 You need an exact roll to land on 100 — but a quest bonus that carries you there wins too!</li></ul>`;
+  const ok=el("button","primary-btn","Got it!"); ok.onclick=()=>back.remove();
+  box.appendChild(ok); back.appendChild(box);
+  back.onclick=(e)=>{ if(e.target===back) back.remove(); };
+  document.getElementById("overlay").appendChild(back);
+}
+
 /* ---------- Wire ---------- */
 dieBtn.onclick=rollDice;
 document.getElementById("famBtn").onclick=openFamily;
+document.getElementById("helpBtn").onclick=openHelp;
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=Sound.musicOn?1:0.45;
 musicBtn.onclick=()=>{ Sound.unlock(); Sound.setOn(!Sound.musicOn); paintMusicBtn(); };
@@ -591,12 +644,15 @@ addEventListener("pointerdown",function once(){ Sound.unlock(); if(Sound.musicOn
 
   /* ---------------- Cloud sync (optional account) ---------------- */
   if (window.Cloud) Cloud.init("supersnakes", {
-    collect: () => ({ players: players.map(({id,name,emoji})=>({id,name,emoji})), music: Sound.musicOn }),
+    collect: () => ({ players: roster.map(({id,name,emoji})=>({id,name,emoji})), playerCount, music: Sound.musicOn }),
     apply: async (st) => {
       if (Array.isArray(st.players)) {
-        st.players.forEach(rp => { const p = players.find(x=>x.id===rp.id); if (p){ p.name=rp.name||p.name; p.emoji=rp.emoji||p.emoji; } });
-        try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{}
+        st.players.forEach(rp => { const p = roster.find(x=>x.id===rp.id); if (p){ p.name=rp.name||p.name; p.emoji=rp.emoji||p.emoji; } });
+        players.forEach(pl=>{ pl.name=roster[pl.id].name; pl.emoji=roster[pl.id].emoji; });
+        try{ localStorage.setItem("ss_players", JSON.stringify(roster.map(({id,name,emoji})=>({id,name,emoji})))); }catch{}
       }
+      const rc = parseInt(st.playerCount,10);
+      if (rc>=2 && rc<=4 && rc!==playerCount) setPlayerCount(rc);
       if (st.music!==undefined){ Sound.setOn(!!st.music); paintMusicBtn(); }
       await loadAvatars();
       avatarSync();

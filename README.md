@@ -12,6 +12,7 @@ SETUP-SUPABASE.md.
 |----------------|----------------------------|-------------------------------|
 | `home/`        | Landing hub                | `ogbaralabs.xyz` (apex + www) |
 | `howmany/`     | How Many? (kids learning)  | `howmany.ogbaralabs.xyz`      |
+| `brainytrails/`| Brainy Trails (maths 5–11) | `brainytrails.ogbaralabs.xyz` |
 | `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbaralabs.xyz`     |
 | `couples/`     | Couples Snakes & Ladders   | `couples.ogbaralabs.xyz`      |
 | `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbaralabs.xyz`  |
@@ -33,7 +34,7 @@ Create **five** Pages projects, all connected to this same GitHub repo:
 
 1. Workers & Pages → Create → Pages → Connect to Git → pick this repo
 2. Framework preset: **None** · Build command: **(empty)** · Build output directory: **/**
-3. **Root directory (advanced)**: set per project → `home`, `howmany`, `lifegrid`, `couples`, `supersnakes`
+3. **Root directory (advanced)**: set per project → `home`, `howmany`, `brainytrails`, `lifegrid`, `couples`, `supersnakes`
 4. Save & Deploy
 5. In each project → **Custom domains** → add its subdomain (the `home` project
    gets `ogbaralabs.xyz` and `www.ogbaralabs.xyz`)

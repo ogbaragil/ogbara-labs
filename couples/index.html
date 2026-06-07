@@ -40,7 +40,7 @@
   .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
 
   /* Board — the hero. One surface, no frames. */
-  .board-outer{position:relative; width:100%; max-width:min(600px, calc(100dvh - 260px)); margin:0 auto;}
+  .board-outer{position:relative; width:100%; max-width:min(94vw, calc(100dvh - 250px)); margin:0 auto;}
   .board{position:relative; width:100%; aspect-ratio:1; background:var(--board); border-radius:18px; overflow:hidden;
          display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
          box-shadow:0 18px 44px rgba(20,6,15,.5), inset 0 0 0 1px rgba(122,74,97,.25);}
@@ -72,7 +72,7 @@
         background:rgba(58,21,48,.94); backdrop-filter:blur(10px);
         border-top:1px solid var(--line);
         padding:10px 14px calc(12px + env(safe-area-inset-bottom));}
-  .dock-inner{max-width:600px; margin:0 auto;}
+  .dock-inner{max-width:min(94vw, calc(100dvh - 250px)); margin:0 auto;}
   .turn-line{font-family:var(--display); font-style:italic; font-size:16.5px; margin:0; text-align:center;}
   .event-line{color:var(--muted); font-size:12.5px; min-height:17px; margin:2px 0 8px; text-align:center;
               white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -111,6 +111,14 @@
   .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}
   .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
   @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
+
+  .help-fab{position:fixed; right:14px; bottom:calc(154px + env(safe-area-inset-bottom)); z-index:41;
+    width:42px; height:42px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); font-weight:900; font-size:18px; box-shadow:0 6px 16px rgba(20,6,15,.5); backdrop-filter:blur(6px);}
+  .help-modal{text-align:left;}
+  .help-modal h2{text-align:center;}
+  .help-list{margin:10px 0 0; padding-left:6px; color:var(--muted); font-size:14px; line-height:1.75; list-style:none;}
+  .help-list li{margin:7px 0;}
 
   /* Modals */
   .modal-back{position:fixed; inset:0; background:rgba(20,6,15,.78); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
@@ -165,6 +173,7 @@
     <p class="footer">An Ogbara Labs experiment · always tasteful &amp; consensual 💕<br><a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
   </div>
 
+  <button class="help-fab" id="helpBtn" aria-label="How to play">?</button>
   <div class="dock">
     <div class="dock-inner">
       <p class="turn-line" id="turnHint">Loading…</p>
@@ -449,7 +458,7 @@ function buildBoard(){
 function pawnFace(i){
   const pl = i===1?S.p1:S.p2;
   if (avatarURL[i]) return `<img src="${avatarURL[i]}" alt="">`;
-  return pl.gender==="female" ? "👩" : pl.gender==="neutral" ? "🧑" : "👨";
+  return pl.gender==="female" ? "👩" : "👨";
 }
 function paintPawns(){
   for (const i of [1,2]){
@@ -632,7 +641,7 @@ function openSetup(firstRun=false){
     const row=el("div","avatar-row"); row.style.marginTop="8px";
     const prev=el("span","avatar-prev",pawnFace(i));
     const seg=el("div","seg"); seg.style.flex="1";
-    [["female","👩 Female"],["male","👨 Male"],["neutral","🧑 Neutral"]].forEach(([g,label])=>{ const b=el("button",pl.gender===g?"sel":"", label);
+    [["female","👩 Female"],["male","👨 Male"]].forEach(([g,label])=>{ const b=el("button",pl.gender===g?"sel":"", label);
       b.onclick=()=>{ pl.gender=g; [...seg.children].forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); if(!avatarURL[i]) prev.innerHTML=pawnFace(i); }; seg.append(b); });
     const up=el("button","mini-btn","📷"); up.title="Set photo";
     const file=el("input"); file.type="file"; file.accept="image/*"; file.hidden=true;
@@ -694,8 +703,23 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
   img.onerror=()=>res(fileBlob); img.src=URL.createObjectURL(fileBlob); }); }
 
 /* ---------- Wire up ---------- */
+function openHelp(){
+  const back=el("div","modal-back"), box=el("div","modal help-modal");
+  box.innerHTML=`<h2>How to play 💞</h2><ul class="help-list">
+    <li>🎲 Tap the die and take turns moving along the board.</li>
+    <li>🪜 Ladders lift you up — and earn a Ladder of Love quest.</li>
+    <li>🐍 Snakes slide you down — make it up with a Snake's Forfeit.</li>
+    <li>💕 Heart tiles draw a love quest. Pick Romantic, Fun or Spicy in Settings.</li>
+    <li>💛 Passing any quest is always okay.</li>
+    <li>🏆 First to tile 100 wins — and claims the winner's prize set in Settings.</li></ul>`;
+  const ok=el("button","primary-btn","Got it 💖"); ok.onclick=()=>back.remove();
+  box.appendChild(ok); back.appendChild(box);
+  back.onclick=(e)=>{ if(e.target===back) back.remove(); };
+  document.getElementById("overlay").appendChild(back);
+}
 document.getElementById("die").onclick=spin;
 document.getElementById("settingsBtn").onclick=()=>openSetup(false);
+document.getElementById("helpBtn").onclick=openHelp;
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=S.musicEnabled?1:0.45;
 musicBtn.onclick=()=>{ S.musicEnabled=!S.musicEnabled; set("snl_music_enabled",S.musicEnabled); Music.unlock(); Music.setOn(S.musicEnabled); if(S.musicEnabled)Music.start(); paintMusicBtn(); };

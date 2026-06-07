@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brainy Trails — maths adventures for kids</title>
+<meta name="description" content="A maths adventure map for ages 5–11. Practice skills, level up to mastery, and watch your islands fill with colour.">
+<meta name="theme-color" content="#191134">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  :root{
+    --bg:#191134; --panel:#241a45; --panel2:#2e2257; --ink:#f4f1ff; --muted:#b6abe0;
+    --line:rgba(255,255,255,.09);
+    --violet:#8b5cf6; --violet2:#a78bfa; --sun:#fbbf24; --mint:#34d399; --sky:#38bdf8; --coral:#fb7185;
+  }
+  *{margin:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{background:var(--bg); color:var(--ink); letter-spacing:.2px;
+       font-family:ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN","Arial Rounded MT Bold",system-ui,-apple-system,sans-serif;
+       display:flex; flex-direction:column; min-height:100dvh;
+       padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+  button{font:inherit; color:inherit; background:none; border:none; cursor:pointer; letter-spacing:.2px;}
+  .wrap{flex:1; width:100%; max-width:680px; margin:0 auto; padding:10px 16px 24px; display:flex; flex-direction:column;}
+
+  header{display:flex; align-items:center; justify-content:space-between; padding:6px 0 12px;}
+  header h1{font-size:21px; font-weight:900;}
+  header h1 .hl{color:var(--violet2);}
+  #xpChip{background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-weight:800; font-size:13.5px;}
+  #xpChip small{color:var(--muted); font-weight:700;}
+
+  /* ---------- Map ---------- */
+  .island{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:16px 16px 12px; margin-bottom:14px;}
+  .isl-name{font-size:18px; font-weight:900; display:flex; align-items:center; gap:8px;}
+  .isl-progress{margin-left:auto; font-size:12.5px; color:var(--muted); font-weight:800; background:var(--panel2); border-radius:999px; padding:4px 10px;}
+  .unit-name{margin:12px 2px 7px; font-size:11.5px; font-weight:800; letter-spacing:1.4px; text-transform:uppercase; color:var(--muted);}
+  .node-row{display:flex; flex-wrap:wrap; gap:9px;}
+  .node{width:104px; min-height:96px; border-radius:18px; background:var(--panel2); border:2px solid transparent;
+        display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:8px 6px; text-align:center;}
+  .node-face{font-size:28px; line-height:1;}
+  .node-name{font-size:11px; font-weight:800; color:var(--muted); line-height:1.25;}
+  .node-stars{font-size:9px; min-height:11px; letter-spacing:1px;}
+  .node.m1{border-color:var(--violet);}
+  .node.m2{background:linear-gradient(160deg,#5b3fb8,#7c5ce0); border-color:var(--violet2);}
+  .node.m2 .node-name{color:#efe9ff;}
+  .node.m3{background:linear-gradient(160deg,#a3741a,#d6a019); border-color:var(--sun);}
+  .node.locked{opacity:.45;}
+  .node.frontier{animation:glow 1.8s ease-in-out infinite; border-color:var(--violet2);}
+  @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(167,139,250,.0);}50%{box-shadow:0 0 18px 2px rgba(167,139,250,.55);}}
+
+  #continueBtn{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(16px + env(safe-area-inset-bottom)); z-index:30;
+    background:linear-gradient(160deg,#7c4dff,#9a6bff); color:#fff; font-weight:900; font-size:15.5px;
+    padding:15px 24px; border-radius:999px; box-shadow:0 10px 26px rgba(60,20,140,.55); max-width:88vw;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #continueBtn:active{transform:translateX(-50%) scale(.97);}
+  body{padding-bottom:calc(84px + env(safe-area-inset-bottom));}
+
+  /* ---------- Play ---------- */
+  #scrPlay{flex:1; display:flex; flex-direction:column;}
+  .play-bar{display:flex; align-items:center; gap:10px; padding:2px 0 10px;}
+  #exitBtn{width:48px; height:48px; border-radius:14px; background:var(--panel); border:1px solid var(--line); font-size:18px;}
+  #playTitle{font-weight:900; font-size:16px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #pips{display:flex; gap:5px;}
+  #pips .pip{width:9px; height:9px; border-radius:50%; background:var(--panel2);}
+  #pips .pip.done{background:var(--mint);}
+  #pips .pip.now{background:var(--violet2); transform:scale(1.25);}
+
+  #promptCard{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:22px 18px; text-align:center; cursor:pointer;}
+  .q-prompt{font-size:clamp(20px,5.6vw,27px); font-weight:900; line-height:1.3;}
+  .q-visual{margin-top:14px; font-size:clamp(26px,7.5vw,38px); line-height:1.5; word-spacing:4px;}
+  .speak-hint{margin-top:10px; color:var(--muted); font-size:11.5px; font-weight:700;}
+
+  #answerArea{margin-top:auto; padding-top:16px;}
+  .choice-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+  .choice-btn{min-height:64px; border-radius:18px; background:var(--panel2); border:2px solid var(--line);
+    font-size:clamp(18px,5vw,26px); font-weight:900; padding:10px;}
+  .choice-btn:active{transform:scale(.97); border-color:var(--violet2);}
+  .tf-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .tf-grid .choice-btn.true{border-color:rgba(52,211,153,.5);}
+  .tf-grid .choice-btn.false{border-color:rgba(251,113,133,.5);}
+
+  .pad-display{height:58px; border-radius:16px; background:var(--panel); border:1px solid var(--line);
+    display:grid; place-items:center; font-size:30px; font-weight:900; margin-bottom:10px; letter-spacing:3px;}
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .key{height:56px; border-radius:15px; background:var(--panel2); border:1px solid var(--line); font-size:21px; font-weight:900;}
+  .key:active{transform:scale(.96); background:#3a2c6b;}
+  .key.ok{background:linear-gradient(160deg,#0e9f6e,#34d399); color:#04261a;}
+  .key.back{color:var(--muted);}
+
+  .order-slots{display:flex; gap:8px; justify-content:center; margin-bottom:12px;}
+  .slot{width:54px; height:54px; border-radius:14px; border:2px dashed var(--line); display:grid; place-items:center; font-size:20px; font-weight:900; color:var(--muted);}
+  .slot.filled{border-style:solid; border-color:var(--violet2); color:var(--ink); background:var(--panel2);}
+  .order-chips{display:flex; gap:9px; justify-content:center; flex-wrap:wrap;}
+  .chip{width:58px; height:58px; border-radius:16px; background:var(--panel2); border:2px solid var(--line); font-size:21px; font-weight:900;}
+  .chip.used{opacity:.25;}
+
+  .tap-grid{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+  .tap-tile{width:72px; height:72px; border-radius:18px; background:var(--panel2); border:2px solid var(--line); font-size:30px;}
+  .tap-tile:active{transform:scale(.95);}
+  .line-grid{display:flex; gap:4px; justify-content:center; align-items:flex-end; border-bottom:3px solid var(--panel2); padding-bottom:0;}
+  .line-tick{min-width:48px; height:54px; border-radius:12px 12px 0 0; background:var(--panel2); border:1px solid var(--line);
+    border-bottom:none; font-size:17px; font-weight:900;}
+  .line-tick:active{background:#3a2c6b;}
+
+  /* feedback toast */
+  .fb{position:fixed; left:50%; top:42%; transform:translate(-50%,-50%); z-index:55; background:var(--panel);
+    border:1px solid var(--line); border-radius:22px; padding:20px 26px; text-align:center; min-width:230px; max-width:86vw;
+    box-shadow:0 18px 50px rgba(8,4,24,.6); animation:popUp .25s cubic-bezier(.34,1.56,.64,1);}
+  .fb.good{border-color:rgba(52,211,153,.55);}
+  .fb.soft{border-color:rgba(251,191,36,.45);}
+  .fb-big{font-size:36px;}
+  .fb-title{font-size:19px; font-weight:900; margin-top:4px;}
+  .fb-sub{font-size:13.5px; color:var(--muted); margin-top:5px; line-height:1.5;}
+
+  /* ---------- modals ---------- */
+  .modal-back{position:fixed; inset:0; background:rgba(10,5,28,.72); backdrop-filter:blur(5px);
+    display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px 22px;
+    width:100%; max-width:380px; text-align:center; animation:popUp .3s cubic-bezier(.34,1.56,.64,1);
+    max-height:86dvh; overflow:auto;}
+  @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
+  .sheet-icon{font-size:44px;}
+  .modal h2{font-size:21px; font-weight:900; margin-top:4px;}
+  .sheet-state{display:inline-block; margin-top:8px; padding:5px 14px; border-radius:999px; font-weight:800; font-size:12.5px; background:var(--panel2); color:var(--muted);}
+  .sheet-state.m1{color:var(--violet2); border:1px solid var(--violet);}
+  .sheet-state.m2{color:#efe9ff; background:linear-gradient(160deg,#5b3fb8,#7c5ce0);}
+  .sheet-state.m3{color:#241a05; background:linear-gradient(160deg,#d6a019,#fbbf24);}
+  .sheet-acc{color:var(--muted); font-size:13.5px; margin-top:8px; line-height:1.55;}
+  .primary-btn{width:100%; margin-top:16px; padding:15px; border-radius:15px; font-weight:900; font-size:15.5px;
+    background:linear-gradient(160deg,#7c4dff,#9a6bff); color:#fff;}
+  .gold-btn{width:100%; margin-top:9px; padding:15px; border-radius:15px; font-weight:900; font-size:15.5px;
+    background:linear-gradient(160deg,#d6a019,#fbbf24); color:#241a05;}
+  .soft-btn{width:100%; margin-top:9px; padding:14px; border-radius:15px; font-weight:800; font-size:14.5px;
+    background:var(--panel2); border:1px solid var(--line); color:var(--muted);}
+  .teach{text-align:left;}
+  .teach h2,.teach .sheet-icon{text-align:center; display:block;}
+  .teach-steps .step{background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+    margin-top:9px; font-size:15px; line-height:1.55; animation:popUp .25s ease;}
+  .result-head{font-size:30px; font-weight:900; letter-spacing:2px;}
+  .result-xp{margin-top:10px; font-size:17px; font-weight:900; color:var(--sun);}
+
+  .help-fab{position:fixed; right:14px; bottom:calc(86px + env(safe-area-inset-bottom)); z-index:41;
+    width:44px; height:44px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); font-weight:900; font-size:18px; box-shadow:0 6px 16px rgba(8,4,24,.5);}
+  .help-modal{text-align:left;}
+  .help-modal h2{text-align:center;}
+  .help-list{margin:10px 0 0; padding-left:6px; color:var(--muted); font-size:14px; line-height:1.75; list-style:none;}
+  .help-list li{margin:7px 0;}
+
+  .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}
+  .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
+  @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
+
+  .footer{text-align:center; color:var(--muted); font-size:11.5px; line-height:1.7; padding:18px 0 6px;}
+  .footer a{color:var(--muted);}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001s !important; transition-duration:.001s !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧠 Brainy <span class="hl">Trails</span></h1>
+    <button id="xpChip">⭐ Level 1</button>
+  </header>
+
+  <div id="scrMap">
+    <div id="mapRoot"></div>
+    <p class="footer">An Ogbara Labs experiment · learning that grows with your child<br>
+      <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> ·
+      <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
+  </div>
+
+  <div id="scrPlay" hidden>
+    <div class="play-bar">
+      <button id="exitBtn" aria-label="Back to map">🗺</button>
+      <p id="playTitle"></p>
+      <div id="pips"></div>
+    </div>
+    <div id="promptCard"></div>
+    <p class="speak-hint" style="text-align:center">🔊 tap the question to hear it again</p>
+    <div id="answerArea"></div>
+  </div>
+</div>
+
+<button class="help-fab" id="helpBtn" aria-label="How it works">?</button>
+<button id="continueBtn" hidden>▶ Continue</button>
+<div id="overlay"></div>
+
+<script src="curriculum.js"></script>
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="cloud.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
