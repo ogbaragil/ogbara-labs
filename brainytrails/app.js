@@ -175,6 +175,7 @@ function beginSession(cfg) {
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
   $("playTitle").textContent = cfg.title;
   $("reviewBanner").hidden = true;
+  $("continueBtn").hidden = true;
   nextQ();
 }
 
