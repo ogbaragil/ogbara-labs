@@ -49,6 +49,18 @@
   .node.frontier{animation:glow 1.8s ease-in-out infinite; border-color:var(--violet2);}
   @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(167,139,250,.0);}50%{box-shadow:0 0 18px 2px rgba(167,139,250,.55);}}
 
+  #reviewBanner{display:block; width:100%; margin:0 0 12px; padding:14px 16px; border-radius:18px; text-align:left;
+    background:linear-gradient(160deg,#0e7490,#38bdf8); color:#06222e; font-weight:900; font-size:14.5px;
+    box-shadow:0 8px 22px rgba(14,116,144,.4); animation:glow 2s ease-in-out infinite;}
+  .boss-node{width:100%; margin-top:12px; display:flex; align-items:center; gap:12px; text-align:left;
+    background:var(--panel2); border:2px dashed var(--line); border-radius:18px; padding:12px 14px;}
+  .boss-node .boss-face{font-size:34px;}
+  .boss-node b{font-size:14.5px;}
+  .boss-node small{display:block; color:var(--muted); font-size:11.5px; margin-top:2px;}
+  .boss-node.ready{border-style:solid; border-color:var(--sun); animation:glow 2.2s ease-in-out infinite;}
+  .boss-node.beaten{border-style:solid; border-color:var(--sun); background:linear-gradient(160deg,#3d2f10,#5a4514);}
+  .boss-node.waiting{opacity:.55;}
+
   #continueBtn{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(16px + env(safe-area-inset-bottom)); z-index:30;
     background:linear-gradient(160deg,#7c4dff,#9a6bff); color:#fff; font-weight:900; font-size:15.5px;
     padding:15px 24px; border-radius:999px; box-shadow:0 10px 26px rgba(60,20,140,.55); max-width:88vw;
@@ -168,6 +180,7 @@
   </header>
 
   <div id="scrMap">
+    <button id="reviewBanner" hidden></button>
     <div id="mapRoot"></div>
     <p class="footer">An Ogbara Labs experiment · learning that grows with your child<br>
       <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> ·

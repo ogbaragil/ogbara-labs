@@ -32,7 +32,12 @@ let state = Store.load();
 if (!state || state.v !== 1) state = { v: 1, profile: "default", profiles: { default: FRESH_PROFILE() } };
 if (!state.profiles[state.profile]) state.profiles[state.profile] = FRESH_PROFILE();
 const P = () => state.profiles[state.profile];
-const sk = (id) => P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null });
+const sk = (id) => {
+  const st = P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
+  if (st.reviewStep === undefined) st.reviewStep = 0;
+  return st;
+};
+const bosses = () => P().bosses || (P().bosses = {});
 
 function save() { Store.save(state); if (window.Cloud) Cloud.schedulePush(); }
 
@@ -42,6 +47,9 @@ const levelOf = (xp) => 1 + Math.floor(Math.sqrt(xp / 120));
 /* spaced-review intervals (days), used from Proficient onward */
 const REVIEW_DAYS = [2, 7, 21, 60];
 const isoPlusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+
+const today = () => new Date().toISOString().slice(0, 10);
+const dueSkills = () => Object.keys(P().skills).filter(id => { const st = P().skills[id]; return st.m >= 2 && st.nextReview && st.nextReview <= today(); });
 
 /* unlock rule: every prerequisite at least Familiar */
 const unlocked = (id) => BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1);
@@ -96,16 +104,35 @@ function renderMap() {
         const open = unlocked(id);
         const node = el("button", "node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : ""));
         node.dataset.skill = id;
+        const due = st.m >= 2 && st.nextReview && st.nextReview <= today();
         node.innerHTML = `<span class="node-face">${open ? s.icon : "🔒"}</span>
           <span class="node-name">${esc(s.name)}</span>
-          <span class="node-stars">${st.stars ? "⭐".repeat(st.stars) : ""}</span>`;
+          <span class="node-stars">${due ? "🛡" : (st.stars ? "⭐".repeat(st.stars) : "")}</span>`;
         node.onclick = () => open ? openSkill(id) : toast("🔒", "Not yet!", "Finish the skills before it first.");
         row.appendChild(node);
       }
       card.appendChild(row);
     }
+    /* island boss gate: opens when every skill here is at least Familiar */
+    const bossReady = skillsHere.every(id => sk(id).m >= 1);
+    const beaten = !!bosses()[isl.id];
+    const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
+    bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
+      <span class="boss-meta"><b>${esc(isl.boss.name)}</b>
+      <small>${beaten ? "Conquered! 👑" : bossReady ? "Boss challenge — 10 questions!" : "Reach Familiar on every skill to challenge"}</small></span>`;
+    bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
+      : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Familiar.`);
+    card.appendChild(bossBtn);
     root.appendChild(card);
   }
+  /* defend-your-islands banner when reviews are due */
+  const due = dueSkills();
+  const banner = $("reviewBanner");
+  if (due.length) {
+    banner.hidden = false;
+    banner.innerHTML = `🛡 Defend your islands! <b>${due.length}</b> skill${due.length > 1 ? "s" : ""} need${due.length > 1 ? "" : "s"} you`;
+    banner.onclick = () => startReview();
+  } else banner.hidden = true;
   const cont = $("continueBtn");
   if (frontier) { cont.hidden = false; cont.innerHTML = `▶ Continue: ${esc(BT.SKILLS[frontier].name)} ${BT.SKILLS[frontier].icon}`; cont.onclick = () => openSkill(frontier); }
   else { cont.hidden = true; }
@@ -118,7 +145,8 @@ function openSkill(id) {
   const acc = st.attempts ? Math.round(100 * st.correct / st.attempts) : null;
   box.innerHTML = `<p class="sheet-icon">${s.icon}</p><h2>${esc(s.name)}</h2>
     <p class="sheet-state ${M_CLASS[st.m]}">${M_LABEL[st.m]}${st.stars ? " · " + "⭐".repeat(st.stars) : ""}</p>
-    ${acc !== null ? `<p class="sheet-acc">${st.correct}/${st.attempts} right so far (${acc}%)</p>` : `<p class="sheet-acc">Ready for your first try!</p>`}`;
+    ${acc !== null ? `<p class="sheet-acc">${st.correct}/${st.attempts} right so far (${acc}%)</p>` : `<p class="sheet-acc">Ready for your first try!</p>`}
+    ${st.m >= 2 && st.nextReview ? `<p class="sheet-acc">🛡 ${st.nextReview <= today() ? "Review due now — defend it!" : "Comes back for review on " + st.nextReview}</p>` : ""}`;
   const practice = el("button", "primary-btn", "Practice · 7 questions");
   practice.onclick = () => { back.remove(); startSet(id, "practice"); };
   box.appendChild(practice);
@@ -138,19 +166,56 @@ function openSkill(id) {
 /* ---------------- session ---------------- */
 let Sess = null;
 
-function startSet(id, kind) {
-  const st = sk(id);
-  Sess = {
-    id, kind,
-    total: kind === "levelup" ? 5 : 7,
+function beginSession(cfg) {
+  Sess = Object.assign({
     i: 0, correct: 0, misses: 0, xpGain: 0,
-    d: kind === "levelup" ? 1 : Math.min(0.9, 0.35 + 0.15 * st.m),
     taught: false, q: null, lock: false, orderPicked: [],
-  };
+    results: [],            // review: per-skill outcomes
+  }, cfg);
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
-  $("playTitle").textContent = BT.SKILLS[id].name;
+  $("playTitle").textContent = cfg.title;
+  $("reviewBanner").hidden = true;
   nextQ();
 }
+
+function startSet(id, kind) {
+  const st = sk(id);
+  beginSession({
+    kind, queue: Array(kind === "levelup" ? 5 : 7).fill(id),
+    total: kind === "levelup" ? 5 : 7,
+    d: kind === "levelup" ? 1 : Math.min(0.9, 0.35 + 0.15 * st.m),
+    adaptive: kind === "practice", title: BT.SKILLS[id].name,
+  });
+}
+
+function startReview() {
+  const due = shuffleArr(dueSkills()).slice(0, 8);
+  if (!due.length) return;
+  beginSession({ kind: "review", queue: due, total: due.length, d: 0.85, adaptive: false, title: "🛡 Mastery Challenge" });
+}
+
+function bossIntro(isl, rematch) {
+  const back = el("div", "modal-back"), box = el("div", "modal");
+  box.innerHTML = `<p class="sheet-icon">${isl.boss.emoji}</p><h2>${esc(isl.boss.name)}</h2>
+    <p class="sheet-acc">“${esc(isl.boss.line)}”</p>
+    <p class="sheet-acc">10 mixed questions from ${esc(isl.name)}. Get <b>8 or more</b> to ${rematch ? "win glory again" : "conquer the island"}!</p>`;
+  const go = el("button", "gold-btn", "⚔️ I'm ready!");
+  go.onclick = () => { back.remove(); startBoss(isl.id); };
+  const flee = el("button", "soft-btn", "Maybe later");
+  flee.onclick = () => back.remove();
+  box.append(go, flee); back.appendChild(box);
+  $("overlay").appendChild(back);
+}
+
+function startBoss(islandId) {
+  const isl = BT.ISLANDS.find(i => i.id === islandId);
+  const pool = isl.units.flatMap(u => u.skills);
+  const queue = [];
+  while (queue.length < 10) queue.push(...shuffleArr(pool));
+  beginSession({ kind: "boss", islandId, queue: queue.slice(0, 10), total: 10,
+    d: 0.8, adaptive: false, title: `${isl.boss.emoji} ${isl.boss.name}` });
+}
+const shuffleArr = (a) => { const x = a.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
 
 function exitPlay() {
   Sess = null;
@@ -167,8 +232,11 @@ function paintPips() {
 function nextQ() {
   if (!Sess) return;
   if (Sess.i >= Sess.total) return finishSet();
-  Sess.q = BT.SKILLS[Sess.id].gen(Sess.d);
+  Sess.curSkill = Sess.queue[Sess.i];
+  Sess.q = BT.SKILLS[Sess.curSkill].gen(Sess.d);
   Sess.lock = false; Sess.orderPicked = [];
+  if (Sess.kind === "review" || Sess.kind === "boss") $("playTitle").textContent =
+    (Sess.kind === "review" ? "🛡 " : "") + BT.SKILLS[Sess.curSkill].name;
   paintPips();
   renderQuestion(Sess.q);
   say(Sess.q.say);
@@ -196,13 +264,22 @@ function renderQuestion(q) {
     const grid = el("div", "keypad");
     let entry = "";
     const paint = () => disp.textContent = entry || " ";
-    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"].forEach(kk => {
+    const keys = q.decimal ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫", "OK"] : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"];
+    keys.forEach(kk => {
       const b = el("button", "key" + (kk === "OK" ? " ok" : kk === "⌫" ? " back" : ""), kk);
+      if (kk === "OK" && q.decimal) b.style.gridColumn = "span 3";
       b.onclick = () => {
         if (Sess.lock) return;
         if (kk === "⌫") entry = entry.slice(0, -1);
-        else if (kk === "OK") { if (entry !== "") submit(parseInt(entry, 10) === q.answer, String(q.answer)); return; }
-        else if (entry.length < 3) entry += kk;
+        else if (kk === "OK") {
+          if (entry !== "" && entry !== ".") {
+            const v = parseFloat(entry);
+            submit(Math.abs(v - q.answer) < 0.001, q.decimal ? q.answer.toFixed(1) : String(q.answer));
+          }
+          return;
+        }
+        else if (kk === "." ) { if (!entry.includes(".") && entry.length < 4) entry += entry === "" ? "0." : "."; }
+        else if (entry.length < (q.decimal ? 5 : 3)) entry += kk;
         paint();
       };
       grid.appendChild(b);
@@ -247,21 +324,36 @@ function correctLabel(q) {
 function submit(ok, correctShown) {
   if (!Sess || Sess.lock) return;
   Sess.lock = true;
-  const st = sk(Sess.id);
+  const st = sk(Sess.curSkill);
   st.attempts++;
   if (ok) {
     st.correct++; Sess.correct++;
     const gain = Math.round(6 + 8 * Sess.d);
     Sess.xpGain += gain; P().xp += gain;
-    Sess.d = Math.min(1, Sess.d + 0.12);
+    if (Sess.adaptive) Sess.d = Math.min(1, Sess.d + 0.12);
     feedback(true, pick(["Brilliant!", "You got it!", "Super!", "Nice thinking!"]), "+" + gain + " XP");
   } else {
     Sess.misses++;
-    Sess.d = Math.max(0.15, Sess.d - 0.18);
+    if (Sess.adaptive) Sess.d = Math.max(0.15, Sess.d - 0.18);
     feedback(false, "Not quite!", (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(Sess.q.hint));
   }
+  /* spaced-review transitions happen immediately, per question */
+  if (Sess.kind === "review") {
+    if (ok) {
+      const mastered = st.m === 2;
+      if (st.m < 3) st.m = 3;
+      st.reviewStep = Math.min((st.reviewStep || 0) + 1, REVIEW_DAYS.length - 1);
+      st.nextReview = isoPlusDays(REVIEW_DAYS[st.reviewStep]);
+      Sess.results.push({ id: Sess.curSkill, ok: true, mastered });
+    } else {
+      st.m = Math.max(1, st.m - 1);
+      st.reviewStep = 0;
+      st.nextReview = st.m >= 2 ? isoPlusDays(REVIEW_DAYS[0]) : null;
+      Sess.results.push({ id: Sess.curSkill, ok: false });
+    }
+  }
   paintHeader(); save();
-  const needTeach = !ok && Sess.misses >= 2 && !Sess.taught;
+  const needTeach = !ok && Sess.misses >= 2 && !Sess.taught && Sess.kind === "practice";
   setTimeout(() => {
     if (!Sess) return;
     Sess.i++;
@@ -312,7 +404,10 @@ function teach() {
 
 /* ---------------- set completion & mastery ---------------- */
 function finishSet() {
-  const { id, kind, correct, total, xpGain } = Sess;
+  const { kind, correct, total, xpGain } = Sess;
+  if (kind === "review") return finishReview();
+  if (kind === "boss") return finishBoss();
+  const id = Sess.queue[0];
   const st = sk(id);
   let headline, sub, levelled = false;
   if (kind === "practice") {
@@ -345,6 +440,47 @@ function finishSet() {
   box.append(map, again); back.appendChild(box);
   $("overlay").appendChild(back);
   say(typeof headline === "string" && headline.includes("⭐") ? "Amazing work!" : headline.replace(/[^a-zA-Z !']/g, ""));
+}
+
+function finishReview() {
+  const { results, xpGain } = Sess;
+  Sess = null; save();
+  const defended = results.filter(r => r.ok).length;
+  const mastered = results.filter(r => r.mastered).length;
+  const slipped = results.filter(r => !r.ok);
+  const back = el("div", "modal-back"), box = el("div", "modal result");
+  box.innerHTML = `<p class="result-head">🛡</p>
+    <h2>${defended === results.length ? "Islands defended!" : "Battle report"}</h2>
+    <p class="sheet-acc">You defended <b>${defended}/${results.length}</b> skills.${mastered ? ` ${mastered} newly <b>MASTERED</b>! 🏅` : ""}</p>
+    ${slipped.length ? `<p class="sheet-acc">Slipped back (practice them soon!): ${slipped.map(r => esc(BT.SKILLS[r.id].name)).join(", ")}</p>` : ""}
+    <p class="result-xp">+${xpGain} XP ⭐</p>`;
+  if (mastered && !matchMediaSafe()) confetti();
+  const map = el("button", "primary-btn", "Back to the map 🗺");
+  map.onclick = () => { back.remove(); $("scrPlay").hidden = true; $("scrMap").hidden = false; renderMap(); };
+  box.appendChild(map); back.appendChild(box);
+  $("overlay").appendChild(back);
+  say(defended === results.length ? "Islands defended! Amazing!" : "Good battle! Keep practicing.");
+}
+
+function finishBoss() {
+  const { islandId, correct, total, xpGain } = Sess;
+  Sess = null;
+  const isl = BT.ISLANDS.find(i => i.id === islandId);
+  const won = correct >= 8;
+  let bonus = 0;
+  if (won) { bonus = 100; P().xp += bonus; bosses()[islandId] = true; }
+  save();
+  const back = el("div", "modal-back"), box = el("div", "modal result");
+  box.innerHTML = `<p class="sheet-icon">${isl.boss.emoji}</p>
+    <h2>${won ? `${esc(isl.name)} conquered! 👑` : "So close, explorer!"}</h2>
+    <p class="sheet-acc">${won ? `${esc(isl.boss.name)}: “You truly are a master of my island!”` : `${esc(isl.boss.name)}: “${correct} of ${total}! Train a little more and face me again.”`}</p>
+    <p class="result-xp">+${xpGain}${bonus ? " + " + bonus + " bonus" : ""} XP ⭐</p>`;
+  if (won && !matchMediaSafe()) confetti();
+  const map = el("button", "primary-btn", "Back to the map 🗺");
+  map.onclick = () => { back.remove(); $("scrPlay").hidden = true; $("scrMap").hidden = false; renderMap(); };
+  box.appendChild(map); back.appendChild(box);
+  $("overlay").appendChild(back);
+  say(won ? "Island conquered! Incredible!" : "So close! Try again soon.");
 }
 
 function matchMediaSafe() { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } }
@@ -407,6 +543,6 @@ if (window.Cloud) {
 renderMap();
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, submit, renderMap, openHelp, exitPlay };
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, submit, renderMap, openHelp, exitPlay, dueSkills };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
