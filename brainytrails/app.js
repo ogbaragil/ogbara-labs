@@ -803,13 +803,16 @@ function openParents() {
   const release = () => { b.classList.remove("holding"); if (t) { clearTimeout(t); t = null; } };
   b.onpointerdown = (e) => {
     if (e && e.preventDefault) e.preventDefault();   // stop long-press selection/callout from cancelling us
+    try { if (e && e.pointerId !== undefined && b.setPointerCapture) b.setPointerCapture(e.pointerId); } catch { }
     fired = false;
     b.classList.add("holding");
     t = setTimeout(() => { fired = true; release(); openParents(); }, HOLD);
   };
-  b.onpointerup = release; b.onpointerleave = release; b.onpointercancel = release;
+  /* NOTE: no pointerleave cancel — fingertips drift outside a 46px circle long
+     before 3 seconds pass; capture + up/cancel are the only honest end states. */
+  b.onpointerup = release; b.onpointercancel = release;
   b.oncontextmenu = (e) => { if (e && e.preventDefault) e.preventDefault(); return false; };
-  b.onclick = () => { if (!fired) toast("👨‍👩‍👧", "For grown-ups", "Press and HOLD this button for 3 seconds to open the Parents' Corner."); };
+  b.onclick = () => { if (!fired) toast("👨‍👩‍👧", "For grown-ups", "Close this message, then press and HOLD the 👨‍👩‍👧 button in the top-left corner for 3 full seconds — keep your finger down until the Parents' Corner opens."); };
 })();
 
 /* ---------------- help ---------------- */
