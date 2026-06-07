@@ -10,7 +10,7 @@ const el = (t, c, h) => { const e = document.createElement(t); if (c) e.classNam
 const esc = (t) => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = (id) => document.getElementById(id);
 const FAST = typeof window !== "undefined" && window.__BT_FAST;
-const MS_OK = FAST ? 40 : 950, MS_BAD = FAST ? 60 : 2300;
+const MS_OK = FAST ? 40 : 950, MS_BAD = FAST ? 60 : 1700;
 
 /* ---------------- store ---------------- */
 const Store = (() => {
@@ -69,10 +69,15 @@ addEventListener("pointerdown", function prime() {
   removeEventListener("pointerdown", prime);
 });
 
-/* ---------------- header ---------------- */
+/* ---------------- XP dock ---------------- */
 function paintHeader() {
-  const xp = P().xp;
-  $("xpChip").innerHTML = `⭐ Level ${levelOf(xp)} <small>· ${xp} XP</small>`;
+  const xp = P().xp, lv = levelOf(xp);
+  const lo = 120 * (lv - 1) * (lv - 1), hi = 120 * lv * lv;
+  const pct = Math.min(100, Math.round(100 * (xp - lo) / (hi - lo)));
+  $("lvBadge").textContent = lv;
+  $("xpLabel").textContent = `Level ${lv} · ${xp} XP · ${hi - xp} to next`;
+  const fill = $("xpBar").children[0];
+  if (fill) fill.style.width = pct + "%";
 }
 
 /* ---------------- map ---------------- */
@@ -91,23 +96,27 @@ function renderMap() {
   const root = $("mapRoot");
   root.innerHTML = "";
   const frontier = frontierSkill();
+  let zig = 0;   // alternates left/right down the whole trail
   for (const isl of BT.ISLANDS) {
     const skillsHere = isl.units.flatMap(u => u.skills);
     const done = skillsHere.filter(id => sk(id).m >= 2).length;
     const card = el("section", "island");
+    card.dataset.isl = isl.id;
+    card.setAttribute("data-emoji", isl.emoji);
     card.appendChild(el("h2", "isl-name", `${isl.emoji} ${esc(isl.name)} <span class="isl-progress">${done}/${skillsHere.length}</span>`));
     for (const u of isl.units) {
       card.appendChild(el("p", "unit-name", esc(u.name)));
-      const row = el("div", "node-row");
+      const row = el("div", "trail");
       for (const id of u.skills) {
         const s = BT.SKILLS[id], st = sk(id);
         const open = unlocked(id);
-        const node = el("button", "node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : ""));
+        const node = el("button", "node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : "") + (zig++ % 2 ? " r" : " l"));
         node.dataset.skill = id;
         const due = st.m >= 2 && st.nextReview && st.nextReview <= today();
-        node.innerHTML = `<span class="node-face">${open ? s.icon : "🔒"}</span>
+        node.innerHTML = `${id === frontier ? '<span class="here">📍</span>' : ""}
+          <span class="node-face">${open ? s.icon : "🔒"}</span>
           <span class="node-name">${esc(s.name)}</span>
-          <span class="node-stars">${due ? "🛡" : (st.stars ? "⭐".repeat(st.stars) : "")}</span>`;
+          <span class="node-badge">${due ? "🛡" : (st.stars ? "⭐".repeat(st.stars) : "")}</span>`;
         node.onclick = () => open ? openSkill(id) : toast("🔒", "Not yet!", "Finish the skills before it first.");
         row.appendChild(node);
       }
@@ -118,8 +127,8 @@ function renderMap() {
     const beaten = !!bosses()[isl.id];
     const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
     bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
-      <span class="boss-meta"><b>${esc(isl.boss.name)}</b>
-      <small>${beaten ? "Conquered! 👑" : bossReady ? "Boss challenge — 10 questions!" : "Reach Familiar on every skill to challenge"}</small></span>`;
+      <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}</b>
+      <small>${beaten ? "“You truly are a master of my island!” Tap for a rematch." : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(reach Familiar on every skill first)</i>`}</small></span>`;
     bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
       : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Familiar.`);
     card.appendChild(bossBtn);
@@ -173,9 +182,11 @@ function beginSession(cfg) {
     results: [],            // review: per-skill outcomes
   }, cfg);
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
+  document.body.classList.add("in-play");
   $("playTitle").textContent = cfg.title;
   $("reviewBanner").hidden = true;
   $("continueBtn").hidden = true;
+  Sess.outcomes = [];
   nextQ();
 }
 
@@ -221,13 +232,18 @@ const shuffleArr = (a) => { const x = a.slice(); for (let i = x.length - 1; i > 
 function exitPlay() {
   Sess = null;
   $("scrPlay").hidden = true; $("scrMap").hidden = false;
+  document.body.classList.remove("in-play");
   renderMap(); save();
 }
 $("exitBtn") && ($("exitBtn").onclick = exitPlay);
 
 function paintPips() {
   const pips = $("pips"); pips.innerHTML = "";
-  for (let k = 0; k < Sess.total; k++) pips.appendChild(el("span", "pip" + (k < Sess.i ? " done" : k === Sess.i ? " now" : "")));
+  for (let k = 0; k < Sess.total; k++) {
+    const done = k < Sess.i;
+    const cls = "pip" + (done ? (Sess.outcomes[k] ? "" : " miss") : k === Sess.i ? " now" : "");
+    pips.appendChild(el("span", cls, done ? (Sess.outcomes[k] ? "⭐" : "▫️") : k === Sess.i ? "👉" : "▫️"));
+  }
 }
 
 function nextQ() {
@@ -244,8 +260,10 @@ function nextQ() {
 }
 
 function renderQuestion(q) {
+  $("hintSlot").innerHTML = "";
   const card = $("promptCard");
-  card.innerHTML = `<p class="q-prompt">${esc(q.prompt)}</p>` +
+  card.innerHTML = `<button class="say-btn" aria-label="Hear it again">🔊</button>
+    <p class="q-prompt">${esc(q.prompt)}</p>` +
     (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "");
   const dock = $("answerArea");
   dock.innerHTML = "";
@@ -256,7 +274,8 @@ function renderQuestion(q) {
     const grid = el("div", q.format === "tf" ? "tf-grid" : "choice-grid");
     choices.forEach(c => {
       const b = el("button", "choice-btn" + (q.format === "tf" ? (c.label.includes("TRUE") ? " true" : " false") : ""), esc(c.label));
-      b.onclick = () => submit(c.correct, correctLabel(q));
+      if (c.correct) b.dataset.correct = "1";
+      b.onclick = () => submit(c.correct, correctLabel(q), b);
       grid.appendChild(b);
     });
     dock.appendChild(grid);
@@ -275,7 +294,7 @@ function renderQuestion(q) {
         else if (kk === "OK") {
           if (entry !== "" && entry !== ".") {
             const v = parseFloat(entry);
-            submit(Math.abs(v - q.answer) < 0.001, q.decimal ? q.answer.toFixed(1) : String(q.answer));
+            submit(Math.abs(v - q.answer) < 0.001, q.decimal ? q.answer.toFixed(1) : String(q.answer), disp);
           }
           return;
         }
@@ -298,7 +317,7 @@ function renderQuestion(q) {
         b.disabled = true; b.classList.add("used");
         Sess.orderPicked.push(v); paintSlots();
         if (Sess.orderPicked.length === q.items.length) {
-          submit(JSON.stringify(Sess.orderPicked) === JSON.stringify(q.correct), q.correct.join(" → "));
+          submit(JSON.stringify(Sess.orderPicked) === JSON.stringify(q.correct), q.correct.join(" → "), slots);
         }
       };
       chips.appendChild(b);
@@ -308,7 +327,8 @@ function renderQuestion(q) {
     const grid = el("div", q.numberline ? "line-grid" : "tap-grid");
     q.items.forEach(c => {
       const b = el("button", q.numberline ? "line-tick" : "tap-tile", esc(c.label));
-      b.onclick = () => submit(c.correct, q.items.find(i => i.correct).label);
+      if (c.correct) b.dataset.correct = "1";
+      b.onclick = () => submit(c.correct, q.items.find(i => i.correct).label, b);
       grid.appendChild(b);
     });
     dock.appendChild(grid);
@@ -322,9 +342,18 @@ function correctLabel(q) {
 }
 
 /* central answer path — every format funnels here */
-function submit(ok, correctShown) {
+function submit(ok, correctShown, btn) {
   if (!Sess || Sess.lock) return;
   Sess.lock = true;
+  Sess.outcomes[Sess.i] = !!ok;
+  paintPips();
+  if (btn && btn.classList) btn.classList.add(ok ? "hit" : "shake");
+  if (!ok) {
+    try {
+      const right = $("answerArea").querySelector('[data-correct="1"]');
+      if (right) right.classList.add("reveal");
+    } catch { }
+  }
   const st = sk(Sess.curSkill);
   st.attempts++;
   if (ok) {
@@ -365,11 +394,16 @@ function submit(ok, correctShown) {
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 function feedback(ok, title, sub) {
-  const t = el("div", "fb " + (ok ? "good" : "soft"));
-  t.innerHTML = `<p class="fb-big">${ok ? "✅" : "💛"}</p><p class="fb-title">${esc(title)}</p><p class="fb-sub">${sub}</p>`;
-  $("scrPlay").appendChild(t);
-  if (ok) say(title);
-  setTimeout(() => t.remove(), ok ? MS_OK : MS_BAD);
+  if (ok) {
+    const t = el("div", "xp-pop", `✨ ${esc(title)} ${esc(sub)}`);
+    document.body.appendChild(t);
+    say(title);
+    setTimeout(() => t.remove(), MS_OK + 250);
+  } else {
+    const bar = el("div", "hintbar", `💛 <b>${esc(title)}</b> ${sub}`);
+    $("hintSlot").innerHTML = "";
+    $("hintSlot").appendChild(bar);
+  }
 }
 
 function toast(emoji, title, sub) {
@@ -457,7 +491,7 @@ function finishReview() {
     <p class="result-xp">+${xpGain} XP ⭐</p>`;
   if (mastered && !matchMediaSafe()) confetti();
   const map = el("button", "primary-btn", "Back to the map 🗺");
-  map.onclick = () => { back.remove(); $("scrPlay").hidden = true; $("scrMap").hidden = false; renderMap(); };
+  map.onclick = () => { back.remove(); exitPlay(); };
   box.appendChild(map); back.appendChild(box);
   $("overlay").appendChild(back);
   say(defended === results.length ? "Islands defended! Amazing!" : "Good battle! Keep practicing.");
@@ -478,7 +512,7 @@ function finishBoss() {
     <p class="result-xp">+${xpGain}${bonus ? " + " + bonus + " bonus" : ""} XP ⭐</p>`;
   if (won && !matchMediaSafe()) confetti();
   const map = el("button", "primary-btn", "Back to the map 🗺");
-  map.onclick = () => { back.remove(); $("scrPlay").hidden = true; $("scrMap").hidden = false; renderMap(); };
+  map.onclick = () => { back.remove(); exitPlay(); };
   box.appendChild(map); back.appendChild(box);
   $("overlay").appendChild(back);
   say(won ? "Island conquered! Incredible!" : "So close! Try again soon.");
