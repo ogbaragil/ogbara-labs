@@ -11,8 +11,9 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
   :root{
-    --bg:#f7f4ef; --panel:#ffffff; --ink:#2e2456; --muted:#7c72a3; --line:#e7e1f2;
+    --bg:#f7f4ef; --panel:#ffffff; --ink:#2e2456; --muted:#685e95; --line:#e7e1f2;
     --violet:#7c4dff; --violet2:#a78bfa; --sun:#f59e0b; --gold:#fbbf24;
+    /* --muted darkened for WCAG-friendlier small text */
     --mint:#10b981; --sky:#0ea5e9; --coral:#f43f5e;
   }
   *{margin:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -125,6 +126,19 @@
   #parentsBtn.holding{background:#efe9ff; border-color:var(--violet); animation:holdPulse 1s linear infinite;}
   @keyframes holdPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,77,255,.0);}50%{box-shadow:0 0 0 8px rgba(124,77,255,.2);}}
   body.in-play #parentsBtn{display:none;}
+  #islRail{position:fixed; left:6px; top:50%; transform:translateY(-50%); z-index:31;
+    display:flex; flex-direction:column; gap:7px;}
+  .rail-dot{width:36px; height:36px; border-radius:50%; font-size:16px; display:grid; place-items:center;
+    background:var(--panel); border:1.5px solid var(--line); box-shadow:0 4px 10px rgba(46,36,86,.12);
+    opacity:.82; transition:transform .15s;}
+  .rail-dot:active{transform:scale(.9);}
+  .rail-dot.here{border-color:var(--violet); opacity:1; box-shadow:0 0 0 4px rgba(124,77,255,.18);}
+  body.in-play #islRail{display:none;}
+  @media (max-width:430px){ #islRail{left:3px;} .rail-dot{width:31px; height:31px; font-size:14px;} }
+
+  #teachBtn{width:48px; height:48px; border-radius:15px; background:#fff3da; border:1.5px solid #f5c96b;
+    font-size:19px; animation:bob 1.8s ease-in-out infinite;}
+
   #testChip{position:fixed; top:calc(64px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:46;
     background:linear-gradient(160deg,#f59e0b,#fbbf24); color:#5b3104; font-weight:900; font-size:12px;
     padding:9px 16px; border-radius:999px; box-shadow:0 8px 20px rgba(245,158,11,.45); white-space:nowrap;}
@@ -308,6 +322,7 @@
 <button id="hud" aria-label="My Backpack"><span id="hudLv">1</span></button>
 <button id="parentsBtn" aria-label="Parents' Corner — hold to open">👨‍👩‍👧</button>
 <button id="testChip" hidden>🧪 TEST MODE — tap to exit</button>
+<nav id="islRail" aria-label="Jump to island"></nav>
 <div class="wrap">
   <header><h1>🧠 Brainy <span class="hl">Trails</span></h1></header>
 
@@ -325,6 +340,7 @@
       <div class="play-bar">
         <button id="exitBtn" aria-label="Back to map">🗺</button>
         <p id="playTitle"></p>
+        <button id="teachBtn" hidden aria-label="Show me how">🎓</button>
         <div id="pips"></div>
       </div>
       <div class="prompt-zone">
@@ -345,10 +361,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=10"></script>
+<script src="curriculum.js?v=11"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="cloud.js?v=11"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

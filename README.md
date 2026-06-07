@@ -49,6 +49,22 @@ Edit, commit, push — Cloudflare redeploys automatically. When you ship changes
 bump the cache version in that app's `sw.js` (e.g. `supersnakes-v1` → `-v2`)
 so installed users pick up the new version promptly.
 
+## Releasing a Brainy Trails update
+
+Version skew between the shell and scripts blanks the map on stale caches, so every release bumps **three places together**:
+1. `brainytrails/sw.js` → `CACHE = "brainytrails-vN"`
+2. `brainytrails/sw.js` → the `?v=N` query strings in `ASSETS`
+3. `brainytrails/index.html` → the matching `?v=N` on `curriculum.js`, `cloud.js`, `app.js`
+
+Run the regression suite before pushing — all suites must pass (generator contract, prerequisite graph, mastery engine, UI):
+
+```
+cd brainytrails && node tests/run-all.js
+```
+
+After deploying, load the site once in a browser so the new service worker takes over.
+Developer testing: Parents' Corner (hold the 👨‍👩‍👧 button 3 s) → "🧪 Test mode" unlocks every skill and boss in a throwaway sandbox profile that never syncs and resets on each entry.
+
 ## Cloud sync (optional)
 
 Each app folder contains `cloud.js` (shared sync module) and
