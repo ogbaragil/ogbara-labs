@@ -56,7 +56,7 @@ const TESTP = "_test";
 const inTest = () => state.profile === TESTP;
 const skv = (id) => P().skills[id] || SK0;   // read-only view: never creates records
 
-function save() { Store.save(state); if (window.Cloud) Cloud.schedulePush(); }
+function save() { Store.save(state); if (window.Cloud && Cloud.schedulePush) Cloud.schedulePush(); }
 
 /* level curve: gentle early, slower later */
 const levelOf = (xp) => 1 + Math.floor(Math.sqrt(xp / 120));
@@ -269,13 +269,101 @@ function addPlayTime() {
 
 /* ---------------- speech ---------------- */
 let speechPrimed = false;
-function say(text) {
-  if (!P().settings.speech || !("speechSynthesis" in window)) return;
+/* Web Speech: pick the best installed voice instead of the platform default. */
+function pickWebVoice() {
   try {
+    const vs = speechSynthesis.getVoices() || [];
+    if (!vs.length) return null;
+    const score = (v) => {
+      let sc = 0;
+      const n = (v.name || "").toLowerCase(), l = (v.lang || "").toLowerCase();
+      if (l.startsWith("en-au")) sc += 40; else if (l.startsWith("en-gb")) sc += 30; else if (l.startsWith("en")) sc += 15;
+      if (/karen/.test(n)) sc += 25;
+      if (/premium|enhanced|natural|neural/.test(n)) sc += 20;
+      if (/google/.test(n)) sc += 8;
+      if (v.localService) sc += 3;
+      return sc;
+    };
+    return vs.slice().sort((a, b) => score(b) - score(a))[0] || null;
+  } catch { return null; }
+}
+let _wv = null;
+try { if ("speechSynthesis" in window && speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", () => { _wv = pickWebVoice(); }); } catch { }
+function webSay(text) {
+  if (!("speechSynthesis" in window)) return;
+  try {
+    if (!_wv) _wv = pickWebVoice();
     const u = new SpeechSynthesisUtterance(text);
+    if (_wv) { u.voice = _wv; u.lang = _wv.lang; }
     u.rate = 0.95; u.pitch = 1.05;
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   } catch { }
+}
+
+/* Kokoro premium voice: free, open-source, runs on-device. Unlocked by a sync
+   account; downloads once (~82 MB) and then works offline via the browser cache. */
+const KOKORO_VOICE = "af_heart";   // swap to "bf_emma" for a British voice
+function wavBlob(f32, rate) {
+  const n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const W = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  W(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); W(8, "WAVEfmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  W(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { const x = Math.max(-1, Math.min(1, f32[i])); v.setInt16(44 + i * 2, x * 32767, true); }
+  return new Blob([buf], { type: "audio/wav" });
+}
+const Kokoro = {
+  status: "off",   // off | loading | ready | error
+  pct: 0, tts: null, clipCache: new Map(), audioEl: null,
+  unlocked: () => !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn()),
+  enabled: () => !!P().settings.kokoroVoice,
+  async load(onProgress) {
+    if (this.status === "ready" || this.status === "loading") return this.status === "ready";
+    this.status = "loading"; this.pct = 0;
+    try {
+      const mod = window.__KOKORO_TEST
+        || await import("https://cdn.jsdelivr.net/npm/kokoro-js@1/+esm")
+          .catch(() => import("https://cdn.jsdelivr.net/npm/kokoro-js/+esm"));
+      const KokoroTTS = mod.KokoroTTS || (mod.default && mod.default.KokoroTTS);
+      let device = "wasm";
+      try { if (navigator.gpu && await navigator.gpu.requestAdapter()) device = "webgpu"; } catch { }
+      this.tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
+        dtype: device === "webgpu" ? "fp32" : "q8",
+        device,
+        progress_callback: (pr) => { if (pr && pr.progress != null) { this.pct = Math.round(pr.progress); if (onProgress) onProgress(this.pct); } },
+      });
+      this.status = "ready";
+      return true;
+    } catch (e) {
+      this.status = "error";
+      return false;
+    }
+  },
+  async say(text) {
+    try {
+      if (this.audioEl) { try { this.audioEl.pause(); } catch { } }
+      let url = this.clipCache.get(text);
+      if (!url) {
+        const out = await this.tts.generate(text, { voice: KOKORO_VOICE });
+        const blob = out.toBlob ? out.toBlob() : wavBlob(out.audio, out.sampling_rate);
+        url = URL.createObjectURL(blob);
+        if (this.clipCache.size > 120) { const k = this.clipCache.keys().next().value; try { URL.revokeObjectURL(this.clipCache.get(k)); } catch { } this.clipCache.delete(k); }
+        this.clipCache.set(text, url);
+      }
+      const a = new Audio(url); this.audioEl = a; a.play().catch(() => { });
+    } catch { webSay(text); }
+  },
+};
+/* warm-load on boot for returning premium-voice users (auth state resolves async) */
+[3000, 10000].forEach(ms => setTimeout(() => {
+  try { if (Kokoro.enabled() && Kokoro.unlocked() && Kokoro.status === "off") Kokoro.load(); } catch { }
+}, ms));
+
+function say(text) {
+  if (!P().settings.speech) return;
+  if (Kokoro.enabled() && Kokoro.status === "ready") { Kokoro.say(text); return; }
+  webSay(text);
 }
 addEventListener("pointerdown", function prime() {
   if (!speechPrimed && "speechSynthesis" in window) { try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch { } speechPrimed = true; }
@@ -1017,6 +1105,41 @@ function openParents() {
   };
   tgls.append(mk("speech", "🔊 Speech"), mk("sound", "🎵 Sounds")); box.appendChild(tgls);
 
+  box.appendChild(el("p", "p-section", "Premium voice"));
+  const pv = el("div");
+  const renderPV = () => {
+    pv.innerHTML = "";
+    if (!Kokoro.unlocked()) {
+      pv.appendChild(el("p", "stat-line", "A natural, human-like reading voice (Kokoro — free and open source) is unlocked with a sync account. It downloads once (~82 MB, best on wi-fi) and then works offline."));
+      const sb = el("button", "soft-btn", "☁️ Sign in to unlock");
+      sb.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); };
+      pv.appendChild(sb);
+    } else if (!p.settings.kokoroVoice) {
+      const dl = el("button", "gold-btn", "✨ Download premium voice (~82 MB, one-off)");
+      dl.onclick = async () => {
+        p.settings.kokoroVoice = true; save(); renderPV();
+        const ok = await Kokoro.load(() => renderPV());
+        renderPV();
+        if (ok) say("Hello! I'm your new reading voice. Let's go adventuring!");
+      };
+      pv.appendChild(dl);
+      pv.appendChild(el("p", "stat-line", "Downloads once, then works offline. The standard voice is used until it's ready."));
+    } else {
+      const tg = el("button", "tgl on", "✨ Premium voice: On");
+      tg.onclick = () => { p.settings.kokoroVoice = false; save(); renderPV(); };
+      pv.appendChild(tg);
+      if (Kokoro.status === "loading") pv.appendChild(el("p", "stat-line", `Downloading the voice… ${Kokoro.pct}% — the standard voice fills in meanwhile.`));
+      else if (Kokoro.status === "error") pv.appendChild(el("p", "stat-line", "The voice couldn't load — check the connection, then toggle off and on to retry. Standard voice in use."));
+      else if (Kokoro.status === "ready") {
+        const tryB = el("button", "soft-btn", "🔊 Hear a sample");
+        tryB.onclick = () => say("G'day explorer! Three tens and four ones make thirty four.");
+        pv.appendChild(tryB);
+      } else { Kokoro.load(() => renderPV()).then(() => renderPV()); pv.appendChild(el("p", "stat-line", "Loading the voice…")); }
+    }
+  };
+  renderPV();
+  box.appendChild(pv);
+
   box.appendChild(el("p", "p-section", "Daily play limit (gentle nudge, never a lock)"));
   const limRow = el("div", "tgl-row");
   [0, 15, 30, 45].forEach(v => {
@@ -1149,6 +1272,6 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V };
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V, pickWebVoice, voice: () => ({ status: Kokoro.status, cached: Kokoro.clipCache.size, enabled: Kokoro.enabled(), unlocked: Kokoro.unlocked() }) };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));

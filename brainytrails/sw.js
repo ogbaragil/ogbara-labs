@@ -1,10 +1,10 @@
 /* Brainy Trails · service worker — cache-first, redirect-safe from day one */
-const CACHE = "brainytrails-v12";
+const CACHE = "brainytrails-v13";
 const ASSETS = [
   "./",
-  "./app.js?v=12",
-  "./curriculum.js?v=12",
-  "./cloud.js?v=12",
+  "./app.js?v=13",
+  "./curriculum.js?v=13",
+  "./cloud.js?v=13",
   "./supabase-config.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
@@ -22,6 +22,9 @@ self.addEventListener("activate",(e)=>{
 });
 self.addEventListener("fetch",(e)=>{
   if (e.request.method!=="GET") return;
+  // Cross-origin (CDN libs, the Kokoro voice model) is managed by the browser
+  // and transformers.js's own cache — never duplicated into the app cache.
+  try { if (new URL(e.request.url).origin !== self.location.origin) return; } catch { }
   // Navigations always serve the cached app shell at "./" — never a cached
   // /index.html, whose response is a 308-redirect on Cloudflare Pages and is
   // rejected by browsers when served from a service worker (ERR_FAILED).
