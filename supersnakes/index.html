@@ -39,19 +39,23 @@
   .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
 
   /* Board — the hero. */
-  .board{position:relative; width:100%; max-width:600px; margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
+  .board{position:relative; width:100%; max-width:min(600px, calc(100dvh - 300px)); margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
          display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
          box-shadow:0 18px 44px rgba(5,25,18,.55), inset 0 0 0 1px rgba(10,53,40,.4);}
   .tile{position:relative;}
   .tile:nth-child(odd){background:var(--board-a);} .tile:nth-child(even){background:var(--board-b);}
   .tile .num{position:absolute; top:2px; left:3px; font-size:clamp(7px,1.6vw,10px); font-weight:800; color:var(--num); line-height:1;}
   .tile .mark{position:absolute; bottom:1px; right:2px; font-size:clamp(10px,2.4vw,14px); line-height:1;}
-  .tile .dest{position:absolute; bottom:1px; left:3px; font-size:clamp(6px,1.4vw,9px); font-weight:800; line-height:1;}
-  .tile.ladder{background:#e3f6e6;} .tile.ladder .dest{color:#15803d;}
-  .tile.snake{background:#fde5e0;} .tile.snake .dest{color:#b91c1c;}
-  .tile.quest{background:#fff3cf;}
+  .tile .dest{position:absolute; bottom:2px; left:2px; font-size:clamp(6px,1.3vw,8.5px); font-weight:800; line-height:1;
+              background:rgba(255,255,255,.88); border-radius:6px; padding:1px 3px;}
+  .tile.ladder{background:#eefaf0;} .tile .dest.up{color:#15803d;}
+  .tile.snake{background:#fdf0ec;} .tile .dest.down{color:#c2410c;}
+  .tile.quest{background:#fff8e0;}
+  .tile.quest .mark{animation:twinkle 2.4s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{transform:scale(1) rotate(0deg); opacity:.85;}50%{transform:scale(1.3) rotate(12deg); opacity:1;}}
   .tile.t100{background:linear-gradient(135deg,#ffe9a8,#ffd35c);}
-  .tile.hl{outline:3px solid var(--sky); outline-offset:-3px; z-index:1;}
+  .tile.hl{z-index:1; animation:hlPulse 1.5s ease-in-out infinite;}
+  @keyframes hlPulse{0%,100%{box-shadow:inset 0 0 0 3px var(--sky);}50%{box-shadow:inset 0 0 0 5px rgba(127,209,247,.55);}}
   svg.art{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
 
   .pawn{position:absolute; width:9%; aspect-ratio:1; border-radius:50%; display:grid; place-items:center; z-index:5; overflow:hidden;
@@ -65,6 +69,8 @@
   @keyframes climbPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
   .pawn.slide{animation:slideShake .18s linear infinite; filter:saturate(1.6) hue-rotate(-14deg);}
   @keyframes slideShake{0%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}100%{transform:rotate(-7deg)}}
+  .pawn.dance{animation:dance .55s ease-in-out infinite;}
+  @keyframes dance{0%,100%{transform:translateY(0) rotate(-8deg);}50%{transform:translateY(-18%) rotate(8deg);}}
 
   /* Fixed dock: ticker, four chips beside the die. The die IS the button. */
   .dock{position:fixed; left:0; right:0; bottom:0; z-index:40;
@@ -97,6 +103,8 @@
   .pips{width:54px; height:54px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
   .pip{border-radius:50%; background:#0f4c3a; opacity:0; width:12px; height:12px; align-self:center; justify-self:center;}
   .pip.on{opacity:1;}
+  .die-btn:not(.done) .pips{animation:dieBreathe 3s ease-in-out infinite;}
+  @keyframes dieBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
 
   .reset-row{width:100%; margin-top:16px; padding:12px; border-radius:12px; background:var(--panel2);
              color:var(--muted); border:1px solid var(--line); font-weight:800; font-size:14px;}
@@ -108,7 +116,7 @@
   .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
   @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
 
-  .help{width:100%; max-width:600px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:12px 16px; font-size:13px; color:var(--muted);}
+  .help{width:100%; max-width:min(600px, calc(100dvh - 300px)); background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:12px 16px; font-size:13px; color:var(--muted);}
   .help summary{font-weight:800; color:var(--ink); cursor:pointer;}
   .help li{margin:6px 0;}
 
@@ -116,6 +124,9 @@
   .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.8); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
   .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px; width:100%; max-width:420px; max-height:92dvh; overflow-y:auto; text-align:center;}
   .modal h2{font-family:var(--display); font-weight:800; margin:0 0 4px; font-size:26px;}
+  .modal .qwho{display:inline-block; margin:6px auto 0; padding:4px 13px; border-radius:999px;
+    background:rgba(255,211,92,.16); border:1px solid rgba(255,211,92,.5); color:var(--sun);
+    font-weight:800; font-size:13px; letter-spacing:.3px;}
   .modal .qtext{font-size:18px; font-weight:700; margin:12px 0 6px; line-height:1.5;}
   .modal .easy{color:var(--sky); font-size:14px; font-weight:700; margin:8px 0;}
   .modal .reward{background:rgba(255,211,92,.12); border:1px solid rgba(255,211,92,.35); color:var(--sun); border-radius:14px; padding:11px; font-weight:800; font-size:14px; margin-top:12px;}
@@ -186,20 +197,43 @@ const SNAKES  = { 98:79, 95:75, 92:88, 83:61, 69:48, 64:60, 59:39, 52:33, 46:25,
 const LADDERS = { 3:22, 8:30, 15:37, 21:42, 28:49, 36:57, 50:67, 63:81, 71:90, 80:99 };
 
 const QUESTS = [
-  { title:"Animal Parade", text:"Everyone make their favorite animal sound!", easy:"Easy version: flap or hop like a tiny animal.", reward:"If everyone joins in, move forward 1 extra step.", type:"bonus" },
-  { title:"Rainbow Hunt", text:"Name or point to a color you can see right now.", easy:"Easy version: just point to something colorful.", reward:"Great spotting! Stay here and smile like champions.", type:"stay" },
-  { title:"Rocket Jump", text:"Do 3 little jumps and count together.", easy:"Easy version: one bounce or big clap.", reward:"Team energy boost: move forward 2 extra steps.", type:"bonus" },
-  { title:"Silly Face Freeze", text:"Make the silliest face you can for 3 seconds.", easy:"Easy version: stick out tongue or puff cheeks.", reward:"Everybody laughed? Take +1 extra step on your next turn.", type:"nextTurnBoost" },
-  { title:"Family Hug", text:"Quick group hug or giant high-five circle.", easy:"Easy version: one happy clap is enough.", reward:"Cozy power! Move forward 1 extra step.", type:"bonus" },
-  { title:"Count the Stars", text:"Count to 5 together in funny voices.", easy:"Easy version: join for any numbers you like.", reward:"Nice counting! Nothing else happens.", type:"stay" },
-  { title:"Dance Burst", text:"Do a 5-second happy dance.", easy:"Easy version: wiggle only!", reward:"So much groove! Move forward 2 extra steps.", type:"bonus" },
-  { title:"Kindness Quest", text:"Say one kind thing to another player.", easy:"Easy version: give a thumbs up or wave.", reward:"Kind hearts win: everyone moves forward 1 tile.", type:"allBonus" },
-  { title:"Treasure Pose", text:"Stand like a superhero or princess for 3 seconds.", easy:"Easy version: just raise arms up high.", reward:"Epic pose! Stay proud right where you are.", type:"stay" },
-  { title:"Tiny Drum Roll", text:"Pat your knees like drums and say boom boom!", easy:"Easy version: one pat is perfect.", reward:"Boom! Move forward 1 extra step.", type:"bonus" },
-  { title:"Mystery Giggle", text:"Try to laugh without making a sound.", easy:"Easy version: cover mouth and grin.", reward:"You did it! Next snake is softened by 2 spaces.", type:"snakeShield" },
-  { title:"Magic Word", text:"Say please, thank you, and hooray!", easy:"Easy version: say one magic word.", reward:"Polite power! Move forward 1 extra step.", type:"bonus" },
+  { title:"Dino Stomp",        text:"Stomp around like a T-rex and do your biggest ROAR!", easy:"Easy version: one tiny roar.", reward:"Earth-shaking! Stomp forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Superhero Launch",  text:"Strike a flying superhero pose and shout your hero name!", easy:"Easy version: arms up high!", reward:"Up, up and away — fly forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Freeze Dance",      text:"Everyone dances! The roller shouts FREEZE — last to freeze does a bow.", easy:"Easy version: wiggle, then stop.", reward:"Party power: EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"Robot Mode",        text:"Say 'I. LOVE. THIS. FAMILY.' in your best robot voice.", easy:"Easy version: beep boop!", reward:"System upgrade! Roll forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Animal Orchestra",  text:"Everyone makes a different animal sound at the same time!", easy:"Easy version: any sound counts.", reward:"What a concert — EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"The Floor Is Lava", text:"Feet off the floor for 5 whole seconds!", easy:"Easy version: lift one foot.", reward:"Lava dodged! +1 boost on your next roll.", type:"nextTurnBoost" },
+  { title:"Secret Mission",    text:"Whisper a silly secret password to the player on your left.", easy:"Easy version: whisper any word.", reward:"Mission complete — sneak forward 2 extra steps.", type:"bonus", amount:2 },
+  { title:"Giggle Monster",    text:"Make another player laugh in 15 seconds. No tickling!", easy:"Easy version: one funny face.", reward:"Gigglepower! Bounce forward 2 extra steps.", type:"bonus", amount:2 },
+  { title:"Statue Garden",     text:"Freeze like a fancy statue for 5 seconds. Hold it!", easy:"Easy version: freeze for 2 seconds.", reward:"Stone-strong! The next snake is softened by 2 spaces.", type:"snakeShield" },
+  { title:"Rocket Countdown",  text:"Count down 5-4-3-2-1 together and BLAST OFF with a big jump!", easy:"Easy version: just yell blast off!", reward:"Liftoff! Zoom forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Mirror Mirror",     text:"Copy everything the next player does for 10 seconds.", easy:"Easy version: copy one move.", reward:"Perfect reflection. Stay shiny right where you are.", type:"stay" },
+  { title:"Treasure Hunter",   text:"Point to something gold, shiny or sparkly in 10 seconds!", easy:"Easy version: anything bright.", reward:"Treasure found — dig forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Ninja Training",    text:"Do 3 totally silent ninja moves. Shhh!", easy:"Easy version: one sneaky tiptoe.", reward:"Ninja reflexes! The next snake is softened by 2 spaces.", type:"snakeShield" },
+  { title:"Opera Star",        text:"Sing your own name like a famous opera singer!", easy:"Easy version: hum it.", reward:"Bravo! Encore! Glide forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"High-Five Tornado", text:"High-five every single player as fast as you can!", easy:"Easy version: one high five.", reward:"Whoosh! EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"Wizard's Spell",    text:"Invent a magic spell and cast it on the nearest snake!", easy:"Easy version: wave hands and say ZAP!", reward:"It worked! The next snake is softened by 2 spaces.", type:"snakeShield" },
+  { title:"Penguin Parade",    text:"Waddle like a penguin in a little circle.", easy:"Easy version: waddle on the spot.", reward:"March of the champions — waddle forward 2 extra steps.", type:"bonus", amount:2 },
+  { title:"Story Spark",       text:"Start a story with one line. The next player adds the next line!", easy:"Easy version: say 'once upon a time…'", reward:"What a tale! Take a storyteller's rest right here.", type:"stay" },
+  { title:"Drum Solo",         text:"Play a knee-drum solo for 5 seconds with a BIG finish!", easy:"Easy version: three little pats.", reward:"Boom-tish! Drum forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Compliment Cannon", text:"Fire one kind compliment at every player. Pew pew!", easy:"Easy version: one compliment.", reward:"Kindness blast — EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"Balance Master",    text:"Balance on one leg for 5 seconds like a flamingo.", easy:"Easy version: hold onto a chair.", reward:"Steady champion! +1 boost on your next roll.", type:"nextTurnBoost" },
+  { title:"Monster Stretch",   text:"Do your biggest stretch with a giant monster yawn!", easy:"Easy version: a little stretch.", reward:"So refreshed. Rest like a happy monster right here.", type:"stay" },
+  { title:"Echo Canyon",       text:"Shout 'SUPER SNAKES!' — everyone echoes it back quieter and quieter.", easy:"Easy version: one echo.", reward:"Echo-mazing! Call forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Victory Wiggle",    text:"Invent your own victory wiggle. Save it for when you win!", easy:"Easy version: any wiggle at all.", reward:"Wiggle registered! +1 boost on your next roll.", type:"nextTurnBoost" },
 ];
-const randomQuest = () => QUESTS[Math.floor(Math.random()*QUESTS.length)];
+/* Shuffled deck — no repeats until every quest has appeared, no back-to-back repeats */
+let _qOrder=[], _qPos=0, _qLast=-1;
+const randomQuest = () => {
+  if (_qPos >= _qOrder.length){
+    _qOrder = QUESTS.map((_,i)=>i);
+    for (let i=_qOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [_qOrder[i],_qOrder[j]]=[_qOrder[j],_qOrder[i]]; }
+    if (_qOrder[0]===_qLast && _qOrder.length>1) [_qOrder[0],_qOrder[1]]=[_qOrder[1],_qOrder[0]];
+    _qPos = 0;
+  }
+  _qLast = _qOrder[_qPos++];
+  return QUESTS[_qLast];
+};
 const clampToBoard = (v) => Math.max(1, Math.min(FINAL_TILE, v));
 
 /* ---------- Players (editable; default family of four) ---------- */
@@ -285,8 +319,8 @@ function buildBoard(){
     const t=document.createElement("div");
     t.className=`tile ${type}${n===100?" t100":""}`; t.dataset.n=n;
     let inner=`<span class="num">${n}</span>`;
-    if(type==="ladder") inner+=`<span class="mark">🪜</span><span class="dest">↑${LADDERS[n]}</span>`;
-    if(type==="snake")  inner+=`<span class="mark">🐍</span><span class="dest">↓${SNAKES[n]}</span>`;
+    if(type==="ladder") inner+=`<span class="dest up">↑${LADDERS[n]}</span>`;
+    if(type==="snake")  inner+=`<span class="dest down">↓${SNAKES[n]}</span>`;
     if(type==="quest")  inner+=`<span class="mark">⭐</span>`;
     if(n===100)         inner+=`<span class="mark">🏆</span>`;
     t.innerHTML=inner;
@@ -298,19 +332,36 @@ function buildBoard(){
   let art="";
   for (const [f,to] of Object.entries(LADDERS)){
     const a=cellCenter(+f), b=cellCenter(to);
-    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), ux=dx/len, uy=dy/len, px=-uy, py=ux, w=1.5;
-    const rail=(s)=>`M${a.x+px*s} ${a.y+py*s} L${b.x+px*s} ${b.y+py*s}`;
-    art+=`<path d="${rail(w)}" stroke="#3f9b63" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.75"/>`;
-    art+=`<path d="${rail(-w)}" stroke="#3f9b63" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.75"/>`;
-    const rungs=Math.max(3,Math.floor(len/5.5));
+    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), px=-dy/len, py=dx/len, w=1.5;
+    const rail=(sgn)=>`M${a.x+px*sgn} ${a.y+py*sgn} L${b.x+px*sgn} ${b.y+py*sgn}`;
+    // white casing lifts the art off busy tiles, then a single clean green
+    for (const sgn of [w,-w]){
+      art+=`<path d="${rail(sgn)}" stroke="rgba(255,255,255,.92)" stroke-width="1.7" fill="none" stroke-linecap="round"/>`;
+      art+=`<path d="${rail(sgn)}" stroke="#2f9e63" stroke-width="0.95" fill="none" stroke-linecap="round"/>`;
+    }
+    const rungs=Math.max(3,Math.floor(len/6));
     for(let i=1;i<rungs;i++){ const tt=i/rungs, cx=a.x+dx*tt, cy=a.y+dy*tt;
-      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="#3f9b63" stroke-width="0.7" stroke-linecap="round" opacity="0.75"/>`; }
+      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="rgba(255,255,255,.92)" stroke-width="1.5" stroke-linecap="round"/>`;
+      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="#2f9e63" stroke-width="0.8" stroke-linecap="round"/>`; }
   }
   for (const [f,to] of Object.entries(SNAKES)){
     const a=cellCenter(+f), b=cellCenter(to);
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), px=-dy/len, py=dx/len, amp=Math.min(7,len*0.2);
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+    const ux=dx/len, uy=dy/len, px=-uy, py=ux, amp=Math.min(6,len*0.18);
     const c1x=a.x+dx*0.25+px*amp, c1y=a.y+dy*0.25+py*amp, c2x=a.x+dx*0.75-px*amp, c2y=a.y+dy*0.75-py*amp;
-    art+=`<path d="M${a.x} ${a.y} C${c1x} ${c1y} ${mx} ${my} ${mx} ${my} S${c2x} ${c2y} ${b.x} ${b.y}" stroke="#d6584f" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.7"/>`;
+    const body=`M${a.x} ${a.y} C${c1x} ${c1y} ${mx} ${my} ${mx} ${my} S${c2x} ${c2y} ${b.x} ${b.y}`;
+    art+=`<path d="${body}" stroke="rgba(255,255,255,.92)" stroke-width="2.7" fill="none" stroke-linecap="round"/>`;
+    art+=`<path d="${body}" stroke="#e2574d" stroke-width="1.75" fill="none" stroke-linecap="round"/>`;
+    art+=`<circle cx="${b.x}" cy="${b.y}" r="0.85" fill="#e2574d"/>`;
+    // friendly face on the head, looking where it slides
+    const hx=a.x, hy=a.y;
+    art+=`<circle cx="${hx}" cy="${hy}" r="2" fill="#c8443a"/>`;
+    const e1x=hx-ux*0.5+px*0.75, e1y=hy-uy*0.5+py*0.75, e2x=hx-ux*0.5-px*0.75, e2y=hy-uy*0.5-py*0.75;
+    art+=`<circle cx="${e1x}" cy="${e1y}" r="0.55" fill="#fff"/><circle cx="${e2x}" cy="${e2y}" r="0.55" fill="#fff"/>`;
+    art+=`<circle cx="${e1x-ux*0.15}" cy="${e1y-uy*0.15}" r="0.26" fill="#26211f"/><circle cx="${e2x-ux*0.15}" cy="${e2y-uy*0.15}" r="0.26" fill="#26211f"/>`;
+    const m0x=hx-ux*1.9, m0y=hy-uy*1.9, tx=hx-ux*2.9, ty=hy-uy*2.9;
+    art+=`<path d="M${m0x} ${m0y} L${tx} ${ty}" stroke="#b3261e" stroke-width="0.35" fill="none"/>`;
+    art+=`<path d="M${tx} ${ty} l${-ux*0.5+px*0.45} ${-uy*0.5+py*0.45} M${tx} ${ty} l${-ux*0.5-px*0.45} ${-uy*0.5-py*0.45}" stroke="#b3261e" stroke-width="0.32" fill="none"/>`;
   }
   svg.innerHTML=art; boardEl.appendChild(svg);
   for (const p of players){ const el=document.createElement("div"); el.className="pawn"; el.id="pawn"+p.id; el.style.borderColor=["#7fd1f7","#e789d3","#ffd35c","#8debb1"][p.id]; boardEl.appendChild(el); }
@@ -368,18 +419,17 @@ async function animateAlong(playerIdx, from, to){
 }
 function applyQuestReward(quest, idx){
   switch(quest.type){
-    case "bonus": {
-      const amount=(quest.title==="Dance Burst"||quest.title==="Rocket Jump")?2:1;
-      players[idx].position=clampToBoard(players[idx].position+amount); break; }
+    case "bonus": players[idx].position=clampToBoard(players[idx].position+(quest.amount||1)); break;
     case "allBonus": players.forEach(p=>p.position=clampToBoard(p.position+1)); break;
     case "nextTurnBoost": players[idx].nextTurnBoost=true; break;
     case "snakeShield":  players[idx].snakeShield=true; break;
   }
 }
-function showQuest(quest, done){
+function showQuest(quest, done, who=""){
   Sound.quest();
   const back=el("div","modal-back"), box=el("div","modal");
   box.innerHTML=`<p style="font-size:40px;margin:0">⭐</p><h2>${quest.title}</h2>
+    ${who?`<p class="qwho">🌟 ${esc(who)}'s mission!</p>`:""}
     <p class="qtext">${quest.text}</p><p class="easy">🐣 ${quest.easy}</p>
     <div class="reward">🎁 ${quest.reward}</div>`;
   const ok=el("button","primary-btn","We did it! 🎉"); ok.onclick=()=>{ back.remove(); done&&done(); };
@@ -402,6 +452,7 @@ function confetti(){
 }
 function showWin(p){
   winner=p; Sound.win(); confetti(); paintPawns(); paintTurn();
+  const pe=document.getElementById("pawn"+p.id); if (pe) pe.classList.add("dance");
   const back=el("div","modal-back"), box=el("div","modal");
   box.innerHTML=`<p class="win-emoji">🏆</p><h2>${esc(p.name)} wins!</h2>
     <p class="qtext">${esc(p.name)} reached tile 100 and wins the Super Snakes adventure!</p>`;
@@ -460,7 +511,7 @@ async function runTurn(rolled){
       const upcoming=players[(idx+1)%players.length];
       setStatus(`${message} Quest done: ${quest.title}. Now it's ${upcoming.name}'s turn.`);
       currentTurn=(idx+1)%players.length; moving=false; paintPawns(); paintTurn();
-    });
+    }, me.name);
     return;
   }
   const upcoming=players[(idx+1)%players.length];
@@ -479,7 +530,8 @@ function rollDice(){
   },750);
 }
 function resetGame(){
-  players.forEach(p=>{ p.position=1; p.nextTurnBoost=false; p.snakeShield=false; });
+  players.forEach(p=>{ p.position=1; p.nextTurnBoost=false; p.snakeShield=false;
+    const pe=document.getElementById("pawn"+p.id); if (pe) pe.classList.remove("dance"); });
   currentTurn=0; winner=null; rolling=false; moving=false;
   showDie(1); setStatus("Fresh start! Tap the dice to begin again.");
   paintPawns(); paintTurn();
