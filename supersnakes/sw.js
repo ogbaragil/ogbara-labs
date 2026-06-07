@@ -1,5 +1,5 @@
 /* Super Snakes — family adventure service worker */
-const CACHE = "supersnakes-v5";
+const CACHE = "supersnakes-v6";
 const ASSETS = ["./","./manifest.webmanifest","./supabase-config.js","./cloud.js",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
   "./icons/apple-touch-icon.png","./icons/favicon-32.png"];

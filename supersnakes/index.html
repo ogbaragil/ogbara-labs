@@ -26,7 +26,7 @@
   body{margin:0; font-family:var(--body); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column; user-select:none;
        background:radial-gradient(800px 460px at 85% -8%, rgba(255,211,92,.12), transparent 55%),
                   radial-gradient(720px 520px at -8% 60%, rgba(127,209,247,.1), transparent 55%), var(--bg);
-       padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+       padding-top:env(safe-area-inset-top); padding-bottom:calc(168px + env(safe-area-inset-bottom));}
   button,input{font-family:inherit;} button{cursor:pointer; border:none;}
   .wrap{flex:1; width:100%; max-width:1000px; margin:0 auto; padding:14px 14px 18px; display:flex; flex-direction:column; gap:12px;}
 
@@ -36,13 +36,12 @@
   .icon-btns{display:flex; gap:8px;}
   .icon-btn{width:40px; height:40px; border-radius:13px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:17px; display:grid; place-items:center;}
 
-  .layout{flex:1; display:flex; flex-direction:column; gap:12px; min-height:0;}
-  @media(min-width:880px){ .layout{flex-direction:row; align-items:flex-start;} .board-pane{flex:1.4;} .side-pane{flex:1; position:sticky; top:14px;} }
+  .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
 
-  /* Board */
-  .board-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:12px;}
-  .board{position:relative; width:100%; max-width:560px; margin:0 auto; aspect-ratio:1; border-radius:14px; overflow:hidden;
-         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr); border:3px solid #0a3528;}
+  /* Board — the hero. */
+  .board{position:relative; width:100%; max-width:600px; margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
+         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
+         box-shadow:0 18px 44px rgba(5,25,18,.55), inset 0 0 0 1px rgba(10,53,40,.4);}
   .tile{position:relative;}
   .tile:nth-child(odd){background:var(--board-a);} .tile:nth-child(even){background:var(--board-b);}
   .tile .num{position:absolute; top:2px; left:3px; font-size:clamp(7px,1.6vw,10px); font-weight:800; color:var(--num); line-height:1;}
@@ -54,46 +53,62 @@
   .tile.t100{background:linear-gradient(135deg,#ffe9a8,#ffd35c);}
   .tile.hl{outline:3px solid var(--sky); outline-offset:-3px; z-index:1;}
   svg.art{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+
   .pawn{position:absolute; width:9%; aspect-ratio:1; border-radius:50%; display:grid; place-items:center; z-index:5; overflow:hidden;
-        font-size:clamp(11px,2.8vw,17px); transition:left .12s linear, top .12s linear, transform .12s; border:2.5px solid; background:#fff;
+        font-size:clamp(11px,2.8vw,17px); transition:left .12s linear, top .12s linear; border:2.5px solid; background:#fff;
         box-shadow:0 3px 8px rgba(10,40,30,.4);}
   .pawn img{width:100%; height:100%; object-fit:cover;}
   .pawn.active{box-shadow:0 0 0 3px rgba(255,211,92,.7), 0 3px 8px rgba(10,40,30,.45); z-index:6;}
-  .pawn.hop{transform:scale(1.2);}
+  .pawn.hop{animation:hopArc .15s ease-out;}
+  @keyframes hopArc{0%{margin-top:0; scale:1;}45%{margin-top:-2.6%; scale:1.15;}100%{margin-top:0; scale:1;}}
+  .pawn.climb{box-shadow:0 0 0 4px rgba(255,211,92,.9), 0 0 18px rgba(255,211,92,.85); animation:climbPulse .35s ease-in-out infinite;}
+  @keyframes climbPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+  .pawn.slide{animation:slideShake .18s linear infinite; filter:saturate(1.6) hue-rotate(-14deg);}
+  @keyframes slideShake{0%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}100%{transform:rotate(-7deg)}}
 
-  /* Side: turn + dice + roster */
-  .side-pane{display:flex; flex-direction:column; gap:12px;}
-  .turn-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px;}
-  .turn-label{font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:800; margin:0 0 8px;}
-  .turn-row{display:flex; align-items:center; gap:12px;}
-  .turn-face{width:54px; height:54px; border-radius:50%; border:3px solid var(--sun); background:#fff; display:grid; place-items:center; font-size:28px; overflow:hidden; flex:none;}
-  .turn-face img{width:100%;height:100%;object-fit:cover;}
-  .turn-name{font-family:var(--display); font-weight:800; font-size:26px; margin:0;}
-  .powerups{display:flex; gap:6px; margin-top:4px; min-height:22px;}
-  .pw{font-size:11px; font-weight:800; background:rgba(255,211,92,.16); color:var(--sun); border:1px solid rgba(255,211,92,.4); border-radius:999px; padding:3px 9px;}
-  .status{margin:12px 0 0; color:var(--muted); font-size:14px; line-height:1.5; min-height:42px;}
+  /* Fixed dock: ticker, four chips beside the die. The die IS the button. */
+  .dock{position:fixed; left:0; right:0; bottom:0; z-index:40;
+        background:rgba(11,60,46,.95); backdrop-filter:blur(10px);
+        border-top:1px solid var(--line);
+        padding:10px 14px calc(12px + env(safe-area-inset-bottom));}
+  .dock-inner{max-width:600px; margin:0 auto;}
+  .status{margin:0 0 8px; color:var(--muted); font-size:12.5px; line-height:1.45; min-height:36px; text-align:center;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .dock-row{display:flex; align-items:center; gap:12px;}
+  .chip-grid{flex:1; min-width:0; display:grid; grid-template-columns:repeat(2,1fr); gap:7px;}
+  .rchip{display:flex; align-items:center; gap:7px; background:var(--panel2); border-radius:13px; padding:6px 8px; border:1.5px solid transparent;}
+  .rchip.active{border-color:var(--sun); box-shadow:0 0 12px rgba(255,211,92,.25);}
+  .rchip .face{width:26px; height:26px; border-radius:50%; border:2px solid var(--mint); background:#fff; display:grid; place-items:center; font-size:13px; overflow:hidden; flex:none;}
+  .rchip .face img{width:100%;height:100%;object-fit:cover;}
+  .rmeta{min-width:0; flex:1;}
+  .rmeta b{display:block; font-size:11.5px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rmeta .pwico{font-size:9px; margin-left:3px;}
+  .bar{display:block; height:4px; border-radius:999px; background:rgba(242,251,244,.16); margin-top:4px; overflow:hidden;}
+  .bar .fill{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--sun),var(--coral)); transition:width .25s ease;}
 
-  .dice-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px; text-align:center;}
-  .die-btn{width:96px; height:96px; margin:0 auto 12px; background:#fff; border-radius:22px; display:grid; place-items:center; border:none;
-       box-shadow:0 8px 22px rgba(10,40,30,.5), inset 0 -5px 0 rgba(10,40,30,.1); transition:transform .12s;}
+  .die-btn{flex:none; width:84px; height:84px; background:#fff; border-radius:22px; display:grid; place-items:center; border:none; position:relative;
+       box-shadow:0 6px 0 rgba(5,25,18,.6), 0 10px 22px rgba(5,25,18,.5), inset 0 -5px 0 rgba(10,40,30,.1); transition:transform .12s, opacity .25s;}
   .die-btn:active{transform:scale(.94);}
   .die-btn.spin{animation:spin3 .75s cubic-bezier(.2,.6,.3,1);}
+  .die-btn.done{opacity:.45;}
+  .die-btn::after{content:"tap to roll"; position:absolute; bottom:0; left:0; right:0; text-align:center;
+                  font-size:8px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:#8a6b3a;}
   @keyframes spin3{from{transform:rotate(0)}to{transform:rotate(1080deg)}}
-  .pips{width:64px; height:64px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
-  .pip{border-radius:50%; background:#0f4c3a; opacity:0; width:14px; height:14px; align-self:center; justify-self:center;}
+  .pips{width:54px; height:54px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
+  .pip{border-radius:50%; background:#0f4c3a; opacity:0; width:12px; height:12px; align-self:center; justify-self:center;}
   .pip.on{opacity:1;}
-  .dice-hint{color:var(--muted); font-weight:700; font-size:13.5px; margin:0;}
-  .reset-link{margin-top:10px; background:none; color:var(--muted); font-weight:700; font-size:13.5px; text-decoration:underline;}
 
-  .roster{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
-  .rchip{display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:8px 10px;}
-  .rchip.active{border-color:var(--sun);}
-  .rchip .face{width:30px; height:30px; border-radius:50%; border:2px solid var(--mint); background:#fff; display:grid; place-items:center; font-size:15px; overflow:hidden; flex:none;}
-  .rchip .face img{width:100%;height:100%;object-fit:cover;}
-  .rchip b{font-size:13.5px; display:block; line-height:1.1;}
-  .rchip small{color:var(--muted); font-size:11px;}
+  .reset-row{width:100%; margin-top:16px; padding:12px; border-radius:12px; background:var(--panel2);
+             color:var(--muted); border:1px solid var(--line); font-weight:800; font-size:14px;}
 
-  .help{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:12px 16px; font-size:13px; color:var(--muted);}
+  /* Drama */
+  .modal{animation:popUp .3s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
+  .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}
+  .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
+  @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
+
+  .help{width:100%; max-width:600px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:12px 16px; font-size:13px; color:var(--muted);}
   .help summary{font-weight:800; color:var(--ink); cursor:pointer;}
   .help li{margin:6px 0;}
 
@@ -130,32 +145,9 @@
   </header>
 
   <div class="layout">
-    <div class="board-pane">
-      <div class="board-card"><div class="board" id="board"></div></div>
-    </div>
+    <div class="board" id="board"></div>
 
-    <div class="side-pane">
-      <div class="turn-card">
-        <p class="turn-label">Current turn</p>
-        <div class="turn-row">
-          <span class="turn-face" id="turnFace"></span>
-          <div>
-            <p class="turn-name" id="turnName"></p>
-            <div class="powerups" id="powerups"></div>
-          </div>
-        </div>
-        <p class="status" id="status">Tap the dice to begin your family adventure!</p>
-      </div>
-
-      <div class="dice-card">
-        <button class="die-btn" id="dieBtn" aria-label="Roll the dice"><div class="pips" id="pips"></div></button>
-        <p class="dice-hint">Tap the dice to roll</p>
-        <button class="reset-link" id="resetBtn">Restart adventure</button>
-      </div>
-
-      <div class="roster" id="roster"></div>
-
-      <details class="help">
+    <details class="help">
         <summary>How to play</summary>
         <ul>
           <li>🎲 Take turns rolling. Climb 🪜 ladders, dodge 🐍 snakes.</li>
@@ -164,7 +156,16 @@
           <li>🏁 You need an exact roll to land on 100 and win!</li>
         </ul>
       </details>
-      <p class="footer">An Ogbara Labs experiment · made for family game night<br><a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
+    <p class="footer">An Ogbara Labs experiment · made for family game night<br><a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
+  </div>
+</div>
+
+<div class="dock">
+  <div class="dock-inner">
+    <p class="status" id="status">Tap the dice to begin your family adventure!</p>
+    <div class="dock-row">
+      <div class="chip-grid" id="chipGrid"></div>
+      <button class="die-btn" id="dieBtn" aria-label="Roll the dice"><div class="pips" id="pips"></div></button>
     </div>
   </div>
 </div>
@@ -225,6 +226,19 @@ const AvatarDB = (()=>{ let dbp=null;
   };
 })();
 const avatarURL = {};
+const AV_PUSHED_KEY = "ss_avatars_pushed_v1";
+const avPushed = (()=>{ try { return new Set(JSON.parse(localStorage.getItem(AV_PUSHED_KEY)||"[]")); } catch { return new Set(); } })();
+function avMark(id, on=true){ on ? avPushed.add(id) : avPushed.delete(id); try{ localStorage.setItem(AV_PUSHED_KEY, JSON.stringify([...avPushed])); }catch{} }
+async function avatarSync(){
+  if (!window.Cloud || !Cloud.isSignedIn()) return;
+  for (const p of players){
+    if (avPushed.has("p"+p.id)) continue;
+    try {
+      const b = await AvatarDB.get("p"+p.id);
+      if (b && await Cloud.uploadPhoto("avatar-p"+p.id, b)) avMark("p"+p.id);
+    } catch {}
+  }
+}
 async function loadAvatars(){
   for (const p of players){
     let b = await AvatarDB.get("p"+p.id);
@@ -316,8 +330,9 @@ function paintPawns(){
 
 /* ---------- UI refs ---------- */
 const el=(t,c,h)=>{ const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+const esc=(t)=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
-const statusEl=document.getElementById("status"), turnFace=document.getElementById("turnFace"), turnName=document.getElementById("turnName"), powerupsEl=document.getElementById("powerups"), rosterEl=document.getElementById("roster");
+const statusEl=document.getElementById("status"), chipGrid=document.getElementById("chipGrid");
 const pipsEl=document.getElementById("pips"), dieBtn=document.getElementById("dieBtn");
 const PIP_MAP={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 for(let i=0;i<9;i++) pipsEl.appendChild(el("span","pip"));
@@ -326,17 +341,16 @@ showDie(1);
 
 let currentTurn=0, winner=null, rolling=false, moving=false;
 function paintTurn(){
-  const p=players[currentTurn];
-  turnFace.innerHTML=face(p); turnName.textContent=p.name;
-  powerupsEl.innerHTML="";
-  if(p.nextTurnBoost) powerupsEl.appendChild(el("span","pw","⚡ +1 boost"));
-  if(p.snakeShield)  powerupsEl.appendChild(el("span","pw","🛡️ snake shield"));
-  rosterEl.innerHTML="";
+  chipGrid.innerHTML="";
   players.forEach((q,i)=>{
     const chip=el("div","rchip"+(i===currentTurn&&!winner?" active":""));
-    chip.innerHTML=`<span class="face">${face(q)}</span><span><b>${q.name}</b><small>tile ${q.position}${q.nextTurnBoost?" ⚡":""}${q.snakeShield?" 🛡️":""}</small></span>`;
-    rosterEl.appendChild(chip);
+    const pct=Math.max(0,Math.min(100,q.position||1));
+    chip.innerHTML=`<span class="face">${face(q)}</span>
+      <span class="rmeta"><b>${esc(q.name)}${q.nextTurnBoost?'<span class="pwico">⚡</span>':""}${q.snakeShield?'<span class="pwico">🛡️</span>':""}</b>
+      <span class="bar"><span class="fill" style="width:${pct}%"></span></span></span>`;
+    chipGrid.appendChild(chip);
   });
+  if (typeof dieBtn !== "undefined" && dieBtn) dieBtn.classList.toggle("done", !!winner);
 }
 const setStatus=(t)=>statusEl.textContent=t;
 
@@ -371,11 +385,26 @@ function showQuest(quest, done){
   const ok=el("button","primary-btn","We did it! 🎉"); ok.onclick=()=>{ back.remove(); done&&done(); };
   box.appendChild(ok); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
+function confetti(){
+  try { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch {}
+  const wrap = el("div","confetti");
+  const COLORS = ["#ffd35c","#ff8e72","#8debb1","#7fd1f7","#e789d3"];
+  for (let k=0;k<70;k++){
+    const c = el("span");
+    c.style.left = (Math.random()*100)+"%";
+    c.style.background = COLORS[k%COLORS.length];
+    c.style.animationDelay = (Math.random()*0.7)+"s";
+    c.style.animationDuration = (2.2+Math.random()*1.5)+"s";
+    wrap.appendChild(c);
+  }
+  document.getElementById("overlay").appendChild(wrap);
+  setTimeout(()=>wrap.remove(), 4600);
+}
 function showWin(p){
-  winner=p; Sound.win(); paintPawns(); paintTurn();
+  winner=p; Sound.win(); confetti(); paintPawns(); paintTurn();
   const back=el("div","modal-back"), box=el("div","modal");
-  box.innerHTML=`<p class="win-emoji">🏆</p><h2>${p.name} wins!</h2>
-    <p class="qtext">${p.name} reached tile 100 and wins the Super Snakes adventure!</p>`;
+  box.innerHTML=`<p class="win-emoji">🏆</p><h2>${esc(p.name)} wins!</h2>
+    <p class="qtext">${esc(p.name)} reached tile 100 and wins the Super Snakes adventure!</p>`;
   const again=el("button","primary-btn","Play again"); again.onclick=()=>{ back.remove(); resetGame(); };
   box.appendChild(again); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
@@ -398,10 +427,14 @@ async function runTurn(rolled){
   moving=true;
   await animateAlong(idx,startPos,target);
 
+  const pawnEl=document.getElementById("pawn"+me.id);
   if (LADDERS[target]){
     const top=LADDERS[target];
     message+=` Wheee! Climbed a ladder to ${top}.`; Sound.climb();
-    await animateAlong(idx,target,top); target=top;
+    if (pawnEl) pawnEl.classList.add("climb");
+    await animateAlong(idx,target,top);
+    if (pawnEl) pawnEl.classList.remove("climb");
+    target=top;
   } else if (SNAKES[target]){
     let snakeTarget=SNAKES[target];
     if (me.snakeShield){
@@ -409,7 +442,10 @@ async function runTurn(rolled){
       message+=` A snake appeared, but the shield softened it to tile ${snakeTarget}.`;
     } else message+=` Oh no! Slid down a snake to ${snakeTarget}.`;
     Sound.slide();
-    await animateAlong(idx,target,snakeTarget); target=snakeTarget;
+    if (pawnEl) pawnEl.classList.add("slide");
+    await animateAlong(idx,target,snakeTarget);
+    if (pawnEl) pawnEl.classList.remove("slide");
+    target=snakeTarget;
   }
   me.position=target;
 
@@ -466,12 +502,16 @@ function openFamily(){
     up.onclick=()=>file.click();
     file.onchange=async()=>{ const ff=file.files[0]; if(!ff)return;
       const blob=await downscale(ff,300,0.82); await AvatarDB.put("p"+p.id,blob);
-      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+p.id, blob);
+      avMark("p"+p.id,false);
+      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+p.id, blob).then(ok=>{ if(ok) avMark("p"+p.id); });
       if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); avatarURL[p.id]=URL.createObjectURL(blob); f.innerHTML=face(p); };
     const clr=el("button","mini-btn","✕");
-    clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
+    clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); avMark("p"+p.id,false); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
     row.append(f,nameI,emo,up,clr,file); box.appendChild(row);
   });
+  const rr = el("button","reset-row","↺ Restart adventure — everyone back to tile 1");
+  rr.onclick = () => { if (confirm("Restart the adventure?")){ resetGame(); savePlayers(); back.remove(); } };
+  box.appendChild(rr);
   const save=el("button","primary-btn","Save family");
   save.onclick=()=>{ savePlayers(); back.remove(); paintPawns(); paintTurn(); };
   box.appendChild(save); back.appendChild(box);
@@ -487,7 +527,6 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
 
 /* ---------- Wire ---------- */
 dieBtn.onclick=rollDice;
-document.getElementById("resetBtn").onclick=()=>{ if(confirm("Restart the adventure?")) resetGame(); };
 document.getElementById("famBtn").onclick=openFamily;
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=Sound.musicOn?1:0.45;
@@ -508,9 +547,11 @@ addEventListener("pointerdown",function once(){ Sound.unlock(); if(Sound.musicOn
       }
       if (st.music!==undefined){ Sound.setOn(!!st.music); paintMusicBtn(); }
       await loadAvatars();
+      avatarSync();
       paintPawns(); paintTurn();
     },
   });
+  if (window.Cloud) avatarSync();
 })();
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>
