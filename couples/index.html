@@ -131,7 +131,10 @@
   .quest-card{text-align:center;}
   .quest-card .qicon{font-size:44px;}
   .quest-card p.q{font-family:var(--display); font-style:italic; font-size:19px; line-height:1.5; margin:10px 0;}
-  .quest-card .qsub{color:var(--muted); font-size:13px; margin:2px 0 0;}
+  .quest-card .qwho{display:inline-block; margin:8px auto 0; padding:4px 13px; border-radius:999px;
+    background:rgba(255,143,177,.15); border:1px solid rgba(255,143,177,.45); color:var(--rose);
+    font-weight:800; font-size:12.5px; letter-spacing:.3px;}
+  .quest-card .qsub{color:var(--muted); font-size:13px; margin:6px 0 0;}
   .quest-actions{display:flex; gap:10px; margin-top:14px;}
   .quest-actions .soft-btn{flex:1; background:rgba(255,255,255,.08); color:inherit; border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:12px; font-weight:700;}
   .quest-actions .primary-btn{flex:1.4; margin-top:0;}
@@ -544,7 +547,7 @@ function showWin(actor){
   const again=el("button","primary-btn","Play again"); again.onclick=()=>{ back.remove(); resetGame(); };
   box.appendChild(again); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
-function showQuest(text, kind="tile"){
+function showQuest(text, kind="tile", who=""){
   Music.sfxLove();
   const FRAME = {
     tile:   { icon:"💕", title:"Love Quest!",     sub:"" },
@@ -554,6 +557,7 @@ function showQuest(text, kind="tile"){
   const f = FRAME[kind] || FRAME.tile;
   const back=el("div","modal-back"), box=el("div","modal quest-card");
   box.innerHTML=`<p class="qicon">${f.icon}</p><h2>${f.title}</h2>
+    ${who?`<p class="qwho">💌 ${esc(who)}, this one's yours</p>`:""}
     ${f.sub?`<p class="qsub">${f.sub}</p>`:""}
     <p class="q">${text}</p>
     <small>Always tasteful &amp; consensual — passing is always okay.</small>`;
@@ -602,10 +606,10 @@ async function spin(){
   if (jumped){
     const kind = finalPos > target ? "ladder" : "snake";   // climbed up, or slid down
     setEvent(lastEvent.textContent + (kind==="ladder" ? " • Ladder quest! 🪜" : " • Snake forfeit! 🐍"));
-    showQuest(drawQuest(S.loveMode), kind);
+    showQuest(drawQuest(S.loveMode), kind, actor);
   } else if (QUEST_TILES.includes(finalPos)){
     setEvent(lastEvent.textContent + " • Love Quest! 💕");
-    showQuest(drawQuest(S.loveMode), "tile");
+    showQuest(drawQuest(S.loveMode), "tile", actor);
   }
   finishTurn(roll===6&&!jumped,actor);
 }
