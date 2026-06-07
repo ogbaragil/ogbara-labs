@@ -799,10 +799,17 @@ function openParents() {
 (function wireParentsGate() {
   const b = $("parentsBtn"); if (!b) return;
   const HOLD = FAST ? 120 : 3000;
-  let t = null;
+  let t = null, fired = false;
   const release = () => { b.classList.remove("holding"); if (t) { clearTimeout(t); t = null; } };
-  b.onpointerdown = () => { b.classList.add("holding"); t = setTimeout(() => { release(); openParents(); }, HOLD); };
+  b.onpointerdown = (e) => {
+    if (e && e.preventDefault) e.preventDefault();   // stop long-press selection/callout from cancelling us
+    fired = false;
+    b.classList.add("holding");
+    t = setTimeout(() => { fired = true; release(); openParents(); }, HOLD);
+  };
   b.onpointerup = release; b.onpointerleave = release; b.onpointercancel = release;
+  b.oncontextmenu = (e) => { if (e && e.preventDefault) e.preventDefault(); return false; };
+  b.onclick = () => { if (!fired) toast("👨‍👩‍👧", "For grown-ups", "Press and HOLD this button for 3 seconds to open the Parents' Corner."); };
 })();
 
 /* ---------------- help ---------------- */
@@ -816,7 +823,7 @@ function openHelp() {
     <li>🔊 Every question is read aloud — tap the speaker to hear it again.</li>
     <li>🔥 Light the Daily Campfire every day to grow your streak.</li>
     <li>🎒 Tap your level ring (top corner) to open your Backpack of crowns and badges.</li>
-    <li>👨‍👩‍👧 Grown-ups: hold the Parents' Corner button below the map.</li></ul>`;
+    <li>👨‍👩‍👧 Grown-ups: press and hold the 👨‍👩‍👧 button in the top corner for 3 seconds.</li></ul>`;
   const ok = el("button", "primary-btn", "Got it!"); ok.onclick = () => back.remove();
   box.appendChild(ok); back.appendChild(box);
   back.onclick = (e) => { if (e.target === back) back.remove(); };
