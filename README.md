@@ -49,6 +49,14 @@ Edit, commit, push — Cloudflare redeploys automatically. When you ship changes
 bump the cache version in that app's `sw.js` (e.g. `supersnakes-v1` → `-v2`)
 so installed users pick up the new version promptly.
 
+## Premium voice (optional, free)
+
+Brainy Trails can speak with a studio-quality Australian voice (Google Cloud TTS)
+proxied through a tiny Cloudflare Worker so the API key never reaches clients.
+Setup takes ~10 minutes — full steps in `tts-worker/README.md`. Once deployed,
+set `window.TTS_PROXY` in `brainytrails/supabase-config.js` and release as usual.
+Leave it `""` and the app simply uses the best installed device voice.
+
 ## Releasing a Brainy Trails update
 
 Version skew between the shell and scripts blanks the map on stale caches, so every release bumps **three places together**:

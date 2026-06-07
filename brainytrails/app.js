@@ -39,6 +39,10 @@ for (const p of Object.values(state.profiles)) {
   if (!p.avatar) p.avatar = "🦊";
   if (!p.streak) p.streak = { count: 0, last: null };
   if (p.settings.sound === undefined) p.settings.sound = true;
+  if (p.settings.kokoroVoice !== undefined) {
+    if (p.settings.premiumVoice === undefined) p.settings.premiumVoice = p.settings.kokoroVoice;
+    delete p.settings.kokoroVoice;
+  }
 }
 const P = () => state.profiles[state.profile];
 const sk = (id) => {
@@ -300,73 +304,77 @@ function webSay(text) {
   } catch { }
 }
 
-/* Kokoro premium voice: free, open-source, runs on-device. Unlocked by a sync
-   account; downloads once (~82 MB) and then works offline via the browser cache. */
-const KOKORO_VOICE = "af_heart";   // swap to "bf_emma" for a British voice
-function wavBlob(f32, rate) {
-  const n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
-  const W = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
-  W(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); W(8, "WAVEfmt "); v.setUint32(16, 16, true);
-  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
-  v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-  W(36, "data"); v.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) { const x = Math.max(-1, Math.min(1, f32[i])); v.setInt16(44 + i * 2, x * 32767, true); }
-  return new Blob([buf], { type: "audio/wav" });
-}
-const Kokoro = {
-  status: "off",   // off | loading | ready | error
-  pct: 0, tts: null, clipCache: new Map(), audioEl: null,
-  unlocked: () => !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn()),
-  enabled: () => !!P().settings.kokoroVoice,
-  async load(onProgress) {
-    if (this.status === "ready" || this.status === "loading") return this.status === "ready";
-    this.status = "loading"; this.pct = 0;
+/* Premium voice: Google Cloud TTS (en-AU Neural2) behind our Cloudflare Worker.
+   Phrases are edge-cached server-side, memory-cached here, and stored in the
+   page Cache API so repeated phrases keep working offline. Unlocked by sync
+   sign-in; configured per-deployment via window.TTS_PROXY (see /tts-worker). */
+const TTS_VOICE = "en-AU-Neural2-A";
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+const TTS = {
+  mem: new Map(), el: null, lastErr: null,
+  proxy: () => String(window.TTS_PROXY || "").trim(),
+  unlocked() { return !!this.proxy() && !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn()); },
+  enabled: () => !!P().settings.premiumVoice,
+  prime() {   // iOS: one user-gesture play unlocks this element for all later srcs
     try {
-      const mod = window.__KOKORO_TEST
-        || await import("https://cdn.jsdelivr.net/npm/kokoro-js@1/+esm")
-          .catch(() => import("https://cdn.jsdelivr.net/npm/kokoro-js/+esm"));
-      const KokoroTTS = mod.KokoroTTS || (mod.default && mod.default.KokoroTTS);
-      let device = "wasm";
-      try { if (navigator.gpu && await navigator.gpu.requestAdapter()) device = "webgpu"; } catch { }
-      this.tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
-        dtype: device === "webgpu" ? "fp32" : "q8",
-        device,
-        progress_callback: (pr) => { if (pr && pr.progress != null) { this.pct = Math.round(pr.progress); if (onProgress) onProgress(this.pct); } },
+      if (!this.el && typeof Audio !== "undefined") {
+        this.el = new Audio(SILENT_WAV);
+        this.el.play().catch(() => { });
+      }
+    } catch { }
+  },
+  async fetchClip(text) {
+    if (this.mem.has(text)) return this.mem.get(text);
+    const cacheUrl = this.proxy() + "?t=" + encodeURIComponent(text) + "&v=" + TTS_VOICE;
+    let blob = null;
+    try {
+      if (typeof caches !== "undefined") {
+        const c = await caches.open("bt-tts-v1");
+        const hit = await c.match(cacheUrl);
+        if (hit) blob = await hit.blob();
+      }
+    } catch { }
+    if (!blob) {
+      let signal;
+      try { const ac = new AbortController(); signal = ac.signal; setTimeout(() => ac.abort(), 3500); } catch { }
+      const r = await fetch(this.proxy(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, voice: TTS_VOICE }),
+        signal,
       });
-      this.status = "ready";
-      return true;
-    } catch (e) {
-      this.status = "error";
-      return false;
+      if (!r.ok) throw new Error("tts " + r.status);
+      blob = await r.blob();
+      try {
+        if (typeof caches !== "undefined") {
+          const c = await caches.open("bt-tts-v1");
+          await c.put(cacheUrl, new Response(blob, { headers: { "Content-Type": "audio/mpeg" } }));
+        }
+      } catch { }
     }
+    const url = URL.createObjectURL(blob);
+    if (this.mem.size > 150) { const k = this.mem.keys().next().value; try { URL.revokeObjectURL(this.mem.get(k)); } catch { } this.mem.delete(k); }
+    this.mem.set(text, url);
+    return url;
   },
   async say(text) {
     try {
-      if (this.audioEl) { try { this.audioEl.pause(); } catch { } }
-      let url = this.clipCache.get(text);
-      if (!url) {
-        const out = await this.tts.generate(text, { voice: KOKORO_VOICE });
-        const blob = out.toBlob ? out.toBlob() : wavBlob(out.audio, out.sampling_rate);
-        url = URL.createObjectURL(blob);
-        if (this.clipCache.size > 120) { const k = this.clipCache.keys().next().value; try { URL.revokeObjectURL(this.clipCache.get(k)); } catch { } this.clipCache.delete(k); }
-        this.clipCache.set(text, url);
-      }
-      const a = new Audio(url); this.audioEl = a; a.play().catch(() => { });
-    } catch { webSay(text); }
+      const url = await this.fetchClip(text);
+      if (this.el) { try { this.el.pause(); } catch { } this.el.src = url; this.el.play().catch(() => { }); }
+      else { const a = new Audio(url); this.el = a; a.play().catch(() => { }); }
+    } catch (e) { this.lastErr = String(e && e.message || e); webSay(text); }
   },
+  prefetch(arr) { if (this.enabled() && this.unlocked()) arr.forEach(t => this.fetchClip(t).catch(() => { })); },
 };
-/* warm-load on boot for returning premium-voice users (auth state resolves async) */
-[3000, 10000].forEach(ms => setTimeout(() => {
-  try { if (Kokoro.enabled() && Kokoro.unlocked() && Kokoro.status === "off") Kokoro.load(); } catch { }
-}, ms));
 
 function say(text) {
   if (!P().settings.speech) return;
-  if (Kokoro.enabled() && Kokoro.status === "ready") { Kokoro.say(text); return; }
+  if (TTS.enabled() && TTS.unlocked()) { TTS.say(text); return; }
   webSay(text);
 }
 addEventListener("pointerdown", function prime() {
   if (!speechPrimed && "speechSynthesis" in window) { try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch { } speechPrimed = true; }
+  TTS.prime();
   removeEventListener("pointerdown", prime);
 });
 
@@ -587,6 +595,7 @@ function beginSession(cfg) {
   $("reviewBanner").hidden = true;
   $("continueBtn").hidden = true;
   const tb = $("teachBtn"); if (tb) { tb.hidden = true; tb.onclick = showMeHow; }
+  TTS.prefetch(["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Not quite!"]);
   Sess.outcomes = [];
   nextQ();
 }
@@ -1109,32 +1118,24 @@ function openParents() {
   const pv = el("div");
   const renderPV = () => {
     pv.innerHTML = "";
-    if (!Kokoro.unlocked()) {
-      pv.appendChild(el("p", "stat-line", "A natural, human-like reading voice (Kokoro — free and open source) is unlocked with a sync account. It downloads once (~82 MB, best on wi-fi) and then works offline."));
+    if (!TTS.proxy()) {
+      pv.appendChild(el("p", "stat-line", "Premium voice isn't configured on this deployment — see tts-worker/README.md in the repo to set it up (free)."));
+    } else if (!TTS.unlocked()) {
+      pv.appendChild(el("p", "stat-line", "A studio-quality Australian reading voice is unlocked with a sync account. It streams instantly and repeated phrases work offline."));
       const sb = el("button", "soft-btn", "☁️ Sign in to unlock");
       sb.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); };
       pv.appendChild(sb);
-    } else if (!p.settings.kokoroVoice) {
-      const dl = el("button", "gold-btn", "✨ Download premium voice (~82 MB, one-off)");
-      dl.onclick = async () => {
-        p.settings.kokoroVoice = true; save(); renderPV();
-        const ok = await Kokoro.load(() => renderPV());
-        renderPV();
-        if (ok) say("Hello! I'm your new reading voice. Let's go adventuring!");
-      };
-      pv.appendChild(dl);
-      pv.appendChild(el("p", "stat-line", "Downloads once, then works offline. The standard voice is used until it's ready."));
     } else {
-      const tg = el("button", "tgl on", "✨ Premium voice: On");
-      tg.onclick = () => { p.settings.kokoroVoice = false; save(); renderPV(); };
+      const on = !!p.settings.premiumVoice;
+      const tg = el("button", "tgl" + (on ? " on" : ""), `✨ Premium voice: ${on ? "On" : "Off"}`);
+      tg.onclick = () => { p.settings.premiumVoice = !p.settings.premiumVoice; save(); renderPV(); if (p.settings.premiumVoice) say("G'day! I'm your new reading voice. Let's go adventuring!"); };
       pv.appendChild(tg);
-      if (Kokoro.status === "loading") pv.appendChild(el("p", "stat-line", `Downloading the voice… ${Kokoro.pct}% — the standard voice fills in meanwhile.`));
-      else if (Kokoro.status === "error") pv.appendChild(el("p", "stat-line", "The voice couldn't load — check the connection, then toggle off and on to retry. Standard voice in use."));
-      else if (Kokoro.status === "ready") {
+      if (on) {
         const tryB = el("button", "soft-btn", "🔊 Hear a sample");
-        tryB.onclick = () => say("G'day explorer! Three tens and four ones make thirty four.");
+        tryB.onclick = () => say("Three tens and four ones make thirty four. Brilliant!");
         pv.appendChild(tryB);
-      } else { Kokoro.load(() => renderPV()).then(() => renderPV()); pv.appendChild(el("p", "stat-line", "Loading the voice…")); }
+        pv.appendChild(el("p", "stat-line", "Streamed and cached — questions speak within about half a second, repeats are instant, and phrases you've heard keep working offline."));
+      }
     }
   };
   renderPV();
@@ -1272,6 +1273,6 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V, pickWebVoice, voice: () => ({ status: Kokoro.status, cached: Kokoro.clipCache.size, enabled: Kokoro.enabled(), unlocked: Kokoro.unlocked() }) };
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }) };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
