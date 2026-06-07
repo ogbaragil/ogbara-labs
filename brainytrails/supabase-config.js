@@ -7,4 +7,4 @@ window.SUPABASE_ANON_KEY = "sb_publishable_0Gg8WSiFdWTk17YqclSODg_kdJl0qqB";
 
 // Premium voice proxy (Cloudflare Worker — see /tts-worker/README.md).
 // Leave "" to disable the premium voice feature on this deployment.
-window.TTS_PROXY = "";
+window.TTS_PROXY = "https://ogbara-tts.ogbaragil.workers.dev";
