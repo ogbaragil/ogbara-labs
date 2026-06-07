@@ -125,6 +125,9 @@
   #parentsBtn.holding{background:#efe9ff; border-color:var(--violet); animation:holdPulse 1s linear infinite;}
   @keyframes holdPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,77,255,.0);}50%{box-shadow:0 0 0 8px rgba(124,77,255,.2);}}
   body.in-play #parentsBtn{display:none;}
+  #testChip{position:fixed; top:calc(64px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:46;
+    background:linear-gradient(160deg,#f59e0b,#fbbf24); color:#5b3104; font-weight:900; font-size:12px;
+    padding:9px 16px; border-radius:999px; box-shadow:0 8px 20px rgba(245,158,11,.45); white-space:nowrap;}
   header{padding-left:62px;}
 
   /* backpack */
@@ -304,6 +307,7 @@
 <body>
 <button id="hud" aria-label="My Backpack"><span id="hudLv">1</span></button>
 <button id="parentsBtn" aria-label="Parents' Corner — hold to open">👨‍👩‍👧</button>
+<button id="testChip" hidden>🧪 TEST MODE — tap to exit</button>
 <div class="wrap">
   <header><h1>🧠 Brainy <span class="hl">Trails</span></h1></header>
 
@@ -341,10 +345,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=9"></script>
+<script src="curriculum.js?v=10"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=9"></script>
-<script src="app.js?v=9"></script>
+<script src="cloud.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

@@ -48,6 +48,8 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
+const TESTP = "_test";
+const inTest = () => state.profile === TESTP;
 const skv = (id) => P().skills[id] || SK0;   // read-only view: never creates records
 
 function save() { Store.save(state); if (window.Cloud) Cloud.schedulePush(); }
@@ -63,7 +65,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const dueSkills = () => Object.keys(P().skills).filter(id => { const st = P().skills[id]; return st.m >= 2 && st.nextReview && st.nextReview <= today(); });
 
 /* unlock rule: every prerequisite at least Familiar */
-const unlocked = (id) => BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1);
+const unlocked = (id) => inTest() || BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1);
 
 /* ---------------- sound effects ---------------- */
 const SFX = (() => {
@@ -178,6 +180,7 @@ function frontierSkill() {
 function renderMap(scrollToHere) {
   paintHeader();
   paintDaily();
+  paintTestChip();
   const root = $("mapRoot");
   root.innerHTML = "";
   const frontier = frontierSkill();
@@ -210,7 +213,7 @@ function renderMap(scrollToHere) {
       card.appendChild(row);
     }
     /* island boss gate: opens when every skill here is at least Familiar */
-    const bossReady = skillsHere.every(id => skv(id).m >= 1);
+    const bossReady = inTest() || skillsHere.every(id => skv(id).m >= 1);
     const beaten = !!bosses()[isl.id];
     const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
     bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
@@ -693,6 +696,32 @@ function confetti() {
   setTimeout(() => wrap.remove(), 4600);
 }
 
+/* ---------------- test mode (grown-ups: try everything, throw it away) ---------------- */
+function paintTestChip() {
+  const c = $("testChip");
+  if (!c) return;
+  c.hidden = !inTest();
+}
+function enterTestMode() {
+  const p = FRESH_PROFILE();                       // fresh sandbox on every entry
+  p.badges = {}; p.timeByDay = {}; p.bosses = {}; p.name = "Tester"; p.avatar = "🧪";
+  p.streak = { count: 0, last: null }; p.settings.sound = true;
+  state.profiles[TESTP] = p;
+  state.profile = TESTP;
+  save(); paintTestChip(); renderMap(true);
+  toast("🧪", "Test mode", "Every skill and boss is open. Nothing here counts or syncs — tap the amber chip to go back.");
+}
+function exitTestMode() {
+  if (Sess) { Sess = null; $("scrPlay").hidden = true; $("scrMap").hidden = false; document.body.classList.remove("in-play"); }
+  state.profile = "default";
+  delete state.profiles[TESTP];
+  save(); paintTestChip(); renderMap(true);
+}
+(function wireTestChip() {
+  const c = $("testChip"); if (!c) return;
+  c.onclick = exitTestMode;
+})();
+
 /* ---------------- backpack (trophy room) ---------------- */
 function openBackpack() {
   const p = P();
@@ -778,6 +807,10 @@ function openParents() {
   acct.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); else toast("☁️", "Sync not configured", "Cloud sync isn't set up on this build."); };
   box.appendChild(acct);
 
+  const testB = el("button", "soft-btn", inTest() ? "🧪 Exit test mode" : "🧪 Test mode — try every skill (throwaway)");
+  testB.onclick = () => { back.remove(); inTest() ? exitTestMode() : enterTestMode(); };
+  box.appendChild(testB);
+
   const danger = el("button", "danger-btn", "Erase all progress");
   let armed = false;
   danger.onclick = () => {
@@ -838,9 +871,15 @@ $("promptCard").onclick = () => { if (Sess && Sess.q) say(Sess.q.say); };
 /* ---------------- cloud (basic wiring; per-skill best-wins merge) ---------------- */
 if (window.Cloud) {
   Cloud.init("brainytrails", {
-    collect: () => state,
+    collect: () => {
+      const out = { ...state, profiles: { ...state.profiles } };
+      delete out.profiles[TESTP];                 // sandbox never syncs
+      if (out.profile === TESTP) out.profile = "default";
+      return out;
+    },
     apply: async (remote) => {
       if (!remote || remote.v !== 1) return;
+      if (remote.profiles) delete remote.profiles[TESTP];   // belt and braces
       for (const [pid, rp] of Object.entries(remote.profiles || {})) {
         const lp = state.profiles[pid] || (state.profiles[pid] = FRESH_PROFILE());
         for (const [sid, rs] of Object.entries(rp.skills || {})) {
@@ -870,6 +909,6 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES };
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
