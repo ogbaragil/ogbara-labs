@@ -157,9 +157,11 @@ function paintHeader() {
   const xp = P().xp, lv = levelOf(xp);
   const lo = 120 * (lv - 1) * (lv - 1), hi = 120 * lv * lv;
   const pct = Math.min(100, Math.round(100 * (xp - lo) / (hi - lo)));
-  $("hudLv").textContent = lv;
-  $("hud").style.background = `conic-gradient(var(--violet) ${pct}%, #ece7f7 ${pct}% 100%)`;
-  $("hud").title = `Level ${lv} · ${xp} XP · ${hi - xp} to next level`;
+  const hud = $("hud"), hudLv = $("hudLv");
+  if (!hud || !hudLv) return;          // tolerate a skewed shell — never blank the map
+  hudLv.textContent = lv;
+  hud.style.background = `conic-gradient(var(--violet) ${pct}%, #ece7f7 ${pct}% 100%)`;
+  hud.title = `Level ${lv} · ${xp} XP · ${hi - xp} to next level`;
 }
 
 /* ---------------- map ---------------- */
@@ -222,12 +224,14 @@ function renderMap(scrollToHere) {
   /* defend-your-islands banner when reviews are due */
   const due = dueSkills();
   const banner = $("reviewBanner");
+  if (!banner) return;
   if (due.length) {
     banner.hidden = false;
     banner.innerHTML = `🛡 Defend your islands! <b>${due.length}</b> skill${due.length > 1 ? "s" : ""} need${due.length > 1 ? "" : "s"} you`;
     banner.onclick = () => startReview();
   } else banner.hidden = true;
   const cont = $("continueBtn");
+  if (!cont) return;
   if (frontier) { cont.hidden = false; cont.innerHTML = `▶ Continue: ${esc(BT.SKILLS[frontier].name)} ${BT.SKILLS[frontier].icon}`; cont.onclick = () => openSkill(frontier); }
   else { cont.hidden = true; }
   if (scrollToHere && frontierEl) { try { frontierEl.scrollIntoView({ block: "center", behavior: "smooth" }); } catch { } }
@@ -843,7 +847,17 @@ if (window.Cloud) {
 }
 
 /* ---------------- boot ---------------- */
-renderMap(true);
+try {
+  renderMap(true);
+} catch (e) {
+  try {
+    $("mapRoot").innerHTML = `<div class="island" style="text-align:center; padding:26px;">
+      <p style="font-size:40px;">🛠</p>
+      <p style="font-weight:900; margin-top:6px;">The trail is updating!</p>
+      <p class="sheet-acc">Please close and reopen the app, or pull down to refresh.</p></div>`;
+  } catch { }
+  console.error("Brainy Trails boot:", e);
+}
 
 /* small debug surface (used by the headless test harness) */
 window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES };
