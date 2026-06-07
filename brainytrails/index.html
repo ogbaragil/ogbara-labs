@@ -95,18 +95,82 @@
     backdrop-filter:blur(10px); border-top:1.5px solid var(--line);
     padding:10px 16px calc(12px + env(safe-area-inset-bottom));}
   .dock-inner{max-width:680px; margin:0 auto; display:flex; align-items:center; gap:12px;}
-  #lvBadge{flex:none; width:46px; height:46px; border-radius:50%; display:grid; place-items:center;
-    background:linear-gradient(160deg,#7c4dff,#9a6bff); color:#fff; font-weight:900; font-size:15px;
-    box-shadow:0 5px 14px rgba(124,77,255,.4);}
-  #xpWrap{flex:1; min-width:0;}
-  #xpLabel{font-size:10.5px; font-weight:900; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); margin-bottom:4px;}
-  #xpBar{height:12px; border-radius:999px; background:#ece7f7; overflow:hidden;}
-  #xpBar .fill{display:block; height:100%; border-radius:999px;
-    background:linear-gradient(90deg,#7c4dff,#a78bfa); transition:width .4s ease;}
-  #continueBtn{flex:none; background:linear-gradient(160deg,#7c4dff,#9a6bff); color:#fff; font-weight:900;
-    font-size:14px; padding:13px 18px; border-radius:999px; box-shadow:0 8px 18px rgba(124,77,255,.4);
-    max-width:44vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  #continueBtn:active{transform:scale(.96);}
+  #continueBtn{flex:1; background:linear-gradient(160deg,#7c4dff,#9a6bff); color:#fff; font-weight:900;
+    font-size:15px; padding:15px 18px; border-radius:999px; box-shadow:0 8px 18px rgba(124,77,255,.4);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #continueBtn:active{transform:scale(.97);}
+
+  /* HUD: level inside an XP ring, fixed top-right, above everything */
+  #hud{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:45;
+    width:54px; height:54px; border-radius:50%; padding:5px;
+    background:conic-gradient(var(--violet) 0%, #ece7f7 0% 100%);
+    box-shadow:0 6px 16px rgba(46,36,86,.22); transition:transform .15s;}
+  #hud:active{transform:scale(.92);}
+  #hudLv{display:grid; place-items:center; width:100%; height:100%; border-radius:50%;
+    background:var(--panel); font-weight:900; font-size:17px; color:var(--violet);}
+  header{padding-right:62px;}
+  .play-bar{padding-right:62px;}
+
+  /* daily campfire */
+  #dailyCard{display:block; width:100%; margin:0 0 14px; padding:15px 18px; border-radius:20px; text-align:left;
+    background:linear-gradient(160deg,#fff3da,#ffe6b8); border:2px solid #f5c96b; color:#7c4a03;
+    font-weight:700; font-size:14.5px; box-shadow:0 8px 20px rgba(245,158,11,.2);}
+  #dailyCard b{font-weight:900;}
+
+  /* parents' corner entry */
+  #parentsBtn{display:block; width:100%; margin-top:6px; padding:13px; border-radius:16px;
+    background:var(--panel); border:1.5px dashed var(--line); color:var(--muted); font-size:13px; font-weight:700;
+    transition:background .2s;}
+  #parentsBtn.holding{background:#efe9ff; border-color:var(--violet); animation:holdPulse 1s linear infinite;}
+  @keyframes holdPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,77,255,.0);}50%{box-shadow:0 0 0 6px rgba(124,77,255,.15);}}
+
+  /* backpack */
+  .bp-title{margin-top:16px; font-size:12px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); text-align:left;}
+  .crowns{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .crown{flex:1; min-width:48px; background:var(--bg); border:1.5px solid var(--line); border-radius:14px;
+    padding:8px 4px; font-size:22px; display:flex; flex-direction:column; align-items:center; gap:2px; opacity:.55;}
+  .crown small{font-size:8.5px; font-weight:800; color:var(--muted);}
+  .crown.won{opacity:1; background:linear-gradient(160deg,#fde9bd,#fbd57e); border-color:var(--gold);}
+  .badges{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .badge{width:74px; background:var(--bg); border:1.5px solid var(--line); border-radius:14px;
+    padding:8px 4px; font-size:21px; display:flex; flex-direction:column; align-items:center; gap:3px; opacity:.45;}
+  .badge small{font-size:8.5px; font-weight:800; color:var(--muted); text-align:center; line-height:1.2;}
+  .badge.won{opacity:1; background:#efe9ff; border-color:var(--violet2);}
+  .result-lv{margin-top:12px; font-size:22px; font-weight:900; color:var(--violet); animation:popUp .35s cubic-bezier(.34,1.56,.64,1);}
+  .result-badge{margin-top:8px; font-size:14px; font-weight:700; color:#b45309; background:#fff3da;
+    border:1.5px solid #f5c96b; border-radius:12px; padding:8px 12px;}
+
+  /* parents' corner */
+  .parents{max-width:560px; text-align:left;}
+  .parents h2{text-align:center;}
+  .p-section{margin-top:16px; font-size:12px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted);}
+  .child-row{display:flex; align-items:center; gap:10px; margin-top:8px;}
+  .child-row .face-btn{width:52px; height:52px; border-radius:16px; background:var(--bg); border:1.5px solid var(--line); font-size:26px; flex:none;}
+  .child-row input{flex:1; min-width:0; padding:12px 14px; border-radius:13px; border:1.5px solid var(--line);
+    background:var(--bg); color:var(--ink); font:inherit; font-weight:800; outline:none;}
+  .child-row input:focus{border-color:var(--violet);}
+  .stat-line{margin-top:8px; font-size:13.5px; color:var(--muted); line-height:1.6;}
+  .matrix-isl{margin-top:8px;}
+  .matrix-isl small{font-weight:900; font-size:10.5px; color:var(--muted);}
+  .matrix{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;}
+  .sq{width:16px; height:16px; border-radius:5px; background:var(--panel); border:1.5px solid var(--line);}
+  .sq.locked{background:#f1eef8; border-color:#eae5f5;}
+  .sq.m1{border-color:var(--violet);}
+  .sq.m2{background:var(--violet); border-color:var(--violet);}
+  .sq.m3{background:linear-gradient(160deg,#f59e0b,#fbbf24); border-color:var(--gold);}
+  .legend{margin-top:6px; font-size:10.5px; color:var(--muted);}
+  .weak-row{margin-top:7px; background:var(--bg); border:1.5px solid var(--line); border-radius:13px;
+    padding:10px 13px; font-size:13.5px; font-weight:700;}
+  .weak-row small{display:block; color:var(--muted); font-weight:700; margin-top:2px;}
+  .tgl-row{display:flex; gap:8px; margin-top:8px;}
+  .tgl{flex:1; padding:12px; border-radius:13px; background:var(--bg); border:1.5px solid var(--line);
+    font-weight:800; font-size:13.5px; color:var(--muted);}
+  .tgl.on{background:#efe9ff; border-color:var(--violet); color:var(--violet);}
+  .danger-btn{width:100%; margin-top:9px; padding:13px; border-radius:14px; font-weight:800; font-size:14px;
+    background:transparent; border:1.5px solid #f3b8c4; color:var(--coral);}
+
+  /* the cloud chip lives in the Parents' Corner now */
+  #cloudChip{display:none !important;}
 
   /* ---------- play mode: full-screen, answers in a fixed dock ---------- */
   #scrPlay{position:fixed; inset:0; z-index:35; background:var(--bg); display:flex; flex-direction:column;
@@ -234,12 +298,15 @@
 </style>
 </head>
 <body>
+<button id="hud" aria-label="My Backpack"><span id="hudLv">1</span></button>
 <div class="wrap">
   <header><h1>🧠 Brainy <span class="hl">Trails</span></h1></header>
 
   <div id="scrMap">
     <button id="reviewBanner" hidden></button>
+    <button id="dailyCard" hidden></button>
     <div id="mapRoot"></div>
+    <button id="parentsBtn">👨‍👩‍👧 Parents' Corner — <b>hold</b> to open</button>
     <p class="footer">An Ogbara Labs experiment · learning that grows with your child<br>
       <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> ·
       <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
@@ -265,11 +332,6 @@
 
 <div id="mapDock">
   <div class="dock-inner">
-    <div id="lvBadge">1</div>
-    <div id="xpWrap">
-      <p id="xpLabel">Level 1 · 0 XP</p>
-      <div id="xpBar"><span class="fill" style="width:0%"></span></div>
-    </div>
     <button id="continueBtn" hidden>▶ Continue</button>
   </div>
 </div>

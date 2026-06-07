@@ -1,5 +1,5 @@
 /* Brainy Trails · service worker — cache-first, redirect-safe from day one */
-const CACHE = "brainytrails-v4";
+const CACHE = "brainytrails-v5";
 const ASSETS = [
   "./",
   "./app.js",
