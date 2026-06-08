@@ -59,12 +59,15 @@ Leave it `""` and the app simply uses the best installed device voice.
 
 ## Releasing a Brainy Trails update
 
-Version skew between the shell and scripts blanks the map on stale caches, so every release bumps **three places together**:
-1. `brainytrails/sw.js` → `CACHE = "brainytrails-vN"`
-2. `brainytrails/sw.js` → the `?v=N` query strings in `ASSETS`
-3. `brainytrails/index.html` → the matching `?v=N` on `curriculum.js`, `cloud.js`, `app.js`
+Version skew between the shell and scripts blanks the map on stale caches, so every release bumps the cache version everywhere at once. This used to mean hand-editing three places in lockstep; now one command does it:
 
-Run the regression suite before pushing — all suites must pass (generator contract, prerequisite graph, mastery engine, UI):
+```
+cd brainytrails && node release.js        # vN → v(N+1), or: node release.js 23
+```
+
+It rewrites all coupled stamps together — `sw.js` `CACHE`, the `?v=` strings in `sw.js` `ASSETS`, the matching `?v=` on `curriculum.js`/`cloud.js`/`app.js` in `index.html`, and the `APP_V` diagnostics stamp in `app.js`.
+
+Run the regression suite before pushing — all suites must pass (generator contract, prerequisite graph, mastery engine, UI, the v12 fixes):
 
 ```
 cd brainytrails && node tests/run-all.js

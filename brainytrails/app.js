@@ -23,6 +23,7 @@ const Store = (() => {
 
 const FRESH_PROFILE = () => ({
   skills: {},                 // id → {m,attempts,correct,stars,nextReview}
+  taught: {},                 // id → date first taught (Learn-it-first screen seen)
   xp: 0,
   streak: { count: 0, last: null },
   settings: { speech: true },
@@ -34,8 +35,8 @@ if (!state.profiles[state.profile]) state.profiles[state.profile] = FRESH_PROFIL
 if (!state.deletedProfiles) state.deletedProfiles = {};
 function migrateProfile(p) {
   if (!p.settings) p.settings = { speech: true };
-  if (!p.lessonsSeen) p.lessonsSeen = {};
   if (!p.badges) p.badges = {};
+  if (!p.taught) p.taught = {};
   if (!p.timeByDay) p.timeByDay = {};
   if (!p.bosses) p.bosses = {};
   if (!p.name) p.name = "Explorer";
@@ -54,16 +55,22 @@ const P = () => state.profiles[state.profile];
 const sk = (id) => {
   const st = P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
   if (st.reviewStep === undefined) st.reviewStep = 0;
-  if (!st.evidence) st.evidence = { sessions: 0, firstTryCorrect: 0, transferCorrect: 0, retentionCorrect: 0, misconceptions: {}, history: [] };
   return st;
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "12-learning";
-if (typeof BTLearning !== "undefined" && window.BT) BTLearning.augment(window.BT);
-window.onerror = (m, src, line) => {
-  try { localStorage.setItem("bt_lasterr", JSON.stringify({ m: String(m).slice(0, 160), f: String(src || "").split("/").pop(), l: line || 0, at: new Date().toISOString().slice(0, 16), v: APP_V })); } catch { }
-};
+const APP_V = "14";
+/* keep the last few errors (not just the latest) so a parent can copy a report */
+function logErr(rec) {
+  try {
+    let log = [];
+    try { log = JSON.parse(localStorage.getItem("bt_errlog") || "[]"); } catch { }
+    log.unshift(rec);
+    localStorage.setItem("bt_errlog", JSON.stringify(log.slice(0, 5)));
+  } catch { }
+}
+window.onerror = (m, src, line) => logErr({ m: String(m).slice(0, 160), f: String(src || "").split("/").pop(), l: line || 0, at: new Date().toISOString().slice(0, 16), v: APP_V });
+try { window.addEventListener("unhandledrejection", (e) => logErr({ m: "promise: " + String((e.reason && e.reason.message) || e.reason || "?").slice(0, 150), f: "promise", l: 0, at: new Date().toISOString().slice(0, 16), v: APP_V })); } catch { }
 const TESTP = "_test";
 const inTest = () => state.profile === TESTP;
 const skv = (id) => P().skills[id] || SK0;   // read-only view: never creates records
@@ -105,6 +112,7 @@ function mergeRemote(remote) {
     if (rp.settings) lp.settings = { ...lp.settings, ...rp.settings };
     /* earned things are permanent — union them */
     for (const [bid, when] of Object.entries(rp.badges || {})) if (!lp.badges[bid]) lp.badges[bid] = when;
+    for (const [sid, when] of Object.entries(rp.taught || {})) if (!lp.taught[sid]) lp.taught[sid] = when;
     for (const [iid, bs] of Object.entries(rp.bosses || {})) {
       const rb = bs === true ? { won: true, best: 0 } : bs;
       const cur = lp.bosses[iid];
@@ -180,14 +188,15 @@ function pic(p) {
       return wrap(`0 0 ${Math.max(w, 60)} 100`, body, 110);
     }
     if (p.kind === "rect") {
-      const W = 200, H = Math.max(50, Math.round(200 * (p.w / p.l) * 0.7));
-      return wrap(`0 0 ${W + 50} ${H + 40}`,
+      const unit = Math.min(24, 180 / Math.max(p.l, p.w, 1));   // to scale: longer side ≤180px
+      const W = Math.max(28, Math.round(p.l * unit)), H = Math.max(20, Math.round(p.w * unit));
+      return wrap(`0 0 ${W + 60} ${H + 44}`,
         `<rect x="25" y="10" width="${W}" height="${H}" rx="6" fill="${FILL}" stroke="${INK}" stroke-width="3"/>
-         <text x="${25 + W / 2}" y="${H + 34}" text-anchor="middle" font-size="17" font-weight="900" fill="${INK}">${p.l}</text>
-         <text x="${W + 42}" y="${10 + H / 2 + 6}" text-anchor="middle" font-size="17" font-weight="900" fill="${INK}">${p.w}</text>`, 130);
+         <text x="${25 + W / 2}" y="${H + 34}" text-anchor="middle" font-size="16" font-weight="900" fill="${INK}">${p.l}</text>
+         <text x="${W + 42}" y="${10 + H / 2 + 6}" text-anchor="middle" font-size="16" font-weight="900" fill="${INK}">${p.w}</text>`, 132);
     }
     if (p.kind === "angle") {
-      const cx = 26, cy = 104, L = 96, rad = (p.deg * Math.PI) / 180;
+      const cx = 75, cy = 100, L = 66, rad = (p.deg * Math.PI) / 180;   // centred so obtuse & straight angles stay on-canvas
       const x2 = cx + L * Math.cos(rad), y2 = cy - L * Math.sin(rad);
       let body = `<line x1="${cx}" y1="${cy}" x2="${cx + L}" y2="${cy}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>
         <line x1="${cx}" y1="${cy}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`;
@@ -196,7 +205,7 @@ function pic(p) {
         const r = 22, ex = cx + r * Math.cos(rad), ey = cy - r * Math.sin(rad);
         body += `<path d="M${cx + r},${cy} A${r},${r} 0 ${p.deg > 180 ? 1 : 0} 0 ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="${VIO}" stroke-width="2.5"/>`;
       }
-      return wrap("0 0 150 116", body, 108);
+      return wrap("0 0 150 120", body, 110);
     }
     if (p.kind === "suppl") {
       const cx = 110, cy = 78, rad = (p.a * Math.PI) / 180;
@@ -218,15 +227,18 @@ function pic(p) {
       return wrap(`0 0 210 ${8 + p.items.length * 30}`, body, 26 + p.items.length * 30);
     }
     if (p.kind === "coins") {
-      const COL = { 5: "#cfd6dd", 10: "#cfd6dd", 20: "#cfd6dd", 50: "#cfd6dd", 100: "#f4cf6b", 200: "#f4cf6b" };
-      let body = "";
-      p.values.forEach((v, i) => {
-        const x = 36 + i * 70;
-        body += `<circle cx="${x}" cy="36" r="30" fill="${COL[v] || "#f4cf6b"}" stroke="${INK}" stroke-width="2.5"/>
-          <circle cx="${x}" cy="36" r="24" fill="none" stroke="${INK}" stroke-width="1" opacity=".35"/>
-          <text x="${x}" y="42" text-anchor="middle" font-size="15" font-weight="900" fill="${INK}">${v}c</text>`;
+      const R = { 5: 17, 10: 20, 20: 23, 50: 27, 100: 22, 200: 25 };
+      const COL = { 5: "#cdd3da", 10: "#cdd3da", 20: "#cdd3da", 50: "#c7ccd3", 100: "#f1c75a", 200: "#e9b949" };
+      const maxR = 27, baseY = maxR + 5, gap = 11;
+      let x = 6, body = "";
+      p.values.forEach(v => {
+        const r = R[v] || 22, cx = x + r;
+        body += `<circle cx="${cx}" cy="${baseY}" r="${r}" fill="${COL[v] || "#f1c75a"}" stroke="${INK}" stroke-width="2.5"/>
+          <circle cx="${cx}" cy="${baseY}" r="${r - 4.5}" fill="none" stroke="${INK}" stroke-width="1" opacity=".3"/>
+          <text x="${cx}" y="${baseY + r * 0.22}" text-anchor="middle" font-size="${Math.max(11, Math.round(r * 0.62))}" font-weight="900" fill="${INK}">${v >= 100 ? "$" + v / 100 : v + "c"}</text>`;
+        x += 2 * r + gap;
       });
-      return wrap(`0 0 ${p.values.length * 70 + 4} 72`, body, 76);
+      return wrap(`0 0 ${x} ${baseY + maxR + 4}`, body, baseY + maxR + 8);
     }
     if (p.kind === "compare") {
       const max = Math.max(p.a.len, p.b.len);
@@ -455,6 +467,16 @@ addEventListener("pointerdown", function prime() {
   removeEventListener("pointerdown", prime);
 });
 
+/* keyboard play: each question installs Sess.onKey; we only forward keys while a
+   question is live (no modal open, not mid-feedback, focus not in a text field) */
+addEventListener("keydown", (e) => {
+  if (!Sess || Sess.lock || !Sess.onKey) return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+  if (document.querySelector(".modal-back")) return;   // a dialog owns the keyboard
+  Sess.onKey(e);
+});
+
 /* ---------------- HUD ring (level inside an XP-progress ring) ---------------- */
 function paintHeader() {
   const xp = P().xp, lv = levelOf(xp);
@@ -517,15 +539,16 @@ function renderMap(scrollToHere) {
       }
       card.appendChild(row);
     }
-    /* island boss gate: opens when every skill here is at least Familiar */
-    const bossReady = inTest() || skillsHere.every(id => skv(id).m >= 1);
+    /* island boss gate: opens once every skill here is Proficient — the same
+       bar the n/n island counter shows, so "boss beaten" means "island full" */
+    const bossReady = inTest() || skillsHere.every(id => skv(id).m >= 2);
     const beaten = !!bosses()[isl.id];
     const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
     bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
       <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}</b>
-      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(reach Familiar on every skill first)</i>`}</small></span>`;
+      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(level up every skill to Proficient first)</i>`}</small></span>`;
     bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
-      : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Familiar.`);
+      : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Proficient.`);
     card.appendChild(bossBtn);
     root.appendChild(card);
     if (rail) {
@@ -676,8 +699,46 @@ function finishDaily() {
 }
 
 /* ---------------- skill sheet ---------------- */
+/* ---------------- learn-it-first: teach the concept before the first practice ---------------- */
+function answerText(q) {
+  if (q.format === "choice") return q.choices.find(c => c.correct).label;
+  if (q.format === "tf") return q.answer ? "TRUE" : "FALSE";
+  if (q.format === "keypad") return q.decimal ? q.answer.toFixed(1) : String(q.answer);
+  if (q.format === "order") return q.correct.join(" → ");
+  if (q.format === "tap") return (q.items.find(i => i.correct) || {}).label || "";
+  return "";
+}
+function learnSkill(id) {
+  const s = BT.SKILLS[id];
+  let q = null; try { q = s.gen(0.4); } catch { }
+  const back = el("div", "modal-back"), box = el("div", "modal teach learn");
+  const eg = q ? `<div class="learn-eg">
+      <p class="eg-prompt">${esc(q.prompt)}</p>
+      ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
+      ${q.visual ? `<p class="eg-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
+      <p class="eg-ans">Answer: <b>${esc(answerText(q))}</b></p>
+    </div>` : "";
+  box.innerHTML = `<p class="sheet-icon">${s.icon}</p><h2>Let's learn: ${esc(s.name)}</h2>
+    <p class="sheet-acc">Here's how it works — then you'll try it yourself.</p>${eg}`;
+  const list = el("div", "teach-steps");
+  const steps = (q && q.steps) || [];
+  steps.forEach(stp => list.appendChild(el("p", "step", esc(stp))));
+  box.appendChild(list);
+  const go = el("button", "primary-btn", "I'm ready — let's practice! 🚀");
+  go.onclick = () => { P().taught[id] = today(); save(); back.remove(); startSet(id, "practice"); };
+  const later = el("button", "soft-btn", "Back to map");
+  later.onclick = () => back.remove();
+  box.append(go, later);
+  back.appendChild(box);
+  back.onclick = (e) => { if (e.target === back) back.remove(); };
+  $("overlay").appendChild(back);
+  say(`${s.name}. ${steps[0] || ""}`);
+}
+
 function openSkill(id) {
   const s = BT.SKILLS[id], st = sk(id);
+  /* first ever encounter → teach the concept before any practice (Khan-style) */
+  if (!inTest() && st.attempts === 0 && !P().taught[id]) return learnSkill(id);
   const back = el("div", "modal-back"), box = el("div", "modal sheet");
   const acc = st.attempts ? Math.round(100 * st.correct / st.attempts) : null;
   box.innerHTML = `<p class="sheet-icon">${s.icon}</p><h2>${esc(s.name)}</h2>
@@ -688,10 +749,13 @@ function openSkill(id) {
   practice.onclick = () => { back.remove(); startSet(id, "practice"); };
   box.appendChild(practice);
   if (st.m >= 1 && st.m < 2) {
-    const lvl = el("button", "gold-btn", "⚡ Level Up · 5 perfect questions");
+    const lvl = el("button", "gold-btn", `⚡ Level Up · ${levelupNeed(id)} of 5 to pass`);
     lvl.onclick = () => { back.remove(); startSet(id, "levelup"); };
     box.appendChild(lvl);
   }
+  const learn = el("button", "soft-btn", "📘 Learn it again");
+  learn.onclick = () => { back.remove(); learnSkill(id); };
+  box.appendChild(learn);
   const close = el("button", "soft-btn", "Back to map");
   close.onclick = () => back.remove();
   box.appendChild(close);
@@ -724,7 +788,6 @@ function beginSession(cfg) {
     i: 0, correct: 0, misses: 0, xpGain: 0,
     taught: false, q: null, lock: false, orderPicked: [],
     results: [],            // review: per-skill outcomes
-    adaptiveEvents: [],      // phase 2: prerequisite redirects and challenge nudges
     lvFrom: levelOf(P().xp), t0: Date.now(),
   }, cfg);
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
@@ -742,63 +805,18 @@ function beginSession(cfg) {
   nextQ();
 }
 
+/* younger islands pass Level Up at 4/5; older ones keep 5/5 (with the
+   one-slip redemption question that follows, that's an effective 5/6) */
+const levelupNeed = (id) => YOUNG_ISLANDS.has(BT.SKILLS[id].island) ? 4 : 5;
 function startSet(id, kind) {
-  if (kind === "practice" && window.BTLearning) {
-    const plan = BTLearning.buildAdaptivePlan(P(), BT, id);
-    if (plan.action === "remediate-prerequisite" && plan.skillId !== id && BT.SKILLS[plan.skillId] && !inTest()) {
-      showAdaptiveNudge(id, plan.skillId, () => startSet(plan.skillId, "practice"));
-      return;
-    }
-  }
-  if (kind === "practice" && !inTest() && !FAST && window.BTLearning && !P().lessonsSeen[id]) {
-    showMiniLesson(id, () => startSet(id, kind));
-    return;
-  }
   const st = sk(id);
-  if (st.evidence && kind === "practice") st.evidence.sessions = (st.evidence.sessions || 0) + 1;
-  const baseTotal = kind === "levelup" ? 5 : 7;
-  const queue = (kind === "practice" && window.BTLearning)
-    ? BTLearning.generateMixedReviewSet(P(), BT, id, baseTotal)
-    : Array(baseTotal).fill(id);
   beginSession({
-    kind, queue,
-    focusSkill: id,
-    total: baseTotal,
+    kind, queue: Array(kind === "levelup" ? 5 : 7).fill(id),
+    total: kind === "levelup" ? 5 : 7,
+    need: kind === "levelup" ? levelupNeed(id) : 5,
     d: kind === "levelup" ? 0.85 : Math.min(0.9, (st.lastD || (0.35 + 0.15 * st.m))),
     adaptive: kind === "practice", title: BT.SKILLS[id].name,
   });
-}
-
-function showAdaptiveNudge(fromId, toId, done) {
-  const from = BT.SKILLS[fromId], to = BT.SKILLS[toId];
-  const back = el("div", "modal-back"), box = el("div", "modal lesson-card");
-  box.innerHTML = `<p class="sheet-icon">🧭</p><h2>Smart trail detour</h2>
-    <p class="sheet-acc">Before <b>${esc(from.name)}</b>, let’s strengthen <b>${esc(to.name)}</b>. This makes the next quest easier and keeps confidence high.</p>
-    <p class="sheet-acc"><b>Why:</b> Brainy Trails now checks prerequisite gaps instead of drilling the same mistake.</p>`;
-  const go = el("button", "primary-btn", `Practise ${esc(to.name)} ▶`);
-  go.onclick = () => { back.remove(); done(); };
-  const stay = el("button", "soft-btn", `Stay on ${esc(from.name)}`);
-  stay.onclick = () => { back.remove(); beginSession({ kind: "practice", queue: Array(7).fill(fromId), focusSkill: fromId, total: 7, d: 0.35, adaptive: true, title: from.name }); };
-  box.append(go, stay); back.appendChild(box); $("overlay").appendChild(back);
-}
-
-function showMiniLesson(id, done) {
-  const skill = BT.SKILLS[id], L = skill.lesson || (window.BTLearning && BTLearning.lessonFor(id, skill));
-  if (!L) { done(); return; }
-  const back = el("div", "modal-back"), box = el("div", "modal lesson-card");
-  const reps = (L.representations || []).map(r => `<span class="lesson-pill">${esc(r)}</span>`).join("");
-  box.innerHTML = `<p class="sheet-icon">${skill.icon}</p><h2>${esc(skill.name)}</h2>
-    <p class="sheet-acc"><b>Learning goal:</b> ${esc(L.objective)}</p>
-    <p class="sheet-acc"><b>${esc(L.title)}</b></p>
-    <div class="lesson-pills">${reps}</div>
-    <div class="teach-steps">${L.steps.map(x => `<p class="step">${esc(x)}</p>`).join("")}</div>
-    <p class="p-section">Worked example routine</p>
-    <p class="sheet-acc">${L.worked.map(esc).join("<br>")}</p>`;
-  const skip = el("button", "soft-btn", "Skip lesson");
-  const go = el("button", "primary-btn", "Start guided practice ▶");
-  const finish = () => { P().lessonsSeen[id] = new Date().toISOString(); save(); back.remove(); done(); };
-  skip.onclick = finish; go.onclick = finish; box.append(go, skip); back.appendChild(box); $("overlay").appendChild(back);
-  say(L.title);
 }
 
 function startReview() {
@@ -869,7 +887,6 @@ function nextQ() {
     ? Math.min(0.95, Math.max(0.5, (skv(Sess.curSkill).lastD || 0.6) + 0.1))
     : Sess.d;
   Sess.q = BT.SKILLS[Sess.curSkill].gen(dEff);
-  if (BT.SKILLS[Sess.curSkill].lesson) Sess.q.lesson = BT.SKILLS[Sess.curSkill].lesson;
   if (Sess.q.format === "keypad" && !Sess.q.decimal && YOUNG_ISLANDS.has(BT.SKILLS[Sess.curSkill].island)) Sess.q = youngify(Sess.q);
   Sess.lock = false; Sess.orderPicked = [];
   Sess.qTries = 0; Sess.resetEntry = null;
@@ -886,28 +903,35 @@ function renderQuestion(q) {
   card.innerHTML = `<button class="say-btn" aria-label="Hear it again">🔊</button>
     <p class="q-prompt">${esc(q.prompt)}</p>` +
     (q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : "") +
-    (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "") +
-    (q.lesson ? `<div class="learn-strip"><b>Think:</b> ${esc(q.lesson.worked[0])}</div>` : "");
+    (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "");
   const dock = $("answerArea");
   dock.innerHTML = "";
+  Sess.onKey = null;   // each format installs its own keyboard shortcuts below
   if (q.format === "choice" || q.format === "tf") {
     const choices = q.format === "tf"
       ? [{ label: "✔ TRUE", correct: q.answer === true }, { label: "✘ FALSE", correct: q.answer === false }]
       : q.choices;
     const grid = el("div", q.format === "tf" ? "tf-grid" : "choice-grid");
+    const btns = [];
     choices.forEach(c => {
       const b = el("button", "choice-btn" + (q.format === "tf" ? (c.label.includes("TRUE") ? " true" : " false") : ""), esc(c.label));
       if (c.correct) b.dataset.correct = "1";
       b.onclick = () => submit(c.correct, correctLabel(q), b);
-      grid.appendChild(b);
+      grid.appendChild(b); btns.push(b);
     });
     dock.appendChild(grid);
+    Sess.onKey = (e) => {
+      if (q.format === "tf" && /^[tf]$/i.test(e.key)) { e.preventDefault(); btns[/t/i.test(e.key) ? 0 : 1].click(); return; }
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= btns.length) { e.preventDefault(); btns[n - 1].click(); }
+    };
   } else if (q.format === "keypad") {
     const disp = el("div", "pad-display", "&nbsp;");
     const grid = el("div", "keypad");
     let entry = "";
     const paint = () => disp.textContent = entry || " ";
     const keys = q.decimal ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫", "OK"] : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"];
+    const keyBtns = {};
     keys.forEach(kk => {
       const b = el("button", "key" + (kk === "OK" ? " ok" : kk === "⌫" ? " back" : ""), kk);
       if (kk === "OK" && q.decimal) b.style.gridColumn = "span 3";
@@ -925,15 +949,24 @@ function renderQuestion(q) {
         else if (entry.length < (q.decimal ? 5 : 3)) entry += kk;
         paint();
       };
-      grid.appendChild(b);
+      grid.appendChild(b); keyBtns[kk] = b;
     });
     Sess.resetEntry = () => { entry = ""; paint(); };
     dock.append(disp, grid);
+    Sess.onKey = (e) => {
+      let label = null;
+      if (/^[0-9]$/.test(e.key)) label = e.key;
+      else if (e.key === "Backspace") label = "⌫";
+      else if (e.key === "Enter") label = "OK";
+      else if (e.key === "." && q.decimal) label = ".";
+      if (label && keyBtns[label]) { e.preventDefault(); keyBtns[label].click(); }
+    };
   } else if (q.format === "order") {
     const slots = el("div", "order-slots");
     const chips = el("div", "order-chips");
     const paintSlots = () => { slots.innerHTML = ""; for (let k = 0; k < q.items.length; k++) slots.appendChild(el("span", "slot" + (Sess.orderPicked[k] !== undefined ? " filled" : ""), Sess.orderPicked[k] !== undefined ? String(Sess.orderPicked[k]) : "")); };
     paintSlots();
+    const chipBtns = [];
     q.items.forEach(v => {
       const b = el("button", "chip", String(v));
       b.onclick = () => {
@@ -944,7 +977,7 @@ function renderQuestion(q) {
           submit(JSON.stringify(Sess.orderPicked) === JSON.stringify(q.correct), q.correct.join(" → "), slots);
         }
       };
-      chips.appendChild(b);
+      chips.appendChild(b); chipBtns.push({ b, v });
     });
     Sess.resetEntry = () => {
       Sess.orderPicked = [];
@@ -952,15 +985,26 @@ function renderQuestion(q) {
       Array.from(chips.children).forEach(c => { c.disabled = false; if (c.classList) c.classList.remove("used"); });
     };
     dock.append(slots, chips);
+    Sess.onKey = (e) => {
+      const n = parseInt(e.key, 10);
+      if (isNaN(n)) return;
+      const hit = chipBtns.find(x => x.v === n && !x.b.disabled);   // type the value you want next
+      if (hit) { e.preventDefault(); hit.b.click(); }
+    };
   } else if (q.format === "tap") {
     const grid = el("div", q.numberline ? "line-grid" : "tap-grid");
+    const tiles = [];
     q.items.forEach(c => {
       const b = el("button", q.numberline ? "line-tick" : "tap-tile", esc(c.label));
       if (c.correct) b.dataset.correct = "1";
       b.onclick = () => submit(c.correct, q.items.find(i => i.correct).label, b);
-      grid.appendChild(b);
+      grid.appendChild(b); tiles.push(b);
     });
     dock.appendChild(grid);
+    Sess.onKey = (e) => {
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= tiles.length) { e.preventDefault(); tiles[n - 1].click(); }
+    };
   }
 }
 
@@ -974,8 +1018,6 @@ function correctLabel(q) {
 let spokenPraise = "";
 function submit(ok, correctShown, btn) {
   if (!Sess || Sess.lock) return;
-  const userAnswer = btn && (btn.textContent || btn.innerText || btn.value || "");
-  const misconception = (!ok && window.BTLearning) ? BTLearning.detectMisconception(Sess.curSkill, userAnswer, correctShown, Sess.q) : null;
   /* first slip = a free retry on the SAME question, answer kept secret
      (Lightning stays single-try — it's the timed endgame for older kids) */
   if (!ok && !Sess.qTries && Sess.kind !== "lightning") {
@@ -983,7 +1025,7 @@ function submit(ok, correctShown, btn) {
     Sess.lock = true;
     if (btn && btn.classList) btn.classList.add("shake");
     SFX.no();
-    feedback(false, pick(TRY_AGAIN), esc(misconception ? misconception.explanation : Sess.q.hint));
+    feedback(false, pick(TRY_AGAIN), esc(Sess.q.hint));
     say("Try again!");
     setTimeout(() => {
       if (!Sess) return;
@@ -1007,7 +1049,6 @@ function submit(ok, correctShown, btn) {
   }
   const st = sk(Sess.curSkill);
   st.attempts++;
-  if (window.BTLearning) BTLearning.recordAttempt(P(), Sess.curSkill, ok, { kind: Sess.kind, d: Sess.d, firstTry, misconception });
   if (ok) {
     st.correct++; Sess.correct++;
     const gain = Math.round(firstTry ? 6 + 8 * Sess.d : 3 + 4 * Sess.d);   // retry success = half XP
@@ -1022,7 +1063,7 @@ function submit(ok, correctShown, btn) {
     Sess.misses++;
     if (Sess.adaptive) Sess.d = Math.max(0.15, Sess.d - 0.18);
     SFX.no();
-    feedback(false, pick(NOT_QUITE), (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(misconception ? misconception.remediation : Sess.q.hint));
+    feedback(false, pick(NOT_QUITE), (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(Sess.q.hint));
   }
   /* level-up kindness: one failed question earns a redemption question */
   if (finalFail && Sess.kind === "levelup" && Sess.misses === 1 && Sess.total === 5) {
@@ -1108,29 +1149,30 @@ function inlineTeach(q) {
 
 /* ---------------- set completion & mastery ---------------- */
 function finishSet() {
-  const { kind, correct, total, xpGain } = Sess;
+  const { kind, correct, total, xpGain, need } = Sess;
   if (kind === "review") return finishReview();
   if (kind === "boss") return finishBoss();
   if (kind === "daily") return finishDaily();
   if (kind === "lightning") return finishLightning();
-  const id = Sess.focusSkill || Sess.queue[0];
+  const id = Sess.queue[0];
   const st = sk(id);
   let headline, sub, levelled = false;
   if (kind === "practice") {
-    const stars = Math.max(0, correct - (total - 3));     // adaptive sets can grow; still rewards strong finish
+    const stars = Math.max(0, correct - (total - 3));     // 5/7→1★ 6/7→2★ 7/7→3★
     if (stars > st.stars) st.stars = stars;
     if (correct >= 5 && st.m < 1) { st.m = 1; levelled = true; }
     headline = stars ? "⭐".repeat(stars) : "Good try!";
-    sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "") + (Sess.adaptiveEvents && Sess.adaptiveEvents.length ? ` · Smart detours added ${Sess.adaptiveEvents.length} helper question${Sess.adaptiveEvents.length === 1 ? "" : "s"}.` : "");
+    sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "");
   } else {
-    if (correct >= 5) {
+    const pass = need || 5;
+    if (correct >= pass) {
       if (st.m < 2) { st.m = 2; levelled = true; }
       st.nextReview = isoPlusDays(REVIEW_DAYS[0]);
       headline = "⚡ PROFICIENT! ⚡";
       sub = `${correct === total ? "Perfect" : "Strong"} ${correct}/${total}! This skill comes back for review in ${REVIEW_DAYS[0]} days — keep it strong to master it.`;
     } else {
       headline = "So close!";
-      sub = `Level Up needs 5 right — you got ${correct}/${total}. A little more practice and you'll smash it!`;
+      sub = `Level Up needs ${pass} right — you got ${correct}/${total}. A little more practice and you'll smash it!`;
     }
   }
   if (kind === "practice") st.lastD = Math.round(Sess.d * 100) / 100;   // remember the climb
@@ -1325,25 +1367,6 @@ function weekSecs(p) {
   for (let k = 0; k < 7; k++) { const d = new Date(); d.setDate(d.getDate() - k); s += p.timeByDay[d.toISOString().slice(0, 10)] || 0; }
   return s;
 }
-function parentInsights(p) {
-  const rows = Object.entries(p.skills || {}).filter(([id, st]) => BT.SKILLS[id] && st.attempts);
-  const mastered = rows.filter(([id, st]) => (window.BTLearning ? BTLearning.masteryStatus(st).label === "Fluent" : st.m >= 3)).length;
-  const due = rows.filter(([id, st]) => st.nextReview && st.nextReview <= today()).length;
-  const misconceptions = [];
-  rows.forEach(([id, st]) => Object.entries((st.evidence && st.evidence.misconceptions) || {}).forEach(([type, n]) => misconceptions.push({ id, type, n })));
-  misconceptions.sort((a,b)=>b.n-a.n);
-  const summary = window.BTLearning ? BTLearning.weeklySummary(p, BT) : null;
-  const rec = summary && summary.next ? summary.next : (window.BTLearning ? BTLearning.recommendNextSkill(p, BT, rows[0] && rows[0][0]) : null);
-  const out = [];
-  out.push(`🧠 Fluent skills: <b>${mastered}</b>. Mastered skills become Fluent after strong retained reviews.`);
-  out.push(`🛡 Retention risk: <b>${due}</b> skill${due === 1 ? "" : "s"} due for spaced review.`);
-  if (summary && summary.strengths.length) out.push(`💪 Strengths this week: <b>${summary.strengths.map(id => esc(BT.SKILLS[id].name)).join(", ")}</b>.`);
-  if (summary && summary.gaps.length) out.push(`🧩 Learning gaps to revisit: <b>${summary.gaps.map(id => esc(BT.SKILLS[id].name)).join(", ")}</b>.`);
-  if (misconceptions[0]) out.push(`🔎 Common misconception: <b>${esc(misconceptions[0].type.replace(/-/g, " "))}</b> in ${esc(BT.SKILLS[misconceptions[0].id].name)}.`);
-  if (rec && BT.SKILLS[rec]) out.push(`▶ Recommended next activity: practise <b>${esc(BT.SKILLS[rec].name)}</b>.`);
-  return out;
-}
-
 function openParents() {
   const back = el("div", "modal-back"), box = el("div", "modal parents");
   box.innerHTML = `<h2>👨‍👩‍👧 Parents' Corner</h2>`;
@@ -1465,10 +1488,6 @@ function openParents() {
       progBody.appendChild(row);
     });
     else progBody.appendChild(el("p", "stat-line", "Not enough answers yet — check back after a few sessions!"));
-
-    progBody.appendChild(el("p", "p-section", "Learning insights"));
-    const insights = parentInsights(p);
-    insights.forEach(x => progBody.appendChild(el("p", "stat-line", x)));
   };
   renderProg();
   gProg.appendChild(progBody);
@@ -1533,15 +1552,25 @@ function openParents() {
   gAdv.appendChild(acct);
 
   gAdv.appendChild(el("p", "p-section", "Diagnostics"));
-  let lastErr = null;
-  try { lastErr = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); } catch { }
-  gAdv.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (lastErr
-    ? `last error ${esc(lastErr.at)} — ${esc(lastErr.m)} (${esc(lastErr.f)}:${lastErr.l})`
+  let errLog = [];
+  try { errLog = JSON.parse(localStorage.getItem("bt_errlog") || "[]"); } catch { }
+  if (!errLog.length) {                                  // adopt a pre-v12 single error if present
+    try { const old = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); if (old) errLog = [old]; } catch { }
+  }
+  const newest = errLog[0];
+  gAdv.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (newest
+    ? `${errLog.length} recent error${errLog.length > 1 ? "s" : ""} — latest ${esc(newest.at)}: ${esc(newest.m)} (${esc(newest.f)}:${newest.l})`
     : "no recent errors 🎉")));
-  if (lastErr) {
+  if (errLog.length) {
+    const report = errLog.map(e => `${e.at} v${e.v || "?"} ${e.f}:${e.l} ${e.m}`).join("\n");
+    const copy = el("button", "soft-btn", "📋 Copy error report");
+    copy.onclick = () => {
+      try { navigator.clipboard.writeText(report).then(() => { copy.textContent = "Copied ✓"; }, () => { copy.textContent = report.slice(0, 64); }); }
+      catch { copy.textContent = report.slice(0, 64); }
+    };
     const ce = el("button", "soft-btn", "Clear error log");
-    ce.onclick = () => { try { localStorage.removeItem("bt_lasterr"); } catch { } ce.remove(); };
-    gAdv.appendChild(ce);
+    ce.onclick = () => { try { localStorage.removeItem("bt_errlog"); localStorage.removeItem("bt_lasterr"); } catch { } copy.remove(); ce.remove(); };
+    gAdv.append(copy, ce);
   }
 
   const danger = el("button", "danger-btn", `Erase ${esc(P().name)}'s progress`);
@@ -1604,11 +1633,13 @@ function openParentGate() {
 function openHelp() {
   const back = el("div", "modal-back"), box = el("div", "modal help-modal");
   box.innerHTML = `<h2>How Brainy Trails works 🧭</h2><ul class="help-list">
-    <li>🗺 Tap a glowing skill on the map to start a 7-question practice.</li>
+    <li>🗺 Tap a glowing skill on the map — a new one teaches you first, then you practise.</li>
     <li>⭐ Get 5 or more right to become <b>Familiar</b> and earn stars.</li>
-    <li>⚡ Then take the Level Up — 5 perfect answers makes you <b>Proficient</b>.</li>
+    <li>⚡ Then take the Level Up to become <b>Proficient</b>.</li>
+    <li>📘 Want a reminder? Open any skill and tap <b>Learn it again</b>.</li>
     <li>🤝 Stuck twice? A friendly helper shows you step by step.</li>
     <li>🔊 Every question is read aloud — tap the speaker to hear it again.</li>
+    <li>⌨️ On a keyboard: press <b>1–4</b> to pick an answer, or type a number and <b>Enter</b>.</li>
     <li>🔥 Light the Daily Campfire every day to grow your streak.</li>
     <li>🎒 Tap your level ring (top corner) to open your Backpack of crowns and badges.</li>
     <li>👨‍👩‍👧 Grown-ups: tap the 👨‍👩‍👧 button in the top corner and answer the grown-up question.</li></ul>`;
@@ -1648,7 +1679,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, parentInsights, deleteChild, pickWebVoice, showAdaptiveNudge, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
