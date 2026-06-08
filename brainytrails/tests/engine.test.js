@@ -51,7 +51,7 @@ module.exports = async function (t) {
   BTApp.startBoss("sprout");
   for (let i = 0; i < 10; i++) { BTApp.submit(true, ""); await sleep(70); }
   await sleep(80);
-  t("boss conquest: flag + 100 XP bonus", S().bosses.sprout === true && S().xp >= xp0 + 100);
+  t("boss conquest: won flag + best score + 100 XP bonus", S().bosses.sprout.won === true && S().bosses.sprout.best === 10 && S().xp >= xp0 + 100);
   h.ids["overlay"].children.length = 0; BTApp.exitPlay();
 
   BTApp.startDaily();

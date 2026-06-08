@@ -71,6 +71,15 @@ cd brainytrails && node tests/run-all.js
 ```
 
 After deploying, load the site once in a browser so the new service worker takes over.
+
+**Manual smoke checklist** (the headless suite can't see CSS/layout — these five caught every real-device bug so far):
+1. Map renders all six islands; 📍 marker bounces on the frontier.
+2. Start a practice set: answers sit in the bottom dock; tapped buttons flash/shake.
+3. Tap the 👨‍👩‍👧 button: gate asks for year of birth; a child year shows only "pass the device to a grown-up".
+4. Premium voice sample speaks within ~1 s (signed in, proxy configured).
+5. With 2+ children: "Who's playing?" appears at startup and switching keeps progress separate.
+
+Also set a **Google Cloud budget alert** (Billing → Budgets, e.g. $1) so a TTS quota surprise emails you before it bills you.
 Developer testing: Parents' Corner (hold the 👨‍👩‍👧 button 3 s) → "🧪 Test mode" unlocks every skill and boss in a throwaway sandbox profile that never syncs and resets on each entry.
 
 ## Cloud sync (optional)

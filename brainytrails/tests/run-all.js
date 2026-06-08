@@ -5,7 +5,7 @@
     console.log((cond ? "✅" : "❌"), name + (cond || !extra ? "" : " — " + extra));
     cond ? pass++ : fail++;
   };
-  for (const suite of ["gen.test", "engine.test", "ui.test", "voice.test"]) {
+  for (const suite of ["gen.test", "engine.test", "ui.test", "voice.test", "family.test"]) {
     console.log(`\n── ${suite} ──`);
     try { await require("./" + suite)(t); }
     catch (e) { console.log("❌ SUITE CRASH:", suite, e.message, (e.stack.split("\n")[1] || "").trim()); fail++; }

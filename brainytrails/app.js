@@ -31,7 +31,8 @@ const FRESH_PROFILE = () => ({
 let state = Store.load();
 if (!state || state.v !== 1) state = { v: 1, profile: "default", profiles: { default: FRESH_PROFILE() } };
 if (!state.profiles[state.profile]) state.profiles[state.profile] = FRESH_PROFILE();
-for (const p of Object.values(state.profiles)) {
+function migrateProfile(p) {
+  if (!p.settings) p.settings = { speech: true };
   if (!p.badges) p.badges = {};
   if (!p.timeByDay) p.timeByDay = {};
   if (!p.bosses) p.bosses = {};
@@ -43,7 +44,10 @@ for (const p of Object.values(state.profiles)) {
     if (p.settings.premiumVoice === undefined) p.settings.premiumVoice = p.settings.kokoroVoice;
     delete p.settings.kokoroVoice;
   }
+  for (const [id, b] of Object.entries(p.bosses)) if (b === true) p.bosses[id] = { won: true, best: 0 };
+  return p;
 }
+Object.values(state.profiles).forEach(migrateProfile);
 const P = () => state.profiles[state.profile];
 const sk = (id) => {
   const st = P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
@@ -78,6 +82,36 @@ const dueSkills = () => Object.keys(P().skills).filter(id => {
 
 /* unlock rule: every prerequisite at least Familiar */
 const unlocked = (id) => inTest() || BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1);
+
+/* ---------------- cloud merge (everything earned crosses devices) ---------------- */
+function mergeRemote(remote) {
+  if (!remote || remote.v !== 1) return;
+  if (remote.profiles) delete remote.profiles[TESTP];   // sandbox never syncs in
+  for (const [pid, rp] of Object.entries(remote.profiles || {})) {
+    if (pid === TESTP) continue;
+    const lp = migrateProfile(state.profiles[pid] || (state.profiles[pid] = FRESH_PROFILE()));
+    for (const [sid, rs] of Object.entries(rp.skills || {})) {
+      const ls = lp.skills[sid];
+      if (!ls || rs.m > ls.m || (rs.m === ls.m && rs.attempts > ls.attempts)) lp.skills[sid] = rs;
+    }
+    if ((rp.xp || 0) > lp.xp) lp.xp = rp.xp;
+    if (rp.settings) lp.settings = { ...lp.settings, ...rp.settings };
+    /* earned things are permanent — union them */
+    for (const [bid, when] of Object.entries(rp.badges || {})) if (!lp.badges[bid]) lp.badges[bid] = when;
+    for (const [iid, bs] of Object.entries(rp.bosses || {})) {
+      const rb = bs === true ? { won: true, best: 0 } : bs;
+      const cur = lp.bosses[iid];
+      lp.bosses[iid] = { won: !!(cur && cur.won) || !!rb.won, best: Math.max(cur ? cur.best || 0 : 0, rb.best || 0) };
+    }
+    if (rp.streak && rp.streak.last && (!lp.streak.last || rp.streak.last > lp.streak.last ||
+        (rp.streak.last === lp.streak.last && rp.streak.count > lp.streak.count))) lp.streak = { ...rp.streak };
+    for (const [d, secs] of Object.entries(rp.timeByDay || {})) lp.timeByDay[d] = Math.max(lp.timeByDay[d] || 0, secs);
+    if ((rp.lightningBest || 0) > (lp.lightningBest || 0)) lp.lightningBest = rp.lightningBest;
+    if (rp.name && rp.name !== "Explorer" && lp.name === "Explorer") lp.name = rp.name;
+    if (rp.avatar && rp.avatar !== "🦊" && lp.avatar === "🦊") lp.avatar = rp.avatar;
+  }
+  if (remote.syncNudged) state.syncNudged = true;
+}
 
 /* ---------------- maths pictures (pic spec → inline SVG) ---------------- */
 function pic(p) {
@@ -244,6 +278,8 @@ const BADGES = [
   { id: "lv10", name: "Level 10 Legend", emoji: "💫", test: p => levelOf(p.xp) >= 10 },
   { id: "streak3", name: "Campfire Keeper", emoji: "🔥", test: p => p.streak && p.streak.count >= 3 },
   { id: "streak7", name: "Week of Flame", emoji: "🎆", test: p => p.streak && p.streak.count >= 7 },
+  { id: "light10", name: "Speed Star", emoji: "💨", test: p => (p.lightningBest || 0) >= 10 },
+  { id: "light20", name: "Lightning Legend", emoji: "🌩", test: p => (p.lightningBest || 0) >= 20 },
 ];
 function checkBadges() {
   const p = P(); if (!p.badges) p.badges = {};
@@ -367,6 +403,8 @@ const TTS = {
   prefetch(arr) { if (this.enabled() && this.unlocked()) arr.forEach(t => this.fetchClip(t).catch(() => { })); },
 };
 
+const PRAISE = ["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Yes! Exactly right!", "Wonderful!", "Sharp work!", "That's the one!", "Champion!", "Beautiful maths!", "Too easy for you!", "Spot on!", "Cracked it!", "Legend!"];
+const NOT_QUITE = ["Not quite!", "So close!", "Good try!", "Almost!"];
 function say(text) {
   if (!P().settings.speech) return;
   if (TTS.enabled() && TTS.unlocked()) { TTS.say(text); return; }
@@ -415,7 +453,8 @@ function renderMap(scrollToHere) {
   for (const isl of BT.ISLANDS) {
     const skillsHere = isl.units.flatMap(u => u.skills);
     const done = skillsHere.filter(id => skv(id).m >= 2).length;
-    const card = el("section", "island");
+    const beatenIsl = !!(bosses()[isl.id] && bosses()[isl.id].won);
+    const card = el("section", "island" + (beatenIsl ? " conquered" : ""));
     card.dataset.isl = isl.id;
     card.setAttribute("data-emoji", isl.emoji);
     card.appendChild(el("h2", "isl-name", `${isl.emoji} ${esc(isl.name)} <span class="isl-progress">${done}/${skillsHere.length}</span>`));
@@ -445,7 +484,7 @@ function renderMap(scrollToHere) {
     const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
     bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
       <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}</b>
-      <small>${beaten ? "“You truly are a master of my island!” Tap for a rematch." : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(reach Familiar on every skill first)</i>`}</small></span>`;
+      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(reach Familiar on every skill first)</i>`}</small></span>`;
     bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
       : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Familiar.`);
     card.appendChild(bossBtn);
@@ -474,6 +513,14 @@ function renderMap(scrollToHere) {
   if (frontier) { cont.hidden = false; cont.innerHTML = `▶ Continue: ${esc(BT.SKILLS[frontier].name)} ${BT.SKILLS[frontier].icon}`; cont.onclick = () => openSkill(frontier); }
   else { cont.hidden = true; }
   if (scrollToHere && frontierEl) { try { frontierEl.scrollIntoView({ block: "center", behavior: "smooth" }); } catch { } }
+  const lc = $("lightningCard");
+  if (lc) {
+    if (lightningPool().length >= 5) {
+      lc.hidden = false;
+      lc.innerHTML = `⚡ <b>Lightning Round</b> — 60 seconds, how many can you get?${P().lightningBest ? ` Best: <b>${P().lightningBest}</b>` : ""}`;
+      lc.onclick = startLightning;
+    } else lc.hidden = true;
+  }
   maybeSyncNudge();
 }
 function maybeSyncNudge() {
@@ -516,6 +563,57 @@ function startDaily() {
   while (queue.length < 5) queue.push(fr || practiced[0] || "count.to10");
   beginSession({ kind: "daily", queue: queue.slice(0, 5), total: 5, d: 0.55, adaptive: false, title: "🔥 Daily Campfire" });
 }
+/* ---------------- lightning round (timed endgame loop) ---------------- */
+const LIGHT_MS = FAST ? 1200 : 60000;
+function lightningPool() {
+  let pool = Object.keys(P().skills).filter(id => BT.SKILLS[id] && skv(id).m >= 2);
+  if (pool.length < 5) pool = Object.keys(P().skills).filter(id => BT.SKILLS[id] && skv(id).m >= 1);
+  return pool;
+}
+function startLightning() {
+  const pool = lightningPool();
+  if (pool.length < 5) return;
+  const queue = [];
+  while (queue.length < 80) queue.push(...shuffleArr(pool));
+  beginSession({
+    kind: "lightning", queue: queue.slice(0, 80), total: 80,
+    d: 0.7, adaptive: false, title: "⚡ Lightning Round",
+    msOk: FAST ? 40 : 350, msBad: FAST ? 60 : 950,
+  });
+  const t0 = Date.now();
+  Sess.timerId = setInterval(() => {
+    if (!Sess || Sess.kind !== "lightning") return;
+    const left = Math.max(0, Math.ceil((LIGHT_MS - (Date.now() - t0)) / 1000));
+    const pips = $("pips"); if (pips) pips.innerHTML = `<span class="pip">⏱ ${left}s</span>`;
+    const ti = $("playTitle"); if (ti) ti.textContent = `⚡ ${Sess.correct}`;
+    if (Date.now() - t0 >= LIGHT_MS) finishLightning();
+  }, 250);
+}
+function finishLightning() {
+  if (!Sess || Sess.kind !== "lightning") return;
+  clearInterval(Sess.timerId);
+  addPlayTime();
+  const { correct, xpGain, lvFrom } = Sess;
+  Sess = null;
+  const prevBest = P().lightningBest || 0;
+  const record = correct > prevBest;
+  if (record) P().lightningBest = correct;
+  save();
+  const ex = setExtras(lvFrom);
+  const back = el("div", "modal-back"), box = el("div", "modal result");
+  box.innerHTML = `<p class="result-head">⚡</p><h2>${record ? "NEW RECORD!" : "Time's up!"}</h2>
+    <p class="sheet-acc">You answered <b>${correct}</b> in 60 seconds${record ? "" : ` — your best is <b>${prevBest}</b>`}.</p>
+    <p class="result-xp">+${xpGain} XP ⭐</p>${ex.html}`;
+  if ((record || ex.pop) && !matchMediaSafe()) confetti();
+  const again = el("button", "gold-btn", "⚡ Go again!");
+  again.onclick = () => { back.remove(); $("scrPlay").hidden = true; document.body.classList.remove("in-play"); startLightning(); };
+  const map = el("button", "soft-btn", "Back to the map 🗺");
+  map.onclick = () => { back.remove(); exitPlay(); };
+  box.append(again, map); back.appendChild(box);
+  $("overlay").appendChild(back);
+  say(record ? `New record! ${correct} in sixty seconds!` : `Time's up! ${correct} answers!`);
+}
+
 function finishDaily() {
   addPlayTime();
   const lvFrom = Sess.lvFrom, correct = Sess.correct, total = Sess.total, xpGain = Sess.xpGain;
@@ -640,6 +738,7 @@ function startBoss(islandId) {
 const shuffleArr = (a) => { const x = a.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
 
 function exitPlay() {
+  if (Sess && Sess.timerId) clearInterval(Sess.timerId);
   addPlayTime();
   Sess = null;
   $("scrPlay").hidden = true; $("scrMap").hidden = false;
@@ -659,6 +758,7 @@ $("exitBtn") && ($("exitBtn").onclick = () => {
 });
 
 function paintPips() {
+  if (Sess && Sess.kind === "lightning") return;   // the timer owns this slot
   const pips = $("pips"); pips.innerHTML = "";
   for (let k = 0; k < Sess.total; k++) {
     const done = k < Sess.i;
@@ -671,7 +771,11 @@ function nextQ() {
   if (!Sess) return;
   if (Sess.i >= Sess.total) return finishSet();
   Sess.curSkill = Sess.queue[Sess.i];
-  Sess.q = BT.SKILLS[Sess.curSkill].gen(Sess.d);
+  /* reviews meet each skill near its own practised difficulty, not a flat bar */
+  const dEff = Sess.kind === "review"
+    ? Math.min(0.95, Math.max(0.5, (skv(Sess.curSkill).lastD || 0.6) + 0.1))
+    : Sess.d;
+  Sess.q = BT.SKILLS[Sess.curSkill].gen(dEff);
   Sess.lock = false; Sess.orderPicked = [];
   if (Sess.kind === "review" || Sess.kind === "boss") $("playTitle").textContent =
     (Sess.kind === "review" ? "🛡 " : "") + BT.SKILLS[Sess.curSkill].name;
@@ -784,14 +888,16 @@ function submit(ok, correctShown, btn) {
     Sess.xpGain += gain; P().xp += gain;
     if (Sess.adaptive) Sess.d = Math.min(1, Sess.d + 0.12);
     SFX.ok();
-    feedback(true, pick(["Brilliant!", "You got it!", "Super!", "Nice thinking!"]), "+" + gain + " XP");
+    let praise = pick(PRAISE);
+    if (Math.random() < 0.22 && P().name && P().name !== "Explorer") praise = praise.replace("!", `, ${P().name}!`);
+    feedback(true, praise, "+" + gain + " XP");
   } else {
     Sess.misses++;
     Sess.lastMissQ = Sess.q;
     const tb = $("teachBtn"); if (tb) tb.hidden = false;
     if (Sess.adaptive) Sess.d = Math.max(0.15, Sess.d - 0.18);
     SFX.no();
-    feedback(false, "Not quite!", (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(Sess.q.hint));
+    feedback(false, pick(NOT_QUITE), (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(Sess.q.hint));
   }
   /* level-up kindness: one slip earns a redemption question instead of instant failure */
   if (!ok && Sess.kind === "levelup" && Sess.misses === 1 && Sess.total === 5) {
@@ -820,7 +926,7 @@ function submit(ok, correctShown, btn) {
     Sess.i++;
     if (needTeach) { Sess.taught = true; Sess.d = Math.max(0.15, Sess.d * 0.6); teach(); }
     else nextQ();
-  }, ok ? MS_OK : MS_BAD);
+  }, ok ? (Sess.msOk || MS_OK) : (Sess.msBad || MS_BAD));
 }
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -879,6 +985,7 @@ function finishSet() {
   if (kind === "review") return finishReview();
   if (kind === "boss") return finishBoss();
   if (kind === "daily") return finishDaily();
+  if (kind === "lightning") return finishLightning();
   const id = Sess.queue[0];
   const st = sk(id);
   let headline, sub, levelled = false;
@@ -952,15 +1059,19 @@ function finishBoss() {
   Sess = null;
   const isl = BT.ISLANDS.find(i => i.id === islandId);
   const won = correct >= 8;
+  const prev = bosses()[islandId];
+  const firstWin = won && !(prev && prev.won);
   let bonus = 0;
-  if (won) { bonus = 100; P().xp += bonus; bosses()[islandId] = true; }
+  if (firstWin) { bonus = 100; P().xp += bonus; }
+  bosses()[islandId] = { won: !!(prev && prev.won) || won, best: Math.max(prev ? prev.best || 0 : 0, correct) };
   save();
   const ex = setExtras(lvFrom);
   const back = el("div", "modal-back"), box = el("div", "modal result");
   box.innerHTML = `<p class="sheet-icon">${isl.boss.emoji}</p>
     <h2>${won ? `${esc(isl.name)} conquered! 👑` : "So close, explorer!"}</h2>
     <p class="sheet-acc">${won ? `${esc(isl.boss.name)}: “You truly are a master of my island!”` : `${esc(isl.boss.name)}: “${correct} of ${total}! Train a little more and face me again.”`}</p>
-    <p class="result-xp">+${xpGain}${bonus ? " + " + bonus + " bonus" : ""} XP ⭐</p>${ex.html}`;
+    <p class="result-xp">+${xpGain}${bonus ? " + " + bonus + " bonus" : ""} XP ⭐</p>
+    <p class="sheet-acc">Best score: ${bosses()[islandId].best}/10</p>${ex.html}`;
   if ((won || ex.pop) && !matchMediaSafe()) confetti();
   const map = el("button", "primary-btn", "Back to the map 🗺");
   map.onclick = () => { back.remove(); exitPlay(); };
@@ -1012,6 +1123,40 @@ function exitTestMode() {
   c.onclick = exitTestMode;
 })();
 
+/* ---------------- children (multi-profile) ---------------- */
+const childIds = () => Object.keys(state.profiles).filter(id => id !== TESTP);
+function switchProfile(id) {
+  if (!state.profiles[id]) return;
+  if (Sess) { if (Sess.timerId) clearInterval(Sess.timerId); Sess = null; $("scrPlay").hidden = true; $("scrMap").hidden = false; document.body.classList.remove("in-play"); }
+  state.profile = id;
+  save(); renderMap(true);
+}
+function addChild(name, avatar) {
+  if (childIds().length >= 4) return null;
+  const id = "c" + Date.now();
+  const p = migrateProfile(FRESH_PROFILE());
+  p.name = (name || "Explorer").slice(0, 16);
+  p.avatar = avatar || "🐸";
+  state.profiles[id] = p;
+  save();
+  return id;
+}
+function openWho() {
+  const kids = childIds();
+  if (kids.length < 2) return;
+  const back = el("div", "modal-back"), box = el("div", "modal");
+  box.innerHTML = `<p class="sheet-icon">👋</p><h2>Who's playing?</h2>`;
+  kids.forEach(id => {
+    const p = state.profiles[id];
+    const b = el("button", "who-card" + (id === state.profile ? " here" : ""),
+      `<span class="who-face">${esc(p.avatar)}</span><b>${esc(p.name)}</b><small>Level ${levelOf(p.xp)} · ⭐ ${totalStars(p)}</small>`);
+    b.onclick = () => { back.remove(); switchProfile(id); };
+    box.appendChild(b);
+  });
+  $("overlay").appendChild(back);
+  back.appendChild(box);
+}
+
 /* ---------------- backpack (trophy room) ---------------- */
 function openBackpack() {
   const p = P();
@@ -1025,6 +1170,11 @@ function openBackpack() {
     <p class="bp-title">👑 Boss Crowns</p><div class="crowns">${crowns}</div>
     <p class="bp-title">🏅 Badges · ${earned.length}/${BADGES.length}</p>
     <div class="badges">${earned.map(b => `<div class="badge won">${b.emoji}<small>${esc(b.name)}</small></div>`).join("")}${locked.map(b => `<div class="badge">❔<small>${esc(b.name)}</small></div>`).join("")}</div>`;
+  if (childIds().length > 1) {
+    const sw = el("button", "soft-btn", "👥 Switch player");
+    sw.onclick = () => { back.remove(); openWho(); };
+    box.appendChild(sw);
+  }
   const ok = el("button", "primary-btn", "Back to my trail!");
   ok.onclick = () => back.remove();
   box.appendChild(ok); back.appendChild(box);
@@ -1041,80 +1191,124 @@ function weekSecs(p) {
   return s;
 }
 function openParents() {
-  const p = P();
   const back = el("div", "modal-back"), box = el("div", "modal parents");
   box.innerHTML = `<h2>👨‍👩‍👧 Parents' Corner</h2>`;
-
-  box.appendChild(el("p", "p-section", "Your explorer"));
-  const row = el("div", "child-row");
-  const faceB = el("button", "face-btn", esc(p.avatar));
-  const FACES = ["🦊", "🐸", "🦄", "🐯", "🐼", "🦖", "🐙", "🦉", "🚀", "🌟"];
-  faceB.onclick = () => { p.avatar = FACES[(FACES.indexOf(p.avatar) + 1) % FACES.length]; faceB.textContent = p.avatar; save(); };
-  const nameI = el("input"); nameI.type = "text"; nameI.value = p.name; nameI.maxLength = 16;
-  nameI.oninput = () => { p.name = nameI.value.trim() || "Explorer"; save(); };
-  row.append(faceB, nameI); box.appendChild(row);
-
-  const todaySecs = p.timeByDay[today()] || 0;
-  box.appendChild(el("p", "stat-line",
-    `⏱ Played <b>${fmtMins(todaySecs)}</b> today · <b>${fmtMins(weekSecs(p))}</b> this week<br>` +
-    `⭐ Level ${levelOf(p.xp)} · ${countM(p, 1)} skills started · ${countM(p, 2)} proficient · ${countM(p, 3)} mastered`));
-
-  box.appendChild(el("p", "p-section", "Mastery map"));
-  for (const isl of BT.ISLANDS) {
-    const blk = el("div", "matrix-isl", `<small>${isl.emoji} ${esc(isl.name)}</small>`);
-    const grid = el("div", "matrix");
-    for (const id of isl.units.flatMap(u => u.skills)) {
-      const st = p.skills[id];
-      const m = st ? st.m : null;
-      const cls = !unlocked(id) && !st ? "locked" : m >= 1 ? "m" + m : "";
-      const sq = el("button", "sq " + cls);
-      sq.title = `${BT.SKILLS[id].name} — ${st ? M_LABEL[st.m] : "Not started"}`;
-      sq.setAttribute("aria-label", sq.title);
-      sq.onclick = () => {
-        const q = BT.SKILLS[id].gen(0.5);
-        const b2 = el("div", "modal-back"), x2 = el("div", "modal");
-        x2.innerHTML = `<p class="sheet-icon">${BT.SKILLS[id].icon}</p><h2>${esc(BT.SKILLS[id].name)}</h2>
-          <p class="sheet-state ${st ? "m" + st.m : ""}">${st ? M_LABEL[st.m] : "Not started"}</p>
-          ${st && st.attempts ? `<p class="sheet-acc">${st.correct}/${st.attempts} right (${Math.round(100 * st.correct / st.attempts)}%)</p>` : ""}
-          <p class="p-section">Sample question</p>
-          <p class="sheet-acc" style="font-weight:800; color:var(--ink);">${esc(q.prompt)}</p>
-          ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
-          ${q.visual ? `<p class="sheet-acc">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
-          <p class="sheet-acc">Answer: <b>${esc(correctLabel(q))}</b></p>`;
-        const cl = el("button", "soft-btn", "Close");
-        cl.onclick = () => b2.remove();
-        x2.appendChild(cl); b2.appendChild(x2);
-        $("overlay").appendChild(b2);
-      };
-      grid.appendChild(sq);
-    }
-    blk.appendChild(grid); box.appendChild(blk);
-  }
-  box.appendChild(el("p", "legend", "▢ not started · ▣ outline = Familiar · ■ violet = Proficient · ■ gold = Mastered"));
-
-  box.appendChild(el("p", "p-section", "Needs a hand"));
-  const weak = Object.entries(p.skills)
-    .filter(([, st]) => st.attempts >= 5)
-    .map(([id, st]) => ({ id, acc: st.correct / st.attempts, st }))
-    .sort((a, b) => a.acc - b.acc).slice(0, 3);
-  if (weak.length) weak.forEach(w => {
-    const row = el("button", "weak-row",
-      `${BT.SKILLS[w.id].icon} ${esc(BT.SKILLS[w.id].name)} — ${Math.round(w.acc * 100)}% right (${w.st.correct}/${w.st.attempts})<small>▶ Tap to start a practice set together right now.</small>`);
-    row.onclick = () => { back.remove(); startSet(w.id, "practice"); };
-    box.appendChild(row);
-  });
-  else box.appendChild(el("p", "stat-line", "Not enough answers yet — check back after a few sessions!"));
-
-  box.appendChild(el("p", "p-section", "Settings"));
-  const tgls = el("div", "tgl-row");
-  const mk = (key, label) => {
-    const b = el("button", "tgl" + (p.settings[key] ? " on" : ""), `${label}: ${p.settings[key] ? "On" : "Off"}`);
-    b.onclick = () => { p.settings[key] = !p.settings[key]; b.className = "tgl" + (p.settings[key] ? " on" : ""); b.textContent = `${label}: ${p.settings[key] ? "On" : "Off"}`; save(); };
-    return b;
+  const group = (title, openByDefault) => {
+    const wrapEl = el("div", "pgroup");
+    const head = el("button", "pgroup-head", `${title} <span class="caret">${openByDefault ? "▾" : "▸"}</span>`);
+    const bodyEl = el("div", "pgroup-body");
+    bodyEl.hidden = !openByDefault;
+    head.onclick = () => {
+      bodyEl.hidden = !bodyEl.hidden;
+      head.innerHTML = `${title} <span class="caret">${bodyEl.hidden ? "▸" : "▾"}</span>`;
+    };
+    wrapEl.append(head, bodyEl);
+    box.appendChild(wrapEl);
+    return bodyEl;
   };
-  tgls.append(mk("speech", "🔊 Speech"), mk("sound", "🎵 Sounds")); box.appendChild(tgls);
 
-  box.appendChild(el("p", "p-section", "Premium voice"));
+  /* ── 👧 Children ── */
+  const gKids = group("👧 Children", true);
+  const FACES = ["🦊", "🐸", "🦄", "🐯", "🐼", "🦖", "🐙", "🦉", "🚀", "🌟"];
+  const renderKids = () => {
+    gKids.innerHTML = "";
+    for (const id of childIds()) {
+      const cp = state.profiles[id];
+      const row = el("div", "child-row");
+      const faceB = el("button", "face-btn", esc(cp.avatar));
+      faceB.onclick = () => { cp.avatar = FACES[(FACES.indexOf(cp.avatar) + 1) % FACES.length]; faceB.textContent = cp.avatar; save(); };
+      const nameI = el("input"); nameI.type = "text"; nameI.value = cp.name; nameI.maxLength = 16;
+      nameI.oninput = () => { cp.name = nameI.value.trim() || "Explorer"; save(); };
+      row.append(faceB, nameI);
+      if (id === state.profile) row.appendChild(el("span", "active-tag", "playing"));
+      else {
+        const act = el("button", "mini-btn", "▶ play");
+        act.onclick = () => { switchProfile(id); renderKids(); };
+        row.appendChild(act);
+      }
+      gKids.appendChild(row);
+    }
+    if (childIds().length < 4) {
+      const add = el("button", "soft-btn", "➕ Add a child");
+      add.onclick = () => { addChild("Explorer", FACES[childIds().length % FACES.length]); renderKids(); };
+      gKids.appendChild(add);
+    }
+    if (childIds().length > 1) gKids.appendChild(el("p", "stat-line", "Each child gets their own trail, streak, badges and crowns. The app asks who's playing at startup."));
+  };
+  renderKids();
+
+  /* ── 📈 Progress (viewable per child) ── */
+  const gProg = group("📈 Progress", true);
+  let viewId = state.profile === TESTP ? childIds()[0] : state.profile;
+  const progBody = el("div");
+  const renderProg = () => {
+    progBody.innerHTML = "";
+    const p = state.profiles[viewId];
+    if (childIds().length > 1) {
+      const tabs = el("div", "tgl-row");
+      childIds().forEach(id => {
+        const tb = el("button", "tgl" + (id === viewId ? " on" : ""), `${state.profiles[id].avatar} ${esc(state.profiles[id].name)}`);
+        tb.onclick = () => { viewId = id; renderProg(); };
+        tabs.appendChild(tb);
+      });
+      progBody.appendChild(tabs);
+    }
+    const todaySecs = p.timeByDay[today()] || 0;
+    progBody.appendChild(el("p", "stat-line",
+      `⏱ Played <b>${fmtMins(todaySecs)}</b> today · <b>${fmtMins(weekSecs(p))}</b> this week<br>` +
+      `⭐ Level ${levelOf(p.xp)} · ${countM(p, 1)} skills started · ${countM(p, 2)} proficient · ${countM(p, 3)} mastered` +
+      (p.lightningBest ? ` · ⚡ best ${p.lightningBest}` : "")));
+    for (const isl of BT.ISLANDS) {
+      const blk = el("div", "matrix-isl", `<small>${isl.emoji} ${esc(isl.name)}</small>`);
+      const grid = el("div", "matrix");
+      for (const id of isl.units.flatMap(u => u.skills)) {
+        const st = p.skills[id];
+        const m = st ? st.m : null;
+        const cls = !st ? "locked" : m >= 1 ? "m" + m : "";
+        const sq = el("button", "sq " + cls);
+        sq.title = `${BT.SKILLS[id].name} — ${st ? M_LABEL[st.m] : "Not started"}`;
+        sq.setAttribute("aria-label", sq.title);
+        sq.onclick = () => {
+          const q = BT.SKILLS[id].gen(0.5);
+          const b2 = el("div", "modal-back"), x2 = el("div", "modal");
+          x2.innerHTML = `<p class="sheet-icon">${BT.SKILLS[id].icon}</p><h2>${esc(BT.SKILLS[id].name)}</h2>
+            <p class="sheet-state ${st ? "m" + st.m : ""}">${st ? M_LABEL[st.m] : "Not started"}</p>
+            ${st && st.attempts ? `<p class="sheet-acc">${st.correct}/${st.attempts} right (${Math.round(100 * st.correct / st.attempts)}%)</p>` : ""}
+            <p class="p-section">Sample question</p>
+            <p class="sheet-acc" style="font-weight:800; color:var(--ink);">${esc(q.prompt)}</p>
+            ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
+            ${q.visual ? `<p class="sheet-acc">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
+            <p class="sheet-acc">Answer: <b>${esc(correctLabel(q))}</b></p>`;
+          const cl = el("button", "soft-btn", "Close");
+          cl.onclick = () => b2.remove();
+          x2.appendChild(cl); b2.appendChild(x2);
+          $("overlay").appendChild(b2);
+        };
+        grid.appendChild(sq);
+      }
+      blk.appendChild(grid); progBody.appendChild(blk);
+    }
+    progBody.appendChild(el("p", "legend", "▢ not started · ▣ outline = Familiar · ■ violet = Proficient · ■ gold = Mastered"));
+    progBody.appendChild(el("p", "p-section", "Needs a hand"));
+    const weak = Object.entries(p.skills)
+      .filter(([id, st]) => BT.SKILLS[id] && st.attempts >= 5)
+      .map(([id, st]) => ({ id, acc: st.correct / st.attempts, st }))
+      .sort((a, b) => a.acc - b.acc).slice(0, 3);
+    if (weak.length) weak.forEach(w => {
+      const row = el("button", "weak-row",
+        `${BT.SKILLS[w.id].icon} ${esc(BT.SKILLS[w.id].name)} — ${Math.round(w.acc * 100)}% right (${w.st.correct}/${w.st.attempts})<small>▶ Tap to start a practice set together right now.</small>`);
+      row.onclick = () => { back.remove(); if (viewId !== state.profile) switchProfile(viewId); startSet(w.id, "practice"); };
+      progBody.appendChild(row);
+    });
+    else progBody.appendChild(el("p", "stat-line", "Not enough answers yet — check back after a few sessions!"));
+  };
+  renderProg();
+  gProg.appendChild(progBody);
+
+  /* ── 🔊 Voice & sound ── */
+  const gVoice = group("🔊 Voice & sound", false);
+  const p = P();
+  gVoice.appendChild(el("p", "p-section", "Premium voice"));
   const pv = el("div");
   const renderPV = () => {
     pv.innerHTML = "";
@@ -1134,82 +1328,108 @@ function openParents() {
         const tryB = el("button", "soft-btn", "🔊 Hear a sample");
         tryB.onclick = () => say("Three tens and four ones make thirty four. Brilliant!");
         pv.appendChild(tryB);
-        pv.appendChild(el("p", "stat-line", "Streamed and cached — questions speak within about half a second, repeats are instant, and phrases you've heard keep working offline."));
       }
     }
   };
   renderPV();
-  box.appendChild(pv);
+  gVoice.appendChild(pv);
+  const tgls = el("div", "tgl-row");
+  const mk = (key, label) => {
+    const b = el("button", "tgl" + (p.settings[key] ? " on" : ""), `${label}: ${p.settings[key] ? "On" : "Off"}`);
+    b.onclick = () => { p.settings[key] = !p.settings[key]; b.className = "tgl" + (p.settings[key] ? " on" : ""); b.textContent = `${label}: ${p.settings[key] ? "On" : "Off"}`; save(); };
+    return b;
+  };
+  tgls.append(mk("speech", "🔊 Speech"), mk("sound", "🎵 Sounds"));
+  gVoice.appendChild(tgls);
 
-  box.appendChild(el("p", "p-section", "Daily play limit (gentle nudge, never a lock)"));
+  /* ── ⚙️ Limits, account & data ── */
+  const gAdv = group("⚙️ Limits, account & data", false);
+  gAdv.appendChild(el("p", "p-section", "Daily play limit (gentle nudge, never a lock)"));
   const limRow = el("div", "tgl-row");
   [0, 15, 30, 45].forEach(v => {
     const lb = el("button", "tgl" + ((p.settings.dailyLimit || 0) === v ? " on" : ""), v === 0 ? "Off" : v + " min");
     lb.onclick = () => {
       p.settings.dailyLimit = v; save();
-      limRow.children.forEach ? limRow.children.forEach(c => c.className = "tgl") : null;
       Array.from(limRow.children).forEach(c => c.className = "tgl");
       lb.className = "tgl on";
     };
     limRow.appendChild(lb);
   });
-  box.appendChild(limRow);
+  gAdv.appendChild(limRow);
 
-  box.appendChild(el("p", "p-section", "Diagnostics"));
+  const testB = el("button", "soft-btn", inTest() ? "🧪 Exit test mode" : "🧪 Test mode — try every skill (throwaway)");
+  testB.onclick = () => { back.remove(); inTest() ? exitTestMode() : enterTestMode(); };
+  gAdv.appendChild(testB);
+  const acct = el("button", "soft-btn", "☁️ Account & sync");
+  acct.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); else toast("☁️", "Sync not configured", "Cloud sync isn't set up on this build."); };
+  gAdv.appendChild(acct);
+
+  gAdv.appendChild(el("p", "p-section", "Diagnostics"));
   let lastErr = null;
   try { lastErr = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); } catch { }
-  box.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (lastErr
+  gAdv.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (lastErr
     ? `last error ${esc(lastErr.at)} — ${esc(lastErr.m)} (${esc(lastErr.f)}:${lastErr.l})`
     : "no recent errors 🎉")));
   if (lastErr) {
     const ce = el("button", "soft-btn", "Clear error log");
     ce.onclick = () => { try { localStorage.removeItem("bt_lasterr"); } catch { } ce.remove(); };
-    box.appendChild(ce);
+    gAdv.appendChild(ce);
   }
 
-  const acct = el("button", "soft-btn", "☁️ Account & sync");
-  acct.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); else toast("☁️", "Sync not configured", "Cloud sync isn't set up on this build."); };
-  box.appendChild(acct);
-
-  const testB = el("button", "soft-btn", inTest() ? "🧪 Exit test mode" : "🧪 Test mode — try every skill (throwaway)");
-  testB.onclick = () => { back.remove(); inTest() ? exitTestMode() : enterTestMode(); };
-  box.appendChild(testB);
-
-  const danger = el("button", "danger-btn", "Erase all progress");
+  const danger = el("button", "danger-btn", `Erase ${esc(P().name)}'s progress`);
   let armed = false;
   danger.onclick = () => {
-    if (!armed) { armed = true; danger.textContent = "Tap again to erase EVERYTHING — cannot be undone"; return; }
-    state.profiles[state.profile] = FRESH_PROFILE();
-    for (const pp of Object.values(state.profiles)) {
-      pp.badges = {}; pp.timeByDay = {}; pp.bosses = {}; pp.name = "Explorer"; pp.avatar = "🦊";
-      pp.streak = { count: 0, last: null }; pp.settings.sound = true;
-    }
+    if (!armed) { armed = true; danger.textContent = `Tap again to erase ${P().name}'s EVERYTHING — cannot be undone`; return; }
+    state.profiles[state.profile] = migrateProfile(FRESH_PROFILE());
     save(); back.remove(); renderMap(true);
   };
-  box.appendChild(danger);
+  gAdv.appendChild(danger);
 
   const close = el("button", "primary-btn", "Done");
   close.onclick = () => { back.remove(); renderMap(); };
   box.appendChild(close); back.appendChild(box);
   $("overlay").appendChild(back);
 }
+function openParentGate() {
+  const back = el("div", "modal-back"), box = el("div", "modal");
+  box.innerHTML = `<p class="sheet-icon">👨‍👩‍👧</p><h2>Grown-ups only</h2>
+    <p class="sheet-acc">What year were you born?</p>`;
+  const disp = el("div", "pad-display", "");
+  box.appendChild(disp);
+  let entry = "";
+  const grid = el("div", "keypad");
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"].forEach(kk => {
+    const b = el("button", "key" + (kk === "OK" ? " ok" : kk === "⌫" ? " back" : ""), kk);
+    b.onclick = () => {
+      if (kk === "⌫") entry = entry.slice(0, -1);
+      else if (kk === "OK") {
+        const y = parseInt(entry, 10);
+        const nowY = parseInt(today().slice(0, 4), 10);
+        if (entry.length === 4 && y >= 1900 && nowY - y >= 18) { back.remove(); openParents(); return; }
+        /* no clue about the rule — just redirect gently */
+        entry = "";
+        disp.textContent = "";
+        box.children.length && (disp.classList.add("shake"), setTimeout(() => disp.classList.remove("shake"), 400));
+        sub.textContent = "Please pass the device to a grown-up 😊";
+        return;
+      }
+      else if (entry.length < 4) entry += kk;
+      disp.textContent = entry;
+    };
+    grid.appendChild(b);
+  });
+  box.appendChild(grid);
+  const sub = el("p", "sheet-acc", "");
+  box.appendChild(sub);
+  const cancel = el("button", "soft-btn", "Back to the map");
+  cancel.onclick = () => back.remove();
+  box.appendChild(cancel);
+  back.appendChild(box);
+  $("overlay").appendChild(back);
+}
 (function wireParentsGate() {
   const b = $("parentsBtn"); if (!b) return;
-  const HOLD = FAST ? 120 : 3000;
-  let t = null, fired = false;
-  const release = () => { b.classList.remove("holding"); if (t) { clearTimeout(t); t = null; } };
-  b.onpointerdown = (e) => {
-    if (e && e.preventDefault) e.preventDefault();   // stop long-press selection/callout from cancelling us
-    try { if (e && e.pointerId !== undefined && b.setPointerCapture) b.setPointerCapture(e.pointerId); } catch { }
-    fired = false;
-    b.classList.add("holding");
-    t = setTimeout(() => { fired = true; release(); openParents(); }, HOLD);
-  };
-  /* NOTE: no pointerleave cancel — fingertips drift outside a 46px circle long
-     before 3 seconds pass; capture + up/cancel are the only honest end states. */
-  b.onpointerup = release; b.onpointercancel = release;
-  b.oncontextmenu = (e) => { if (e && e.preventDefault) e.preventDefault(); return false; };
-  b.onclick = () => { if (!fired) toast("👨‍👩‍👧", "For grown-ups", "Close this message, then press and HOLD the 👨‍👩‍👧 button in the top-left corner for 3 full seconds — keep your finger down until the Parents' Corner opens."); };
+  b.onclick = openParentGate;
 })();
 
 /* ---------------- help ---------------- */
@@ -1223,7 +1443,7 @@ function openHelp() {
     <li>🔊 Every question is read aloud — tap the speaker to hear it again.</li>
     <li>🔥 Light the Daily Campfire every day to grow your streak.</li>
     <li>🎒 Tap your level ring (top corner) to open your Backpack of crowns and badges.</li>
-    <li>👨‍👩‍👧 Grown-ups: press and hold the 👨‍👩‍👧 button in the top corner for 3 seconds.</li></ul>`;
+    <li>👨‍👩‍👧 Grown-ups: tap the 👨‍👩‍👧 button in the top corner and answer the grown-up question.</li></ul>`;
   const ok = el("button", "primary-btn", "Got it!"); ok.onclick = () => back.remove();
   box.appendChild(ok); back.appendChild(box);
   back.onclick = (e) => { if (e.target === back) back.remove(); };
@@ -1233,7 +1453,7 @@ $("helpBtn").onclick = openHelp;
 $("promptCard").onclick = () => { if (Sess && Sess.q) say(Sess.q.say); };
 
 /* ---------------- cloud (basic wiring; per-skill best-wins merge) ---------------- */
-if (window.Cloud) {
+if (window.Cloud && Cloud.init) {
   Cloud.init("brainytrails", {
     collect: () => {
       const out = { ...state, profiles: { ...state.profiles } };
@@ -1241,27 +1461,14 @@ if (window.Cloud) {
       if (out.profile === TESTP) out.profile = "default";
       return out;
     },
-    apply: async (remote) => {
-      if (!remote || remote.v !== 1) return;
-      if (remote.profiles) delete remote.profiles[TESTP];   // belt and braces
-      for (const [pid, rp] of Object.entries(remote.profiles || {})) {
-        const lp = state.profiles[pid] || (state.profiles[pid] = FRESH_PROFILE());
-        for (const [sid, rs] of Object.entries(rp.skills || {})) {
-          const ls = lp.skills[sid];
-          if (!ls || rs.m > ls.m || (rs.m === ls.m && rs.attempts > ls.attempts)) lp.skills[sid] = rs;
-        }
-        if ((rp.xp || 0) > lp.xp) lp.xp = rp.xp;
-        if (rp.settings) lp.settings = { ...lp.settings, ...rp.settings };
-      }
-      Store.save(state);
-      renderMap();
-    },
+    apply: async (remote) => { mergeRemote(remote); Store.save(state); renderMap(); },
   });
 }
 
 /* ---------------- boot ---------------- */
 try {
   renderMap(true);
+  if (childIds().length > 1) openWho();
 } catch (e) {
   try {
     $("mapRoot").innerHTML = `<div class="island" style="text-align:center; padding:26px;">
@@ -1273,6 +1480,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }) };
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
+  mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));

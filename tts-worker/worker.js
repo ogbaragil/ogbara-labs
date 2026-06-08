@@ -8,6 +8,8 @@ const VOICES = new Set([
   "en-AU-Wavenet-A", "en-AU-Wavenet-C", "en-GB-Neural2-A", "en-US-Neural2-F",
 ]);
 const MAX_CHARS = 240;
+const DAILY_IP_CAP = 800;            // soft per-isolate guard against quota draining
+const ipCounts = new Map();          // resets when the isolate recycles — a speed bump, not a wall
 
 const okOrigin = (origin) => {
   if (!origin) return false;
@@ -33,6 +35,13 @@ export default {
     }
     if (req.method !== "POST") return new Response("POST only", { status: 405 });
     if (!okOrigin(origin)) return new Response("Forbidden origin", { status: 403 });
+
+    const ip = req.headers.get("CF-Connecting-IP") || "?";
+    const ipKey = ip + ":" + new Date().toISOString().slice(0, 10);
+    const used = (ipCounts.get(ipKey) || 0) + 1;
+    ipCounts.set(ipKey, used);
+    if (ipCounts.size > 5000) ipCounts.clear();
+    if (used > DAILY_IP_CAP) return new Response("Daily limit", { status: 429, headers: corsHeaders(origin) });
 
     let body;
     try { body = await req.json(); } catch { return new Response("Bad JSON", { status: 400 }); }

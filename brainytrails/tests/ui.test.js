@@ -23,13 +23,25 @@ module.exports = async function (t) {
   await sleep(90);
   BTApp.exitPlay();
 
-  const b = h.ids["parentsBtn"];
-  b.onpointerdown({ preventDefault() { }, pointerId: 1 });
-  t("gate captures the pointer", b._captured === 1);
-  await sleep(180);
+  // year-of-birth gate
+  h.ids["parentsBtn"].onclick();
+  let gate = h.ids["overlay"].children[h.ids["overlay"].children.length - 1];
+  let asked = false;
+  walk(gate, e => { if (String(e._inner || "").includes("year were you born")) asked = true; });
+  t("gate asks for year of birth", asked);
+  const press = (root, label) => { let hit = null; walk(root, e => { if (e.tag === "button" && String(e._inner || e.textContent) === label) hit = e; }); hit.onclick(); };
+  // child enters their own year → gentle redirect, no rule leaked
+  ["2", "0", "1", "8", "OK"].forEach(k => press(gate, k));
+  let msg = "";
+  walk(gate, e => { if (String(e.textContent || "").includes("grown-up")) msg = String(e.textContent); });
+  t("child year: pass-to-a-grown-up message", msg.includes("grown-up"));
+  t("…with no clue about the rule", !msg.includes("18") && !msg.toLowerCase().includes("year") && !msg.toLowerCase().includes("old"));
   let opened = false;
-  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("Parents")) opened = true; });
-  t("hold opens the Parents' Corner", opened);
+  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("Parents' Corner</h2>") || String(e._inner || "").includes("Parents' Corner")) { } });
+  // adult year on the same pad → opens
+  ["1", "9", "8", "5", "OK"].forEach(k => press(gate, k));
+  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("👧 Children")) opened = true; });
+  t("adult year opens the Parents' Corner", opened);
   h.ids["overlay"].children.length = 0;
 
   BTApp.enterTestMode();
