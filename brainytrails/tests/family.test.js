@@ -69,8 +69,8 @@ module.exports = async function (t) {
   realIds.forEach(id => S().profiles.default.skills[id] = { m: 2, attempts: 9, correct: 9, stars: 3, nextReview: null, reviewStep: 0, lastD: 0.7 });
   S().profiles.default.lightningBest = 0;   // the merge test above set 14 — start this record chase clean
   BTApp.renderMap();
-  t("lightning card appears once 5+ skills are proficient", h.ids["lightningCard"].hidden === false);
-  BTApp.startLightning();
+  t("lightning bolt button appears once 5+ skills are proficient", h.ids["lightningBtn"].hidden === false && String(h.ids["lightningBtn"]._inner).includes("bolt"));
+  h.ids["lightningBtn"].onclick();   // dramatic strike → starts the round (instant under reduced-motion)
   t("lightning session running", BTApp.sess() && BTApp.sess().kind === "lightning");
   for (let i = 0; i < 4; i++) { BTApp.submit(true, ""); await sleep(60); }
   await sleep(1400);   // FAST lightning timer = 1200ms

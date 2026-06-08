@@ -60,7 +60,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "15";
+const APP_V = "17";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -83,9 +83,11 @@ const levelOf = (xp) => 1 + Math.floor(Math.sqrt(xp / 120));
 
 /* spaced-review intervals (days), used from Proficient onward */
 const REVIEW_DAYS = [2, 7, 21, 60];
-const isoPlusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+/* date stamps in LOCAL time (not UTC) so "today"/"yesterday" roll over at the child's midnight */
+const localISO = (d = new Date()) => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); };
+const isoPlusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localISO();
 const dueSkills = () => Object.keys(P().skills).filter(id => {
   if (!BT.SKILLS[id]) return false;   // synced state may know skills this curriculum doesn't
   const st = P().skills[id];
@@ -535,6 +537,31 @@ function paintMusicBtn() {
 }
 try { document.addEventListener("visibilitychange", () => Music.sync()); } catch { }
 
+/* ---------------- lightning strike (dramatic tap → flash + thunder → round) ---------------- */
+let _thunder = null;
+function playThunder() {
+  if (!P().settings.sound) return;
+  try {
+    if (!_thunder && typeof Audio !== "undefined") { _thunder = new Audio("thunder.mp3"); _thunder.volume = 0.55; }
+    if (_thunder) { _thunder.currentTime = 0; const p = _thunder.play(); if (p && p.catch) p.catch(() => { }); }
+  } catch { }
+}
+const BOLT_SVG = `<svg viewBox="0 0 140 340" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <polygon points="80,0 18,172 64,172 38,340 128,150 80,150 122,0"
+    fill="#fde68a" stroke="#7c4dff" stroke-width="7" stroke-linejoin="round"/></svg>`;
+/* a tap forks a bolt across the screen and rumbles, then drops into the round.
+   Kept to two soft flashes and skipped entirely under reduced-motion (photosensitivity). */
+function strikeLightning(then) {
+  playThunder();
+  if (matchMediaSafe()) { then && then(); return; }
+  try {
+    const f = el("div", "bolt-flash", `<div class="sheet"></div>${BOLT_SVG}`);
+    document.body.appendChild(f);
+    setTimeout(() => { try { f.remove(); } catch { } }, 760);
+  } catch { }
+  setTimeout(() => { then && then(); }, 430);   // begin the round mid-strike for snap
+}
+
 /* keyboard play: each question installs Sess.onKey; we only forward keys while a
    question is live (no modal open, not mid-feedback, focus not in a text field) */
 addEventListener("keydown", (e) => {
@@ -643,13 +670,15 @@ function renderMap(scrollToHere) {
   if (frontier) { cont.hidden = false; cont.innerHTML = `▶ Continue: ${esc(BT.SKILLS[frontier].name)} ${BT.SKILLS[frontier].icon}`; cont.onclick = () => openSkill(frontier); }
   else { cont.hidden = true; }
   if (scrollToHere && frontierEl) { try { frontierEl.scrollIntoView({ block: "center", behavior: "smooth" }); } catch { } }
-  const lc = $("lightningCard");
-  if (lc) {
+  const lb = $("lightningBtn");
+  if (lb) {
     if (lightningPool().length >= 5) {
-      lc.hidden = false;
-      lc.innerHTML = `⚡ <b>Lightning Round</b> — 60 seconds, how many can you get?${P().lightningBest ? ` Best: <b>${P().lightningBest}</b>` : ""}`;
-      lc.onclick = startLightning;
-    } else lc.hidden = true;
+      lb.hidden = false;
+      const best = P().lightningBest || 0;
+      lb.innerHTML = `<span class="bolt">⚡</span><span class="best">${best ? "Best " + best : "Go!"}</span>`;
+      lb.setAttribute("aria-label", best ? `Lightning Round — best ${best}` : "Lightning Round");
+      lb.onclick = () => strikeLightning(() => startLightning());
+    } else lb.hidden = true;
   }
   maybeSyncNudge();
   paintMusicBtn();
@@ -672,9 +701,8 @@ function maybeSyncNudge() {
 }
 
 /* ---------------- daily campfire ---------------- */
-const yesterIso = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); };
+const yesterIso = () => { const d = new Date(); d.setDate(d.getDate() - 1); return localISO(d); };
 function paintDaily() {
-  const card = $("dailyCard"); if (card) card.hidden = true;   // replaced by the campfire under the rewards button
   const fire = $("campfire"); if (!fire) return;
   const st = P().streak;
   const doneToday = st.last === today();
@@ -1441,7 +1469,7 @@ $("hud").onclick = openBackpack;
 const fmtMins = (secs) => secs < 60 ? "under a minute" : Math.round(secs / 60) + " min";
 function weekSecs(p) {
   let s = 0;
-  for (let k = 0; k < 7; k++) { const d = new Date(); d.setDate(d.getDate() - k); s += p.timeByDay[d.toISOString().slice(0, 10)] || 0; }
+  for (let k = 0; k < 7; k++) { const d = new Date(); d.setDate(d.getDate() - k); s += p.timeByDay[localISO(d)] || 0; }
   return s;
 }
 function openParents() {
