@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#101c16">
-<title>Ogbara Labs — playful apps for real life</title>
+<title>Ogbara Labs — apps for families, learning, and real life</title>
 <meta name="description" content="Ogbara Labs builds polished, installable web apps for families: a full maths adventure for kids, a life-in-months journal, and games for two. Free, no ads, no tracking, works offline.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ogbara Labs">
-<meta property="og:title" content="Ogbara Labs — built for families, built to last">
+<meta property="og:title" content="Ogbara Labs — apps for families, learning, and real life">
 <meta property="og:description" content="A maths mastery adventure for kids (with a voice that reads every question aloud), a map of your life in months, and games for two. Free, no ads, works offline.">
 <meta property="og:url" content="https://ogbaralabs.xyz/">
 <meta property="og:image" content="https://ogbaralabs.xyz/icons/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Ogbara Labs — built for families, built to last">
+<meta name="twitter:title" content="Ogbara Labs — apps for families, learning, and real life">
 <meta name="twitter:description" content="Maths adventures for kids · a life in months · games for two. Free, no ads, works offline.">
 <meta name="twitter:image" content="https://ogbaralabs.xyz/icons/og-card.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -51,6 +51,31 @@
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 24px;}
+
+  /* ambient drifting gradients */
+  .blob{position:fixed; border-radius:50%; filter:blur(70px); pointer-events:none; z-index:0; opacity:.55;}
+  .blob.b1{width:520px; height:520px; background:rgba(205,244,99,.10); top:-180px; right:-120px; animation:drift1 26s ease-in-out infinite alternate;}
+  .blob.b2{width:460px; height:460px; background:rgba(143,227,176,.09); top:32%; left:-200px; animation:drift2 32s ease-in-out infinite alternate;}
+  .blob.b3{width:420px; height:420px; background:rgba(183,154,255,.08); bottom:-160px; right:18%; animation:drift3 38s ease-in-out infinite alternate;}
+  @keyframes drift1{to{transform:translate(-90px,70px) scale(1.12);}}
+  @keyframes drift2{to{transform:translate(110px,-60px) scale(1.08);}}
+  @keyframes drift3{to{transform:translate(-70px,-90px) scale(1.15);}}
+
+  /* hero entrance choreography */
+  @keyframes riseIn{from{opacity:0; transform:translateY(26px);}to{opacity:1; transform:translateY(0);}}
+  @media (prefers-reduced-motion: no-preference){
+    .hero > *{opacity:0; animation:riseIn .8s cubic-bezier(.2,.7,.2,1) forwards;}
+    .hero .eyebrow{animation-delay:.05s;}
+    .hero h1{animation-delay:.18s;}
+    .hero p{animation-delay:.36s;}
+    .hero .cta-row{animation-delay:.5s;}
+    .reveal{opacity:0; transform:translateY(30px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); transition-delay:var(--d,0s);}
+    .reveal.in{opacity:1; transform:none;}
+  }
+
+  /* pointer tilt (JS sets the vars) */
+  .app-card{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(var(--ty,0));}
+  .app-card:hover{--ty:-5px;}
 
   /* Header */
   header{display:flex; justify-content:space-between; align-items:center; padding:26px 0 0;}
@@ -102,7 +127,7 @@
     text-decoration:none; color:var(--ink); overflow:hidden;
     transition:transform .25s cubic-bezier(.2,.7,.3,1.2), border-color .25s, box-shadow .25s;
   }
-  .app-card:hover{transform:translateY(-5px) rotate(-.4deg); border-color:var(--ac); box-shadow:0 18px 44px rgba(0,0,0,.4), 0 0 0 1px var(--ac);}
+  .app-card:hover{border-color:var(--ac); box-shadow:0 18px 44px rgba(0,0,0,.4), 0 0 0 1px var(--ac);}
   .app-card::before{
     content:""; position:absolute; top:-46px; right:-46px; width:130px; height:130px; border-radius:50%;
     background:var(--ac); opacity:.13; transition:opacity .25s, transform .35s;
@@ -126,6 +151,11 @@
     background:var(--lime); color:#15240f; padding:15px 26px; border-radius:999px;
     box-shadow:0 0 0 1px rgba(205,244,99,.4), 0 10px 30px rgba(205,244,99,.2);
     transition:transform .2s, box-shadow .2s;}
+  .cta{position:relative; overflow:hidden;}
+  .cta::after{content:""; position:absolute; top:0; left:-80%; width:50%; height:100%;
+    background:linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent); transform:skewX(-20deg);}
+  .cta:hover::after{animation:shine .7s ease;}
+  @keyframes shine{to{left:130%;}}
   .cta:hover{transform:translateY(-2px); box-shadow:0 0 0 1px rgba(205,244,99,.6), 0 14px 36px rgba(205,244,99,.3);}
   .cta.ghost{background:transparent; color:var(--ink); box-shadow:0 0 0 1.5px var(--line);}
   .cta.ghost:hover{box-shadow:0 0 0 1.5px var(--muted);}
@@ -138,8 +168,22 @@
   .app-card.featured{grid-column:1/-1; display:grid; grid-template-columns:1.05fr .95fr; gap:26px; align-items:center;}
   .featured .card-body{display:flex; flex-direction:column; gap:10px;}
   .featured h3{font-size:28px;}
-  .mini-map{width:100%; height:auto; border-radius:18px; background:rgba(183,154,255,.06);
-    border:1px solid rgba(183,154,255,.25);}
+  .card-visual{width:100%; height:auto; border-radius:18px;
+    background:color-mix(in srgb, var(--ac) 7%, transparent);
+    border:1px solid color-mix(in srgb, var(--ac) 28%, transparent);}
+  .trail-dash{animation:march 2.6s linear infinite;}
+  @keyframes march{to{stroke-dashoffset:-18;}}
+  .pin-bob{animation:pinBob 1.6s ease-in-out infinite;}
+  @keyframes pinBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+  .twinkle{animation:tw 2.2s ease-in-out infinite;}
+  .twinkle.t2{animation-delay:.7s;} .twinkle.t3{animation-delay:1.3s;}
+  @keyframes tw{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .crown-pulse{animation:crownP 2.4s ease-in-out infinite; transform-origin:center;}
+  @keyframes crownP{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+  .dice-roll{animation:diceR 3.2s ease-in-out infinite; transform-origin:center;}
+  @keyframes diceR{0%,100%{transform:rotate(-8deg);}50%{transform:rotate(10deg);}}
+  .heart-beat{animation:hb 1.8s ease-in-out infinite; transform-origin:center;}
+  @keyframes hb{0%,100%{transform:scale(1);}12%{transform:scale(1.22);}24%{transform:scale(1);}}
 
   /* About strip */
   .about{margin:70px 0; padding:40px 36px; border-radius:28px; background:var(--bg2); border:1px solid var(--line);
@@ -169,12 +213,15 @@
 </style>
 </head>
 <body>
+<div class="blob b1" aria-hidden="true"></div>
+<div class="blob b2" aria-hidden="true"></div>
+<div class="blob b3" aria-hidden="true"></div>
 <div class="wrap">
 
   <header>
     <a class="logo" href="/">
       <span class="logo-mark">O</span>
-      <span class="logo-name">Ogbara Labs<small>playful apps</small></span>
+      <span class="logo-name">Ogbara Labs<small>software studio</small></span>
     </a>
     <nav>
       <a href="#apps">Apps</a>
@@ -183,11 +230,11 @@
   </header>
 
   <section class="hero">
-    <span class="eyebrow">An independent studio of joyful software</span>
-    <h1>Built for families,<br><span class="tilt">built to last</span> —<br><span class="outline">and made to be played.</span></h1>
-    <p>Ogbara Labs makes polished, installable web apps — a full maths adventure for kids,
-       a map of your whole life in months, and games made for two.
-       Free, no ads, no tracking, and everything works offline.</p>
+    <span class="eyebrow">A studio of joyful software</span>
+    <h1>Apps for <span class="tilt">families</span>,<br>learning,<br><span class="outline">and real life.</span></h1>
+    <p>Ogbara Labs designs and builds polished, installable web apps — a complete maths
+       curriculum for children, a map of your life in months, and games made for two.
+       Free, private, and offline-first.</p>
     <div class="cta-row">
       <a class="cta" href="https://brainytrails.ogbaralabs.xyz">Start your child's trail →</a>
       <a class="cta ghost" href="#apps">Browse all apps</a>
@@ -206,13 +253,13 @@
   </div>
 
   <section class="apps" id="apps">
-    <h2>The apps</h2>
-    <p class="sub">Grouped by what they're for. Tap to open — add to your home screen and it's yours, even offline.</p>
+    <h2 class="reveal">What we build</h2>
+    <p class="sub reveal">Three families of products. Open in any browser, install to your home screen, use offline.</p>
 
-    <div class="group-label"><h3>🧒 For kids</h3><small>learning that feels like playing</small></div>
+    <div class="group-label reveal"><h3>🧒 For kids</h3><small>learning through play</small></div>
     <div class="grid">
 
-      <a class="app-card featured" style="--ac:var(--violet)" href="https://brainytrails.ogbaralabs.xyz">
+      <a class="app-card featured reveal" style="--ac:var(--violet)" href="https://brainytrails.ogbaralabs.xyz">
         <div class="card-body">
           <span class="app-emoji">🧠</span>
           <h3>Brainy Trails</h3>
@@ -223,21 +270,21 @@
           </div>
           <span class="domain">brainytrails.ogbaralabs.xyz</span>
         </div>
-        <svg class="mini-map" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <ellipse cx="70" cy="180" rx="58" ry="36" fill="rgba(143,227,176,.16)" stroke="rgba(143,227,176,.5)" stroke-width="1.5"/>
           <ellipse cx="185" cy="105" rx="62" ry="38" fill="rgba(183,154,255,.16)" stroke="rgba(183,154,255,.55)" stroke-width="1.5"/>
           <ellipse cx="300" cy="52" rx="50" ry="32" fill="rgba(255,179,138,.14)" stroke="rgba(255,179,138,.5)" stroke-width="1.5"/>
-          <path d="M40 192 C 90 200, 110 160, 150 130 S 220 95, 250 80 S 290 60, 315 48"
+          <path class="trail-dash" d="M40 192 C 90 200, 110 160, 150 130 S 220 95, 250 80 S 290 60, 315 48"
                 fill="none" stroke="rgba(244,241,230,.45)" stroke-width="2.5" stroke-dasharray="1 8" stroke-linecap="round"/>
           <g font-size="11" text-anchor="middle">
-            <circle cx="40" cy="192" r="8" fill="#fbbf24"/><text x="40" y="172" font-size="12">⭐</text>
-            <circle cx="84" cy="182" r="8" fill="#fbbf24"/><text x="84" y="162" font-size="12">⭐</text>
-            <circle cx="128" cy="148" r="8" fill="#fbbf24"/><text x="128" y="128" font-size="12">⭐</text>
+            <circle cx="40" cy="192" r="8" fill="#fbbf24"/><text class="twinkle" x="40" y="172" font-size="12">⭐</text>
+            <circle cx="84" cy="182" r="8" fill="#fbbf24"/><text class="twinkle t2" x="84" y="162" font-size="12">⭐</text>
+            <circle cx="128" cy="148" r="8" fill="#fbbf24"/><text class="twinkle t3" x="128" y="128" font-size="12">⭐</text>
             <circle cx="172" cy="118" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
             <circle cx="216" cy="96" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
             <circle cx="258" cy="78" r="8" fill="none" stroke="rgba(168,184,168,.6)" stroke-width="2"/>
-            <text x="216" y="80" font-size="15">📍</text>
-            <text x="315" y="54" font-size="17">👑</text>
+            <text class="pin-bob" x="216" y="80" font-size="15">📍</text>
+            <text class="crown-pulse" x="315" y="54" font-size="17">👑</text>
             <text x="70" y="222" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Sprout Meadow</text>
             <text x="185" y="152" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Number Bridge</text>
             <text x="300" y="92" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Boss island</text>
@@ -245,59 +292,127 @@
         </svg>
       </a>
 
-      <a class="app-card" style="--ac:var(--lime)" href="https://howmany.ogbaralabs.xyz">
-        <span class="app-emoji">🦁</span>
-        <h3>How Many?</h3>
-        <p>A jungle of learning games for little kids — counting, words and memory, with stars, stickers and VIP levels to earn and keep.</p>
-        <div class="app-meta">
-          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Ages 2–5</span></span>
-          <span class="go">Play now →</span>
+      <a class="app-card featured reveal" style="--ac:var(--lime)" href="https://howmany.ogbaralabs.xyz">
+        <div class="card-body">
+          <span class="app-emoji">🦁</span>
+          <h3>How Many?</h3>
+          <p>A jungle of learning games for early years — counting, first words and memory. Stars, stickers and VIP levels reward every win, and short rounds suit short attention spans.</p>
+          <div class="app-meta">
+            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Ages 2–5</span></span>
+            <span class="go">Play now →</span>
+          </div>
+          <span class="domain">howmany.ogbaralabs.xyz</span>
         </div>
-        <span class="domain">howmany.ogbaralabs.xyz</span>
+        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <text x="36" y="84" font-size="52">🦁</text>
+          <g>
+            <circle cx="170" cy="66" r="22" fill="rgba(255,179,138,.25)" stroke="#ffb38a" stroke-width="2"/><text x="170" y="74" font-size="22" text-anchor="middle">🥭</text>
+            <circle cx="228" cy="66" r="22" fill="rgba(255,179,138,.25)" stroke="#ffb38a" stroke-width="2"/><text x="228" y="74" font-size="22" text-anchor="middle">🥭</text>
+            <circle cx="286" cy="66" r="22" fill="rgba(255,179,138,.25)" stroke="#ffb38a" stroke-width="2"/><text x="286" y="74" font-size="22" text-anchor="middle">🥭</text>
+          </g>
+          <rect x="92" y="120" rx="16" width="200" height="44" fill="rgba(205,244,99,.12)" stroke="rgba(205,244,99,.5)" stroke-width="1.5"/>
+          <text x="192" y="148" font-size="16" font-weight="bold" text-anchor="middle" fill="#f4f1e6" font-family="sans-serif">How many? → 3</text>
+          <text class="twinkle" x="120" y="200" font-size="18">⭐</text>
+          <text class="twinkle t2" x="180" y="206" font-size="18">⭐</text>
+          <text class="twinkle t3" x="240" y="200" font-size="18">⭐</text>
+        </svg>
       </a>
     </div>
 
-    <div class="group-label"><h3>🌱 For life</h3><small>quiet tools for the long view</small></div>
+    <div class="group-label reveal"><h3>🌱 For life</h3><small>quiet tools for the long view</small></div>
     <div class="grid">
-      <a class="app-card" style="--ac:var(--sky)" href="https://lifegrid.ogbaralabs.xyz">
-        <span class="app-emoji">🗓️</span>
-        <h3>Life Grid</h3>
-        <p>Your whole life, one month per cell. 90 years of memories — notes, tags, milestones and photos in one quiet map, synced safely across your devices.</p>
-        <div class="app-meta">
-          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
-          <span class="go">Open your grid →</span>
+      <a class="app-card featured reveal" style="--ac:var(--sky)" href="https://lifegrid.ogbaralabs.xyz">
+        <div class="card-body">
+          <span class="app-emoji">🗓️</span>
+          <h3>Life Grid</h3>
+          <p>Your whole life, one month per cell. Ninety years of memories — notes, tags, milestones and photos in one quiet map, backed up safely across your devices. A place to reflect, not to scroll.</p>
+          <div class="app-meta">
+            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
+            <span class="go">Open your grid →</span>
+          </div>
+          <span class="domain">lifegrid.ogbaralabs.xyz</span>
         </div>
-        <span class="domain">lifegrid.ogbaralabs.xyz</span>
+        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <pattern id="cells" width="24" height="24" patternUnits="userSpaceOnUse">
+              <rect x="2" y="2" width="18" height="18" rx="4" fill="rgba(154,215,255,.10)" stroke="rgba(154,215,255,.30)" stroke-width="1"/>
+            </pattern>
+            <pattern id="cellsLived" width="24" height="24" patternUnits="userSpaceOnUse">
+              <rect x="2" y="2" width="18" height="18" rx="4" fill="rgba(154,215,255,.45)"/>
+            </pattern>
+          </defs>
+          <rect x="36" y="30" width="288" height="144" fill="url(#cells)"/>
+          <rect x="36" y="30" width="288" height="48" fill="url(#cellsLived)"/>
+          <rect x="36" y="78" width="120" height="24" fill="url(#cellsLived)"/>
+          <text class="pin-bob" x="158" y="98" font-size="17">📷</text>
+          <text x="180" y="206" font-size="12" fill="rgba(168,184,168,.9)" font-family="sans-serif" text-anchor="middle">1,080 months · one quiet map</text>
+        </svg>
       </a>
     </div>
 
-    <div class="group-label"><h3>🎲 For game night</h3><small>boards made for the couch</small></div>
+    <div class="group-label reveal"><h3>🎲 For game night</h3><small>boards built for the couch</small></div>
     <div class="grid">
-      <a class="app-card" style="--ac:var(--rose)" href="https://couples.ogbaralabs.xyz">
-        <span class="app-emoji">💞</span>
-        <h3>Couples Snakes &amp; Ladders</h3>
-        <p>The classic board, remade for two. Avatars, prompts along the way, and a final question waiting at square 100.</p>
-        <div class="app-meta">
-          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
-          <span class="go">Play now →</span>
+      <a class="app-card featured reveal" style="--ac:var(--rose)" href="https://couples.ogbaralabs.xyz">
+        <div class="card-body">
+          <span class="app-emoji">💞</span>
+          <h3>Couples Snakes &amp; Ladders</h3>
+          <p>The classic board, remade for two. Avatars, conversation prompts along the way, and one final question waiting at square 100. Always tasteful.</p>
+          <div class="app-meta">
+            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
+            <span class="go">Play now →</span>
+          </div>
+          <span class="domain">couples.ogbaralabs.xyz</span>
         </div>
-        <span class="domain">couples.ogbaralabs.xyz</span>
+        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <pattern id="board1" width="36" height="36" patternUnits="userSpaceOnUse">
+              <rect x="2" y="2" width="32" height="32" rx="6" fill="rgba(255,163,194,.08)" stroke="rgba(255,163,194,.28)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect x="60" y="26" width="240" height="148" fill="url(#board1)"/>
+          <path d="M96 160 C 130 120, 160 150, 196 96 S 240 70, 262 48" fill="none" stroke="#8fe3b0" stroke-width="6" stroke-linecap="round" opacity=".8"/>
+          <g stroke="#ffb38a" stroke-width="4" stroke-linecap="round" opacity=".85">
+            <line x1="118" y1="44" x2="118" y2="118"/><line x1="142" y1="44" x2="142" y2="118"/>
+            <line x1="118" y1="60" x2="142" y2="60"/><line x1="118" y1="84" x2="142" y2="84"/><line x1="118" y1="106" x2="142" y2="106"/>
+          </g>
+          <text class="heart-beat" x="252" y="60" font-size="22">💞</text>
+          <rect x="84" y="186" rx="14" width="192" height="34" fill="rgba(255,163,194,.12)" stroke="rgba(255,163,194,.45)" stroke-width="1.5"/>
+          <text x="180" y="208" font-size="12.5" text-anchor="middle" fill="#f4f1e6" font-family="sans-serif">A question waits at square 100…</text>
+        </svg>
       </a>
 
-      <a class="app-card" style="--ac:var(--peach)" href="https://supersnakes.ogbaralabs.xyz">
-        <span class="app-emoji">🐍</span>
-        <h3>Super Snakes</h3>
-        <p>Snakes &amp; ladders with the dial turned up. Wild boards, bigger slides, faster climbs.</p>
-        <div class="app-meta">
-          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Everyone</span></span>
-          <span class="go">Play now →</span>
+      <a class="app-card featured reveal" style="--ac:var(--peach)" href="https://supersnakes.ogbaralabs.xyz">
+        <div class="card-body">
+          <span class="app-emoji">🐍</span>
+          <h3>Super Snakes</h3>
+          <p>Snakes &amp; ladders with the dial turned up — wild boards, bigger slides, faster climbs. Quick rounds for the whole household.</p>
+          <div class="app-meta">
+            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Everyone</span></span>
+            <span class="go">Play now →</span>
+          </div>
+          <span class="domain">supersnakes.ogbaralabs.xyz</span>
         </div>
-        <span class="domain">supersnakes.ogbaralabs.xyz</span>
+        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <pattern id="board2" width="36" height="36" patternUnits="userSpaceOnUse">
+              <rect x="2" y="2" width="32" height="32" rx="6" fill="rgba(255,179,138,.08)" stroke="rgba(255,179,138,.3)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect x="60" y="26" width="240" height="148" fill="url(#board2)"/>
+          <path d="M84 48 C 150 70, 130 120, 200 130 S 280 110, 286 156" fill="none" stroke="#ffa3c2" stroke-width="9" stroke-linecap="round" opacity=".85"/>
+          <circle cx="84" cy="48" r="9" fill="#ffa3c2"/>
+          <text class="dice-roll" x="300" y="62" font-size="26">🎲</text>
+          <g stroke="#9ad7ff" stroke-width="4" stroke-linecap="round" opacity=".85">
+            <line x1="232" y1="52" x2="232" y2="110"/><line x1="254" y1="52" x2="254" y2="110"/>
+            <line x1="232" y1="68" x2="254" y2="68"/><line x1="232" y1="92" x2="254" y2="92"/>
+          </g>
+          <text x="180" y="208" font-size="12.5" text-anchor="middle" fill="rgba(168,184,168,.95)" font-family="sans-serif">Bigger slides. Faster climbs.</text>
+        </svg>
       </a>
     </div>
   </section>
 
-  <section class="about" id="about">
+  <section class="about reveal" id="about">
     <div>
       <h2>Why "Labs"?</h2>
       <p>Because everything here <em>starts</em> as an experiment — and the good ones don't stay that way.
@@ -310,16 +425,47 @@
       <div class="point"><span class="dot">📲</span><span><b>Real PWAs.</b> Install to your home screen from the browser.</span></div>
       <div class="point"><span class="dot">✈️</span><span><b>Offline first.</b> Once loaded, they work without internet.</span></div>
       <div class="point"><span class="dot">☁️</span><span><b>Sync when you want.</b> One free account backs up progress across all apps and devices.</span></div>
-      <div class="point"><span class="dot">👧👦</span><span><b>Made for siblings.</b> Up to four children per family — each with their own trail, streak and badges.</span></div>
     </div>
   </section>
 
-  <footer>
+  <footer class="reveal">
     <p>© <span id="yr"></span> Ogbara Labs</p>
     <p><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="mailto:hello@ogbaralabs.xyz">Say hello</a> · Made with <span class="heart">❤</span> in Melbourne</p>
   </footer>
 
 </div>
-<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+<script>
+document.getElementById("yr").textContent = new Date().getFullYear();
+(() => {
+  const fancy = matchMedia("(prefers-reduced-motion: no-preference)").matches;
+  /* scroll reveals, staggered within each grid */
+  const els = document.querySelectorAll(".reveal");
+  if (!fancy || !("IntersectionObserver" in window)) { els.forEach(e => e.classList.add("in")); return tilt(); }
+  document.querySelectorAll(".grid").forEach(g =>
+    Array.from(g.children).forEach((c, i) => c.style.setProperty("--d", (i * 0.12) + "s")));
+  const io = new IntersectionObserver(entries => entries.forEach(en => {
+    if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+  }), { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+  els.forEach(e => io.observe(e));
+  tilt();
+  /* pointer tilt on cards (fine pointers only) */
+  function tilt() {
+    if (!fancy || !matchMedia("(pointer: fine)").matches) return;
+    document.querySelectorAll(".app-card").forEach(card => {
+      card.addEventListener("pointermove", (e) => {
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width - 0.5;
+        const py = (e.clientY - r.top) / r.height - 0.5;
+        card.style.setProperty("--ry", (px * 5) + "deg");
+        card.style.setProperty("--rx", (py * -4) + "deg");
+      });
+      card.addEventListener("pointerleave", () => {
+        card.style.setProperty("--ry", "0deg");
+        card.style.setProperty("--rx", "0deg");
+      });
+    });
+  }
+})();
+</script>
 </body>
 </html>
