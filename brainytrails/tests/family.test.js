@@ -75,9 +75,13 @@ module.exports = async function (t) {
   for (let i = 0; i < 4; i++) { BTApp.submit(true, ""); await sleep(60); }
   await sleep(1400);   // FAST lightning timer = 1200ms
   t("timer expiry records the best score", !BTApp.sess() && S().profiles.default.lightningBest === 4);
-  let again = null;
-  walk(h.ids["overlay"], e => { if (e.tag === "button" && String(e._inner || "").includes("Go again")) again = e; });
+  let again = null, bestShown = false;
+  walk(h.ids["overlay"], e => {
+    if (e.tag === "button" && String(e._inner || "").includes("Go again")) again = e;
+    if (String(e._inner || "").includes("Best score")) bestShown = true;
+  });
   t("result offers an immediate rematch", !!again);
+  t("round-end announces the best score before dismissing", bestShown);
   h.ids["overlay"].children.length = 0;
   document.body.classList.remove("in-play");
   BTApp.exitPlay();

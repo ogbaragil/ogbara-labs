@@ -60,7 +60,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "17";
+const APP_V = "18";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -675,7 +675,7 @@ function renderMap(scrollToHere) {
     if (lightningPool().length >= 5) {
       lb.hidden = false;
       const best = P().lightningBest || 0;
-      lb.innerHTML = `<span class="bolt">⚡</span><span class="best">${best ? "Best " + best : "Go!"}</span>`;
+      lb.innerHTML = `${best ? `<span class="best">${best}</span>` : ""}<span class="bolt">⚡</span>`;
       lb.setAttribute("aria-label", best ? `Lightning Round — best ${best}` : "Lightning Round");
       lb.onclick = () => strikeLightning(() => startLightning());
     } else lb.hidden = true;
@@ -764,8 +764,10 @@ function finishLightning() {
   save();
   const ex = setExtras(lvFrom);
   const back = el("div", "modal-back"), box = el("div", "modal result");
-  box.innerHTML = `<p class="result-head">⚡</p><h2>${record ? "NEW RECORD!" : "Time's up!"}</h2>
-    <p class="sheet-acc">You answered <b>${correct}</b> in 60 seconds${record ? "" : ` — your best is <b>${prevBest}</b>`}.</p>
+  const best = P().lightningBest || 0;
+  box.innerHTML = `<p class="result-head">⚡</p><h2>${record ? "NEW BEST SCORE!" : "Time's up!"}</h2>
+    <p class="sheet-acc">You answered <b>${correct}</b> in 60 seconds.</p>
+    <p class="result-best">🏆 Best score: <b>${best}</b></p>
     <p class="result-xp">+${xpGain} XP ⭐</p>${ex.html}`;
   if ((record || ex.pop) && !matchMediaSafe()) confetti();
   const again = el("button", "gold-btn", "⚡ Go again!");
@@ -774,7 +776,7 @@ function finishLightning() {
   map.onclick = () => { back.remove(); exitPlay(); };
   box.append(again, map); back.appendChild(box);
   $("overlay").appendChild(back);
-  say(record ? `New record! ${correct} in sixty seconds!` : `Time's up! ${correct} answers!`);
+  say(record ? `New best score! ${correct}! Your best is now ${best}.` : `Time's up! You scored ${correct}. Your best is ${best}.`);
 }
 
 function finishDaily() {

@@ -185,14 +185,18 @@
     25%{transform:scale(1.08,.95) translateY(-1px);}50%{transform:scale(.94,1.08) translateY(-2px);}
     75%{transform:scale(1.05,.98) translateY(-1px);}}
 
-  /* lightning round: small bolt pill with best-score subtext */
-  #lightningBtn{display:flex; align-items:center; gap:6px; height:44px; padding:0 14px 0 11px; border-radius:999px;
-    background:linear-gradient(160deg,#efe9ff,#ded1ff); border:1.5px solid var(--violet2); color:#3b2a72;
-    box-shadow:0 6px 16px rgba(124,77,255,.22); white-space:nowrap;}
-  #lightningBtn .bolt{font-size:21px; line-height:1; animation:boltIdle 3.2s ease-in-out infinite;}
-  #lightningBtn .best{font-size:12px; font-weight:900; color:var(--violet);}
-  #lightningBtn:active{transform:scale(.95);}
-  @keyframes boltIdle{0%,90%,100%{transform:rotate(0) scale(1);}93%{transform:rotate(-8deg) scale(1.15);}96%{transform:rotate(8deg) scale(1.1);}}
+  /* lightning round: round animated bolt (like the fire) with a tiny score beside it */
+  #lightningBtn{display:flex; align-items:center; gap:4px; background:none; border:none; padding:0; height:46px;}
+  #lightningBtn .bolt{font-size:30px; line-height:1; display:block; transform-origin:50% 50%;
+    filter:drop-shadow(0 0 5px rgba(124,77,255,.55)); animation:boltZap 2.6s ease-in-out infinite;}
+  #lightningBtn .best{font-size:11px; font-weight:900; color:var(--violet); opacity:.85; line-height:1;}
+  #lightningBtn:active .bolt{transform:scale(.9);}
+  @keyframes boltZap{
+    0%,84%,100%{transform:scale(1) rotate(0); filter:drop-shadow(0 0 5px rgba(124,77,255,.45));}
+    87%{transform:scale(1.28) rotate(-11deg); filter:drop-shadow(0 0 11px rgba(124,77,255,.95));}
+    90%{transform:scale(1.12) rotate(10deg); filter:drop-shadow(0 0 4px rgba(124,77,255,.6));}
+    93%{transform:scale(1.2) rotate(-6deg); filter:drop-shadow(0 0 9px rgba(124,77,255,.9));}
+    96%{transform:scale(1.06) rotate(3deg);}}
 
   /* music toggle */
   #musicBtn{width:44px; height:44px; border-radius:50%; background:var(--panel); border:1.5px solid var(--line);
@@ -399,6 +403,8 @@
 
   .result-head{font-size:32px; font-weight:900; letter-spacing:2px;}
   .result-xp{margin-top:10px; font-size:17px; font-weight:900; color:var(--sun);}
+  .result-best{margin-top:10px; display:inline-block; padding:8px 16px; border-radius:999px; font-size:15px; font-weight:900;
+    color:#7c3e02; background:linear-gradient(160deg,#fbbf24,#fde68a); border:1.5px solid var(--gold);}
 
   .help-fab{position:fixed; right:14px; bottom:calc(88px + env(safe-area-inset-bottom)); z-index:31;
     width:44px; height:44px; border-radius:50%; background:var(--panel); border:1.5px solid var(--line);
@@ -466,10 +472,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=24"></script>
+<script src="curriculum.js?v=25"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=24"></script>
-<script src="app.js?v=24"></script>
+<script src="cloud.js?v=25"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>
