@@ -5,7 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#101c16">
 <title>Ogbara Labs — playful apps for real life</title>
-<meta name="description" content="Ogbara Labs builds small, joyful web apps: learning games for kids, a life-in-months journal, and board games for two.">
+<meta name="description" content="Ogbara Labs builds polished, installable web apps for families: a full maths adventure for kids, a life-in-months journal, and games for two. Free, no ads, no tracking, works offline.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ogbara Labs">
+<meta property="og:title" content="Ogbara Labs — built for families, built to last">
+<meta property="og:description" content="A maths mastery adventure for kids (with a voice that reads every question aloud), a map of your life in months, and games for two. Free, no ads, works offline.">
+<meta property="og:url" content="https://ogbaralabs.xyz/">
+<meta property="og:image" content="https://ogbaralabs.xyz/icons/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ogbara Labs — built for families, built to last">
+<meta name="twitter:description" content="Maths adventures for kids · a life in months · games for two. Free, no ads, works offline.">
+<meta name="twitter:image" content="https://ogbaralabs.xyz/icons/og-card.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -102,11 +114,32 @@
   .app-meta{display:flex; justify-content:space-between; align-items:center; margin-top:14px;}
   .pill{font-size:11.5px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; padding:5px 12px; border-radius:999px;}
   .pill.live{background:rgba(205,244,99,.14); color:var(--lime); border:1px solid rgba(205,244,99,.4);}
-  .pill.soon{background:rgba(168,184,168,.1); color:var(--muted); border:1px solid var(--line);}
+  .pill.flag{background:rgba(183,154,255,.16); color:var(--violet); border:1px solid rgba(183,154,255,.5);}
+  .pill.age{background:rgba(168,184,168,.1); color:var(--muted); border:1px solid var(--line); letter-spacing:.8px; text-transform:none;}
   .go{font-family:var(--display); font-weight:600; font-size:14px; color:var(--ac); transition:transform .2s; display:inline-block;}
   .app-card:hover .go{transform:translateX(4px);}
-  .app-card.disabled{pointer-events:none; opacity:.62;}
   .domain{font-size:12.5px; color:var(--muted); opacity:.75; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+  .meta-left{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+
+  .cta-row{display:flex; gap:14px; margin-top:30px; flex-wrap:wrap;}
+  .cta{font-family:var(--display); font-weight:800; font-size:16px; text-decoration:none;
+    background:var(--lime); color:#15240f; padding:15px 26px; border-radius:999px;
+    box-shadow:0 0 0 1px rgba(205,244,99,.4), 0 10px 30px rgba(205,244,99,.2);
+    transition:transform .2s, box-shadow .2s;}
+  .cta:hover{transform:translateY(-2px); box-shadow:0 0 0 1px rgba(205,244,99,.6), 0 14px 36px rgba(205,244,99,.3);}
+  .cta.ghost{background:transparent; color:var(--ink); box-shadow:0 0 0 1.5px var(--line);}
+  .cta.ghost:hover{box-shadow:0 0 0 1.5px var(--muted);}
+
+  .group-label{display:flex; align-items:baseline; gap:12px; margin:42px 0 16px; font-family:var(--display);}
+  .group-label:first-of-type{margin-top:0;}
+  .group-label h3{font-weight:800; font-size:20px; margin:0; letter-spacing:-.3px;}
+  .group-label small{color:var(--muted); font-family:var(--body); font-size:14px;}
+
+  .app-card.featured{grid-column:1/-1; display:grid; grid-template-columns:1.05fr .95fr; gap:26px; align-items:center;}
+  .featured .card-body{display:flex; flex-direction:column; gap:10px;}
+  .featured h3{font-size:28px;}
+  .mini-map{width:100%; height:auto; border-radius:18px; background:rgba(183,154,255,.06);
+    border:1px solid rgba(183,154,255,.25);}
 
   /* About strip */
   .about{margin:70px 0; padding:40px 36px; border-radius:28px; background:var(--bg2); border:1px solid var(--line);
@@ -126,6 +159,7 @@
 
   @media (max-width:760px){
     .about{grid-template-columns:1fr; padding:30px 24px;}
+    .app-card.featured{grid-template-columns:1fr;}
     nav a{margin-left:14px; font-size:14px;}
     .hero{padding:60px 0 30px;}
   }
@@ -149,69 +183,102 @@
   </header>
 
   <section class="hero">
-    <span class="eyebrow">A tiny studio of joyful software</span>
+    <span class="eyebrow">An independent studio of joyful software</span>
     <h1>Built for families,<br><span class="tilt">built to last</span> —<br><span class="outline">and made to be played.</span></h1>
     <p>Ogbara Labs makes polished, installable web apps — a full maths adventure for kids,
        a map of your whole life in months, and games made for two.
        Free, no ads, no tracking, and everything works offline.</p>
+    <div class="cta-row">
+      <a class="cta" href="https://brainytrails.ogbaralabs.xyz">Start your child's trail →</a>
+      <a class="cta ghost" href="#apps">Browse all apps</a>
+    </div>
   </section>
 
   <div class="marquee" aria-hidden="true">
     <div class="marquee-inner">
       <span>🦁 count it</span><span><em>★</em></span><span>🧠 master it</span><span><em>★</em></span>
       <span>🗓️ map your life</span><span><em>★</em></span><span>🎲 roll together</span><span><em>★</em></span>
-      <span>🐍 dodge the snakes</span><span><em>★</em></span><span>📲 installs offline</span><span><em>★</em></span>
+      <span>🐍 dodge the snakes</span><span><em>★</em></span><span>🗣 reads questions aloud</span><span><em>★</em></span><span>📲 installs offline</span><span><em>★</em></span>
       <span>🦁 count it</span><span><em>★</em></span><span>🧠 master it</span><span><em>★</em></span>
       <span>🗓️ map your life</span><span><em>★</em></span><span>🎲 roll together</span><span><em>★</em></span>
-      <span>🐍 dodge the snakes</span><span><em>★</em></span><span>📲 installs offline</span><span><em>★</em></span>
+      <span>🐍 dodge the snakes</span><span><em>★</em></span><span>🗣 reads questions aloud</span><span><em>★</em></span><span>📲 installs offline</span><span><em>★</em></span>
     </div>
   </div>
 
   <section class="apps" id="apps">
     <h2>The apps</h2>
-    <p class="sub">Five apps, each on its own corner of ogbaralabs.xyz. Tap to open — add to your home screen and it's yours, even offline.</p>
+    <p class="sub">Grouped by what they're for. Tap to open — add to your home screen and it's yours, even offline.</p>
 
+    <div class="group-label"><h3>🧒 For kids</h3><small>learning that feels like playing</small></div>
     <div class="grid">
+
+      <a class="app-card featured" style="--ac:var(--violet)" href="https://brainytrails.ogbaralabs.xyz">
+        <div class="card-body">
+          <span class="app-emoji">🧠</span>
+          <h3>Brainy Trails</h3>
+          <p>A maths mastery adventure: six islands, 58 skills, spaced reviews that keep learning strong, and friendly bosses to conquer. A studio-quality Australian voice reads every question aloud, mistakes get a patient step-by-step coach — and up to four children each get their own trail, synced to every device, with a full Parents' Corner dashboard.</p>
+          <div class="app-meta">
+            <span class="meta-left"><span class="pill flag">Flagship</span><span class="pill age">Ages 4–11</span></span>
+            <span class="go">Start exploring →</span>
+          </div>
+          <span class="domain">brainytrails.ogbaralabs.xyz</span>
+        </div>
+        <svg class="mini-map" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <ellipse cx="70" cy="180" rx="58" ry="36" fill="rgba(143,227,176,.16)" stroke="rgba(143,227,176,.5)" stroke-width="1.5"/>
+          <ellipse cx="185" cy="105" rx="62" ry="38" fill="rgba(183,154,255,.16)" stroke="rgba(183,154,255,.55)" stroke-width="1.5"/>
+          <ellipse cx="300" cy="52" rx="50" ry="32" fill="rgba(255,179,138,.14)" stroke="rgba(255,179,138,.5)" stroke-width="1.5"/>
+          <path d="M40 192 C 90 200, 110 160, 150 130 S 220 95, 250 80 S 290 60, 315 48"
+                fill="none" stroke="rgba(244,241,230,.45)" stroke-width="2.5" stroke-dasharray="1 8" stroke-linecap="round"/>
+          <g font-size="11" text-anchor="middle">
+            <circle cx="40" cy="192" r="8" fill="#fbbf24"/><text x="40" y="172" font-size="12">⭐</text>
+            <circle cx="84" cy="182" r="8" fill="#fbbf24"/><text x="84" y="162" font-size="12">⭐</text>
+            <circle cx="128" cy="148" r="8" fill="#fbbf24"/><text x="128" y="128" font-size="12">⭐</text>
+            <circle cx="172" cy="118" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
+            <circle cx="216" cy="96" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
+            <circle cx="258" cy="78" r="8" fill="none" stroke="rgba(168,184,168,.6)" stroke-width="2"/>
+            <text x="216" y="80" font-size="15">📍</text>
+            <text x="315" y="54" font-size="17">👑</text>
+            <text x="70" y="222" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Sprout Meadow</text>
+            <text x="185" y="152" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Number Bridge</text>
+            <text x="300" y="92" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Boss island</text>
+          </g>
+        </svg>
+      </a>
 
       <a class="app-card" style="--ac:var(--lime)" href="https://howmany.ogbaralabs.xyz">
         <span class="app-emoji">🦁</span>
         <h3>How Many?</h3>
         <p>A jungle of learning games for little kids — counting, words and memory, with stars, stickers and VIP levels to earn and keep.</p>
         <div class="app-meta">
-          <span class="pill live">Live</span>
+          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Ages 2–5</span></span>
           <span class="go">Play now →</span>
         </div>
         <span class="domain">howmany.ogbaralabs.xyz</span>
       </a>
+    </div>
 
-      <a class="app-card" style="--ac:var(--violet)" href="https://brainytrails.ogbaralabs.xyz">
-        <span class="app-emoji">🧠</span>
-        <h3>Brainy Trails</h3>
-        <p>A maths mastery adventure for ages 5–11: six islands, 58 skills, spaced reviews that keep learning strong, friendly bosses to conquer — and a Parents' Corner with a full progress dashboard.</p>
-        <div class="app-meta">
-          <span class="pill live">New</span>
-          <span class="go">Start exploring →</span>
-        </div>
-        <span class="domain">brainytrails.ogbaralabs.xyz</span>
-      </a>
-
+    <div class="group-label"><h3>🌱 For life</h3><small>quiet tools for the long view</small></div>
+    <div class="grid">
       <a class="app-card" style="--ac:var(--sky)" href="https://lifegrid.ogbaralabs.xyz">
         <span class="app-emoji">🗓️</span>
         <h3>Life Grid</h3>
         <p>Your whole life, one month per cell. 90 years of memories — notes, tags, milestones and photos in one quiet map, synced safely across your devices.</p>
         <div class="app-meta">
-          <span class="pill live">Live</span>
-          <span class="go">Play now →</span>
+          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
+          <span class="go">Open your grid →</span>
         </div>
         <span class="domain">lifegrid.ogbaralabs.xyz</span>
       </a>
+    </div>
 
+    <div class="group-label"><h3>🎲 For game night</h3><small>boards made for the couch</small></div>
+    <div class="grid">
       <a class="app-card" style="--ac:var(--rose)" href="https://couples.ogbaralabs.xyz">
         <span class="app-emoji">💞</span>
         <h3>Couples Snakes &amp; Ladders</h3>
         <p>The classic board, remade for two. Avatars, prompts along the way, and a final question waiting at square 100.</p>
         <div class="app-meta">
-          <span class="pill live">Live</span>
+          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
           <span class="go">Play now →</span>
         </div>
         <span class="domain">couples.ogbaralabs.xyz</span>
@@ -222,12 +289,11 @@
         <h3>Super Snakes</h3>
         <p>Snakes &amp; ladders with the dial turned up. Wild boards, bigger slides, faster climbs.</p>
         <div class="app-meta">
-          <span class="pill live">Live</span>
+          <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Everyone</span></span>
           <span class="go">Play now →</span>
         </div>
         <span class="domain">supersnakes.ogbaralabs.xyz</span>
       </a>
-
     </div>
   </section>
 
@@ -244,12 +310,13 @@
       <div class="point"><span class="dot">📲</span><span><b>Real PWAs.</b> Install to your home screen from the browser.</span></div>
       <div class="point"><span class="dot">✈️</span><span><b>Offline first.</b> Once loaded, they work without internet.</span></div>
       <div class="point"><span class="dot">☁️</span><span><b>Sync when you want.</b> One free account backs up progress across all apps and devices.</span></div>
+      <div class="point"><span class="dot">👧👦</span><span><b>Made for siblings.</b> Up to four children per family — each with their own trail, streak and badges.</span></div>
     </div>
   </section>
 
   <footer>
     <p>© <span id="yr"></span> Ogbara Labs</p>
-    <p><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · Made with <span class="heart">❤</span> in Melbourne</p>
+    <p><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="mailto:hello@ogbaralabs.xyz">Say hello</a> · Made with <span class="heart">❤</span> in Melbourne</p>
   </footer>
 
 </div>
