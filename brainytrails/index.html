@@ -173,9 +173,13 @@
     padding:9px 16px; border-radius:999px; box-shadow:0 8px 20px rgba(245,158,11,.45); white-space:nowrap;}
   header{padding-left:62px;}
 
-  /* daily campfire: small animated fire tucked under the rewards (backpack) ring */
-  #campfire{position:fixed; top:calc(70px + env(safe-area-inset-top)); right:16px; z-index:44;
-    width:46px; height:46px; display:grid; place-items:center; background:none; border:none; padding:0;}
+  /* right-side control stack, tucked under the rewards (backpack) ring */
+  #sideStack{position:fixed; top:calc(70px + env(safe-area-inset-top)); right:14px; z-index:44;
+    display:flex; flex-direction:column; align-items:flex-end; gap:10px;}
+  body.in-play #sideStack{display:none;}
+
+  /* daily campfire: small animated fire */
+  #campfire{position:relative; width:46px; height:46px; display:grid; place-items:center; background:none; border:none; padding:0;}
   #campfire .flame{font-size:30px; line-height:1; display:block; transform-origin:50% 90%;}
   #campfire .streak{position:absolute; bottom:-3px; right:-3px; min-width:17px; height:17px; padding:0 3px;
     border-radius:999px; background:var(--sun); color:#fff; font-size:10px; font-weight:900;
@@ -190,15 +194,30 @@
   @keyframes flameFlicker{0%,100%{transform:scale(1,1) translateY(0);}
     25%{transform:scale(1.08,.95) translateY(-1px);}50%{transform:scale(.94,1.08) translateY(-2px);}
     75%{transform:scale(1.05,.98) translateY(-1px);}}
-  body.in-play #campfire{display:none;}
 
-  /* music toggle — bottom-left (the cloud chip lives in Parents' Corner now) */
-  #musicBtn{position:fixed; left:12px; bottom:calc(16px + env(safe-area-inset-bottom)); z-index:31;
-    width:44px; height:44px; border-radius:50%; background:var(--panel); border:1.5px solid var(--line);
+  /* lightning round: small bolt pill with best-score subtext */
+  #lightningBtn{display:flex; align-items:center; gap:6px; height:44px; padding:0 14px 0 11px; border-radius:999px;
+    background:linear-gradient(160deg,#efe9ff,#ded1ff); border:1.5px solid var(--violet2); color:#3b2a72;
+    box-shadow:0 6px 16px rgba(124,77,255,.22); white-space:nowrap;}
+  #lightningBtn .bolt{font-size:21px; line-height:1; animation:boltIdle 3.2s ease-in-out infinite;}
+  #lightningBtn .best{font-size:12px; font-weight:900; color:var(--violet);}
+  #lightningBtn:active{transform:scale(.95);}
+  @keyframes boltIdle{0%,90%,100%{transform:rotate(0) scale(1);}93%{transform:rotate(-8deg) scale(1.15);}96%{transform:rotate(8deg) scale(1.1);}}
+
+  /* music toggle */
+  #musicBtn{width:44px; height:44px; border-radius:50%; background:var(--panel); border:1.5px solid var(--line);
     font-size:19px; display:grid; place-items:center; box-shadow:0 6px 16px rgba(46,36,86,.15);}
   #musicBtn:active{transform:scale(.92);}
   #musicBtn.off{opacity:.6;}
-  body.in-play #musicBtn{display:none;}
+
+  /* full-screen lightning strike on tap (kept to 2 gentle flashes; off for reduced motion) */
+  .bolt-flash{position:fixed; inset:0; z-index:70; pointer-events:none; overflow:hidden;}
+  .bolt-flash .sheet{position:absolute; inset:0; background:radial-gradient(circle at 50% 30%,#fff,#e7deff 70%);
+    opacity:0; animation:boltSheet .75s ease-out forwards;}
+  @keyframes boltSheet{0%{opacity:0;}10%{opacity:.9;}22%{opacity:.15;}34%{opacity:.75;}55%{opacity:0;}100%{opacity:0;}}
+  .bolt-flash svg{position:absolute; top:-3%; left:50%; transform:translateX(-50%); height:106%; width:auto;
+    filter:drop-shadow(0 0 14px rgba(124,77,255,.95)); animation:boltStrike .75s ease-out forwards;}
+  @keyframes boltStrike{0%{opacity:0;}9%{opacity:1;}30%{opacity:.85;}48%{opacity:.15;}62%{opacity:.95;}100%{opacity:0;}}
 
   /* backpack */
   .bp-title{margin-top:16px; font-size:12px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); text-align:left;}
@@ -413,8 +432,11 @@
 </head>
 <body>
 <button id="hud" aria-label="My Backpack"><span id="hudLv">1</span></button>
-<button id="campfire" hidden></button>
-<button id="musicBtn" aria-label="Music">🎶</button>
+<div id="sideStack">
+  <button id="campfire" hidden></button>
+  <button id="lightningBtn" hidden></button>
+  <button id="musicBtn" aria-label="Music">🎶</button>
+</div>
 <button id="parentsBtn" aria-label="Parents' Corner — hold to open">👨‍👩‍👧</button>
 <button id="testChip" hidden>🧪 TEST MODE — tap to exit</button>
 <nav id="islRail" aria-label="Jump to island"></nav>
@@ -456,10 +478,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=22"></script>
+<script src="curriculum.js?v=23"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="cloud.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>
