@@ -3,12 +3,12 @@
   "short_name": "Life Grid",
   "description": "Your whole life, one month per cell. Notes, milestones and photos \u2014 private, on your device.",
   "id": "/",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#11182e",
-  "theme_color": "#1c2541",
+  "background_color": "#f6f7f9",
+  "theme_color": "#f6f7f9",
   "categories": [
     "games",
     "entertainment"

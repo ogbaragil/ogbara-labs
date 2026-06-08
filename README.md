@@ -12,6 +12,7 @@ SETUP-SUPABASE.md.
 |----------------|----------------------------|-------------------------------|
 | `home/`        | Landing hub                | `ogbaralabs.xyz` (apex + www) |
 | `howmany/`     | How Many? (kids learning)  | `howmany.ogbaralabs.xyz`      |
+| `brainytrails/`| Brainy Trails (maths 5–11) | `brainytrails.ogbaralabs.xyz` |
 | `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbaralabs.xyz`     |
 | `couples/`     | Couples Snakes & Ladders   | `couples.ogbaralabs.xyz`      |
 | `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbaralabs.xyz`  |
@@ -33,7 +34,7 @@ Create **five** Pages projects, all connected to this same GitHub repo:
 
 1. Workers & Pages → Create → Pages → Connect to Git → pick this repo
 2. Framework preset: **None** · Build command: **(empty)** · Build output directory: **/**
-3. **Root directory (advanced)**: set per project → `home`, `howmany`, `lifegrid`, `couples`, `supersnakes`
+3. **Root directory (advanced)**: set per project → `home`, `howmany`, `brainytrails`, `lifegrid`, `couples`, `supersnakes`
 4. Save & Deploy
 5. In each project → **Custom domains** → add its subdomain (the `home` project
    gets `ogbaralabs.xyz` and `www.ogbaralabs.xyz`)
@@ -47,6 +48,39 @@ the apps that changed.
 Edit, commit, push — Cloudflare redeploys automatically. When you ship changes,
 bump the cache version in that app's `sw.js` (e.g. `supersnakes-v1` → `-v2`)
 so installed users pick up the new version promptly.
+
+## Premium voice (optional, free)
+
+Brainy Trails can speak with a studio-quality Australian voice (Google Cloud TTS)
+proxied through a tiny Cloudflare Worker so the API key never reaches clients.
+Setup takes ~10 minutes — full steps in `tts-worker/README.md`. Once deployed,
+set `window.TTS_PROXY` in `brainytrails/supabase-config.js` and release as usual.
+Leave it `""` and the app simply uses the best installed device voice.
+
+## Releasing a Brainy Trails update
+
+Version skew between the shell and scripts blanks the map on stale caches, so every release bumps **three places together**:
+1. `brainytrails/sw.js` → `CACHE = "brainytrails-vN"`
+2. `brainytrails/sw.js` → the `?v=N` query strings in `ASSETS`
+3. `brainytrails/index.html` → the matching `?v=N` on `curriculum.js`, `cloud.js`, `app.js`
+
+Run the regression suite before pushing — all suites must pass (generator contract, prerequisite graph, mastery engine, UI):
+
+```
+cd brainytrails && node tests/run-all.js
+```
+
+After deploying, load the site once in a browser so the new service worker takes over.
+
+**Manual smoke checklist** (the headless suite can't see CSS/layout — these five caught every real-device bug so far):
+1. Map renders all six islands; 📍 marker bounces on the frontier.
+2. Start a practice set: answers sit in the bottom dock; tapped buttons flash/shake.
+3. Tap the 👨‍👩‍👧 button: gate asks for year of birth; a child year shows only "pass the device to a grown-up".
+4. Premium voice sample speaks within ~1 s (signed in, proxy configured).
+5. With 2+ children: "Who's playing?" appears at startup and switching keeps progress separate.
+
+Also set a **Google Cloud budget alert** (Billing → Budgets, e.g. $1) so a TTS quota surprise emails you before it bills you.
+Developer testing: Parents' Corner (hold the 👨‍👩‍👧 button 3 s) → "🧪 Test mode" unlocks every skill and boss in a throwaway sandbox profile that never syncs and resets on each entry.
 
 ## Cloud sync (optional)
 

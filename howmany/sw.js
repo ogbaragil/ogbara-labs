@@ -1,10 +1,10 @@
 /* How Many? PWA service worker — precache the whole app for offline play */
-const CACHE = "howmany-v8";
+const CACHE = "howmany-v12";
 const ASSETS = [
   "./",
-  "./index.html",
   "./app.js",
   "./jungle_intro.mp3",
+  "./kids-happy-music.mp3",
   "./manifest.webmanifest","./supabase-config.js","./cloud.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -32,16 +32,33 @@ self.addEventListener("fetch", (e) => {
   const { request } = e;
   if (request.method !== "GET") return;
   if (new URL(request.url).origin !== self.location.origin) return;
+  // Navigations serve the cached "./" shell — a cached /index.html response is a
+  // 308 redirect on Cloudflare Pages, and redirected responses from a service
+  // worker hard-fail navigations (ERR_FAILED).
+  if (request.mode === "navigate") {
+    e.respondWith(
+      caches.match("./").then((hit) => hit || fetch("./").then((res) => {
+        if (res.ok && !res.redirected) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put("./", copy)).catch(() => {});
+        }
+        return res;
+      }))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(request).then((hit) => {
       if (hit) return hit;
       return fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          if (res.ok && !res.redirected) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          }
           return res;
         })
-        .catch(() => caches.match("./index.html"));
+        .catch(() => caches.match("./"));
     })
   );
 });

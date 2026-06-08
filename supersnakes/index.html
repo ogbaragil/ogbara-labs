@@ -26,7 +26,7 @@
   body{margin:0; font-family:var(--body); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column; user-select:none;
        background:radial-gradient(800px 460px at 85% -8%, rgba(255,211,92,.12), transparent 55%),
                   radial-gradient(720px 520px at -8% 60%, rgba(127,209,247,.1), transparent 55%), var(--bg);
-       padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+       padding-top:env(safe-area-inset-top); padding-bottom:calc(168px + env(safe-area-inset-bottom));}
   button,input{font-family:inherit;} button{cursor:pointer; border:none;}
   .wrap{flex:1; width:100%; max-width:1000px; margin:0 auto; padding:14px 14px 18px; display:flex; flex-direction:column; gap:12px;}
 
@@ -36,71 +36,104 @@
   .icon-btns{display:flex; gap:8px;}
   .icon-btn{width:40px; height:40px; border-radius:13px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:17px; display:grid; place-items:center;}
 
-  .layout{flex:1; display:flex; flex-direction:column; gap:12px; min-height:0;}
-  @media(min-width:880px){ .layout{flex-direction:row; align-items:flex-start;} .board-pane{flex:1.4;} .side-pane{flex:1; position:sticky; top:14px;} }
+  .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
 
-  /* Board */
-  .board-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:12px;}
-  .board{position:relative; width:100%; max-width:560px; margin:0 auto; aspect-ratio:1; border-radius:14px; overflow:hidden;
-         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr); border:3px solid #0a3528;}
+  /* Board — the hero. */
+  .board{position:relative; width:100%; max-width:min(94vw, calc(100dvh - 290px)); margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
+         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
+         box-shadow:0 18px 44px rgba(5,25,18,.55), inset 0 0 0 1px rgba(10,53,40,.4);}
   .tile{position:relative;}
   .tile:nth-child(odd){background:var(--board-a);} .tile:nth-child(even){background:var(--board-b);}
   .tile .num{position:absolute; top:2px; left:3px; font-size:clamp(7px,1.6vw,10px); font-weight:800; color:var(--num); line-height:1;}
   .tile .mark{position:absolute; bottom:1px; right:2px; font-size:clamp(10px,2.4vw,14px); line-height:1;}
-  .tile .dest{position:absolute; bottom:1px; left:3px; font-size:clamp(6px,1.4vw,9px); font-weight:800; line-height:1;}
-  .tile.ladder{background:#e3f6e6;} .tile.ladder .dest{color:#15803d;}
-  .tile.snake{background:#fde5e0;} .tile.snake .dest{color:#b91c1c;}
-  .tile.quest{background:#fff3cf;}
+  .tile .dest{position:absolute; bottom:2px; left:2px; font-size:clamp(6px,1.3vw,8.5px); font-weight:800; line-height:1;
+              background:rgba(255,255,255,.88); border-radius:6px; padding:1px 3px;}
+  .tile.ladder{background:#eefaf0;} .tile .dest.up{color:#15803d;}
+  .tile.snake{background:#fdf0ec;} .tile .dest.down{color:#c2410c;}
+  .tile.quest{background:#fff8e0;}
+  .tile.quest .mark{animation:twinkle 2.4s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{transform:scale(1) rotate(0deg); opacity:.85;}50%{transform:scale(1.3) rotate(12deg); opacity:1;}}
   .tile.t100{background:linear-gradient(135deg,#ffe9a8,#ffd35c);}
-  .tile.hl{outline:3px solid var(--sky); outline-offset:-3px; z-index:1;}
+  .tile.hl{z-index:1; animation:hlPulse 1.5s ease-in-out infinite;}
+  @keyframes hlPulse{0%,100%{box-shadow:inset 0 0 0 3px var(--sky);}50%{box-shadow:inset 0 0 0 5px rgba(127,209,247,.55);}}
   svg.art{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+
   .pawn{position:absolute; width:9%; aspect-ratio:1; border-radius:50%; display:grid; place-items:center; z-index:5; overflow:hidden;
-        font-size:clamp(11px,2.8vw,17px); transition:left .12s linear, top .12s linear, transform .12s; border:2.5px solid; background:#fff;
+        font-size:clamp(11px,2.8vw,17px); transition:left .12s linear, top .12s linear; border:2.5px solid; background:#fff;
         box-shadow:0 3px 8px rgba(10,40,30,.4);}
   .pawn img{width:100%; height:100%; object-fit:cover;}
   .pawn.active{box-shadow:0 0 0 3px rgba(255,211,92,.7), 0 3px 8px rgba(10,40,30,.45); z-index:6;}
-  .pawn.hop{transform:scale(1.2);}
+  .pawn.hop{animation:hopArc .15s ease-out;}
+  @keyframes hopArc{0%{margin-top:0; scale:1;}45%{margin-top:-2.6%; scale:1.15;}100%{margin-top:0; scale:1;}}
+  .pawn.climb{box-shadow:0 0 0 4px rgba(255,211,92,.9), 0 0 18px rgba(255,211,92,.85); animation:climbPulse .35s ease-in-out infinite;}
+  @keyframes climbPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+  .pawn.slide{animation:slideShake .18s linear infinite; filter:saturate(1.6) hue-rotate(-14deg);}
+  @keyframes slideShake{0%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}100%{transform:rotate(-7deg)}}
+  .pawn.dance{animation:dance .55s ease-in-out infinite;}
+  @keyframes dance{0%,100%{transform:translateY(0) rotate(-8deg);}50%{transform:translateY(-18%) rotate(8deg);}}
 
-  /* Side: turn + dice + roster */
-  .side-pane{display:flex; flex-direction:column; gap:12px;}
-  .turn-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px;}
-  .turn-label{font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:800; margin:0 0 8px;}
-  .turn-row{display:flex; align-items:center; gap:12px;}
-  .turn-face{width:54px; height:54px; border-radius:50%; border:3px solid var(--sun); background:#fff; display:grid; place-items:center; font-size:28px; overflow:hidden; flex:none;}
-  .turn-face img{width:100%;height:100%;object-fit:cover;}
-  .turn-name{font-family:var(--display); font-weight:800; font-size:26px; margin:0;}
-  .powerups{display:flex; gap:6px; margin-top:4px; min-height:22px;}
-  .pw{font-size:11px; font-weight:800; background:rgba(255,211,92,.16); color:var(--sun); border:1px solid rgba(255,211,92,.4); border-radius:999px; padding:3px 9px;}
-  .status{margin:12px 0 0; color:var(--muted); font-size:14px; line-height:1.5; min-height:42px;}
+  /* Fixed dock: ticker, four chips beside the die. The die IS the button. */
+  .dock{position:fixed; left:0; right:0; bottom:0; z-index:40;
+        background:rgba(11,60,46,.95); backdrop-filter:blur(10px);
+        border-top:1px solid var(--line);
+        padding:10px 14px calc(12px + env(safe-area-inset-bottom));}
+  .dock-inner{max-width:min(94vw, calc(100dvh - 290px)); margin:0 auto;}
+  .status{margin:0 0 8px; color:var(--muted); font-size:12.5px; line-height:1.45; min-height:36px; text-align:center;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .dock-row{display:flex; align-items:center; gap:12px;}
+  .chip-grid{flex:1; min-width:0; display:grid; grid-template-columns:repeat(2,1fr); gap:7px;}
+  .rchip{display:flex; align-items:center; gap:7px; background:var(--panel2); border-radius:13px; padding:6px 8px; border:1.5px solid transparent;}
+  .rchip.active{border-color:var(--sun); box-shadow:0 0 12px rgba(255,211,92,.25);}
+  .rchip .face{width:26px; height:26px; border-radius:50%; border:2px solid var(--mint); background:#fff; display:grid; place-items:center; font-size:13px; overflow:hidden; flex:none;}
+  .rchip .face img{width:100%;height:100%;object-fit:cover;}
+  .rmeta{min-width:0; flex:1;}
+  .rmeta b{display:block; font-size:11.5px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rmeta .pwico{font-size:9px; margin-left:3px;}
+  .bar{display:block; height:4px; border-radius:999px; background:rgba(242,251,244,.16); margin-top:4px; overflow:hidden;}
+  .bar .fill{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--sun),var(--coral)); transition:width .25s ease;}
 
-  .dice-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px; text-align:center;}
-  .die-btn{width:96px; height:96px; margin:0 auto 12px; background:#fff; border-radius:22px; display:grid; place-items:center; border:none;
-       box-shadow:0 8px 22px rgba(10,40,30,.5), inset 0 -5px 0 rgba(10,40,30,.1); transition:transform .12s;}
+  .die-btn{flex:none; width:84px; height:84px; background:#fff; border-radius:22px; display:grid; place-items:center; border:none; position:relative;
+       box-shadow:0 6px 0 rgba(5,25,18,.6), 0 10px 22px rgba(5,25,18,.5), inset 0 -5px 0 rgba(10,40,30,.1); transition:transform .12s, opacity .25s;}
   .die-btn:active{transform:scale(.94);}
   .die-btn.spin{animation:spin3 .75s cubic-bezier(.2,.6,.3,1);}
+  .die-btn.done{opacity:.45;}
+  .die-btn::after{content:"tap to roll"; position:absolute; bottom:0; left:0; right:0; text-align:center;
+                  font-size:8px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:#8a6b3a;}
   @keyframes spin3{from{transform:rotate(0)}to{transform:rotate(1080deg)}}
-  .pips{width:64px; height:64px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
-  .pip{border-radius:50%; background:#0f4c3a; opacity:0; width:14px; height:14px; align-self:center; justify-self:center;}
+  .pips{width:54px; height:54px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
+  .pip{border-radius:50%; background:#0f4c3a; opacity:0; width:12px; height:12px; align-self:center; justify-self:center;}
   .pip.on{opacity:1;}
-  .dice-hint{color:var(--muted); font-weight:700; font-size:13.5px; margin:0;}
-  .reset-link{margin-top:10px; background:none; color:var(--muted); font-weight:700; font-size:13.5px; text-decoration:underline;}
+  .die-btn:not(.done) .pips{animation:dieBreathe 3s ease-in-out infinite;}
+  @keyframes dieBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
 
-  .roster{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
-  .rchip{display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:8px 10px;}
-  .rchip.active{border-color:var(--sun);}
-  .rchip .face{width:30px; height:30px; border-radius:50%; border:2px solid var(--mint); background:#fff; display:grid; place-items:center; font-size:15px; overflow:hidden; flex:none;}
-  .rchip .face img{width:100%;height:100%;object-fit:cover;}
-  .rchip b{font-size:13.5px; display:block; line-height:1.1;}
-  .rchip small{color:var(--muted); font-size:11px;}
+  .reset-row{width:100%; margin-top:16px; padding:12px; border-radius:12px; background:var(--panel2);
+             color:var(--muted); border:1px solid var(--line); font-weight:800; font-size:14px;}
 
-  .help{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:12px 16px; font-size:13px; color:var(--muted);}
-  .help summary{font-weight:800; color:var(--ink); cursor:pointer;}
-  .help li{margin:6px 0;}
+  /* Drama */
+  .modal{animation:popUp .3s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
+  .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}
+  .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
+  @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
+
+  .help-fab{position:fixed; right:14px; bottom:calc(188px + env(safe-area-inset-bottom)); z-index:41;
+    width:42px; height:42px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); font-weight:900; font-size:18px; box-shadow:0 6px 16px rgba(5,25,18,.45); backdrop-filter:blur(6px);}
+  .help-modal{text-align:left;}
+  .help-modal h2{text-align:center;}
+  .help-list{margin:10px 0 0; padding-left:6px; color:var(--muted); font-size:14px; line-height:1.75; list-style:none;}
+  .help-list li{margin:7px 0;}
+  .seg{display:flex; gap:8px; margin:6px 0 2px;}
+  .seg button{flex:1; padding:10px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); color:inherit; font-weight:800;}
+  .seg button.sel{background:rgba(255,211,92,.16); border-color:var(--sun);}
 
   /* Modals */
   .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.8); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
   .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px; width:100%; max-width:420px; max-height:92dvh; overflow-y:auto; text-align:center;}
   .modal h2{font-family:var(--display); font-weight:800; margin:0 0 4px; font-size:26px;}
+  .modal .qwho{display:inline-block; margin:6px auto 0; padding:4px 13px; border-radius:999px;
+    background:rgba(255,211,92,.16); border:1px solid rgba(255,211,92,.5); color:var(--sun);
+    font-weight:800; font-size:13px; letter-spacing:.3px;}
   .modal .qtext{font-size:18px; font-weight:700; margin:12px 0 6px; line-height:1.5;}
   .modal .easy{color:var(--sky); font-size:14px; font-weight:700; margin:8px 0;}
   .modal .reward{background:rgba(255,211,92,.12); border:1px solid rgba(255,211,92,.35); color:var(--sun); border-radius:14px; padding:11px; font-weight:800; font-size:14px; margin-top:12px;}
@@ -115,6 +148,7 @@
   .p-edit input{flex:1;}
   .mini-btn{padding:9px 12px; border-radius:11px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:800; font-size:13px;}
   .footer{font-size:11.5px; color:#6fa589; text-align:center;}
+  .footer a{color:inherit; text-decoration:underline; text-underline-offset:2px;}
   @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important;} }
 </style>
 </head>
@@ -129,41 +163,19 @@
   </header>
 
   <div class="layout">
-    <div class="board-pane">
-      <div class="board-card"><div class="board" id="board"></div></div>
-    </div>
+    <div class="board" id="board"></div>
 
-    <div class="side-pane">
-      <div class="turn-card">
-        <p class="turn-label">Current turn</p>
-        <div class="turn-row">
-          <span class="turn-face" id="turnFace"></span>
-          <div>
-            <p class="turn-name" id="turnName"></p>
-            <div class="powerups" id="powerups"></div>
-          </div>
-        </div>
-        <p class="status" id="status">Tap the dice to begin your family adventure!</p>
-      </div>
+    <p class="footer">Made with care by Ogbara Labs · for family game night · free · no ads<br><a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
+  </div>
+</div>
 
-      <div class="dice-card">
-        <button class="die-btn" id="dieBtn" aria-label="Roll the dice"><div class="pips" id="pips"></div></button>
-        <p class="dice-hint">Tap the dice to roll</p>
-        <button class="reset-link" id="resetBtn">Restart adventure</button>
-      </div>
-
-      <div class="roster" id="roster"></div>
-
-      <details class="help">
-        <summary>How to play</summary>
-        <ul>
-          <li>🎲 Take turns rolling. Climb 🪜 ladders, dodge 🐍 snakes.</li>
-          <li>⭐ Land on every 5th tile for a fun family quest — with an easy version for the littlest player.</li>
-          <li>🎁 Quests can give bonus steps, boosts, or a snake shield.</li>
-          <li>🏁 You need an exact roll to land on 100 and win!</li>
-        </ul>
-      </details>
-      <p class="footer">An Ogbara Labs experiment · made for family game night</p>
+<button class="help-fab" id="helpBtn" aria-label="How to play">?</button>
+<div class="dock">
+  <div class="dock-inner">
+    <p class="status" id="status">Tap the dice to begin your family adventure!</p>
+    <div class="dock-row">
+      <div class="chip-grid" id="chipGrid"></div>
+      <button class="die-btn" id="dieBtn" aria-label="Roll the dice"><div class="pips" id="pips"></div></button>
     </div>
   </div>
 </div>
@@ -184,20 +196,43 @@ const SNAKES  = { 98:79, 95:75, 92:88, 83:61, 69:48, 64:60, 59:39, 52:33, 46:25,
 const LADDERS = { 3:22, 8:30, 15:37, 21:42, 28:49, 36:57, 50:67, 63:81, 71:90, 80:99 };
 
 const QUESTS = [
-  { title:"Animal Parade", text:"Everyone make their favorite animal sound!", easy:"Easy version: flap or hop like a tiny animal.", reward:"If everyone joins in, move forward 1 extra step.", type:"bonus" },
-  { title:"Rainbow Hunt", text:"Name or point to a color you can see right now.", easy:"Easy version: just point to something colorful.", reward:"Great spotting! Stay here and smile like champions.", type:"stay" },
-  { title:"Rocket Jump", text:"Do 3 little jumps and count together.", easy:"Easy version: one bounce or big clap.", reward:"Team energy boost: move forward 2 extra steps.", type:"bonus" },
-  { title:"Silly Face Freeze", text:"Make the silliest face you can for 3 seconds.", easy:"Easy version: stick out tongue or puff cheeks.", reward:"Everybody laughed? Take +1 extra step on your next turn.", type:"nextTurnBoost" },
-  { title:"Family Hug", text:"Quick group hug or giant high-five circle.", easy:"Easy version: one happy clap is enough.", reward:"Cozy power! Move forward 1 extra step.", type:"bonus" },
-  { title:"Count the Stars", text:"Count to 5 together in funny voices.", easy:"Easy version: join for any numbers you like.", reward:"Nice counting! Nothing else happens.", type:"stay" },
-  { title:"Dance Burst", text:"Do a 5-second happy dance.", easy:"Easy version: wiggle only!", reward:"So much groove! Move forward 2 extra steps.", type:"bonus" },
-  { title:"Kindness Quest", text:"Say one kind thing to another player.", easy:"Easy version: give a thumbs up or wave.", reward:"Kind hearts win: everyone moves forward 1 tile.", type:"allBonus" },
-  { title:"Treasure Pose", text:"Stand like a superhero or princess for 3 seconds.", easy:"Easy version: just raise arms up high.", reward:"Epic pose! Stay proud right where you are.", type:"stay" },
-  { title:"Tiny Drum Roll", text:"Pat your knees like drums and say boom boom!", easy:"Easy version: one pat is perfect.", reward:"Boom! Move forward 1 extra step.", type:"bonus" },
-  { title:"Mystery Giggle", text:"Try to laugh without making a sound.", easy:"Easy version: cover mouth and grin.", reward:"You did it! Next snake is softened by 2 spaces.", type:"snakeShield" },
-  { title:"Magic Word", text:"Say please, thank you, and hooray!", easy:"Easy version: say one magic word.", reward:"Polite power! Move forward 1 extra step.", type:"bonus" },
+  { title:"Dino Stomp",        text:"Stomp around like a T-rex and do your biggest ROAR!", easy:"Easy version: one tiny roar.", reward:"Earth-shaking! Stomp forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Superhero Launch",  text:"Strike a flying superhero pose and shout your hero name!", easy:"Easy version: arms up high!", reward:"Up, up and away — fly forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Freeze Dance",      text:"Everyone dances! The roller shouts FREEZE — last to freeze does a bow.", easy:"Easy version: wiggle, then stop.", reward:"Party power: EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"Robot Mode",        text:"Say 'I. LOVE. THIS. FAMILY.' in your best robot voice.", easy:"Easy version: beep boop!", reward:"System upgrade! Roll forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Animal Orchestra",  text:"Everyone makes a different animal sound at the same time!", easy:"Easy version: any sound counts.", reward:"What a concert — EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"The Floor Is Lava", text:"Feet off the floor for 5 whole seconds!", easy:"Easy version: lift one foot.", reward:"Lava dodged! +1 boost on your next roll.", type:"nextTurnBoost" },
+  { title:"Secret Mission",    text:"Whisper a silly secret password to the player on your left.", easy:"Easy version: whisper any word.", reward:"Mission complete — sneak forward 2 extra steps.", type:"bonus", amount:2 },
+  { title:"Giggle Monster",    text:"Make another player laugh in 15 seconds. No tickling!", easy:"Easy version: one funny face.", reward:"Gigglepower! Bounce forward 2 extra steps.", type:"bonus", amount:2 },
+  { title:"Statue Garden",     text:"Freeze like a fancy statue for 5 seconds. Hold it!", easy:"Easy version: freeze for 2 seconds.", reward:"Stone-strong! The next snake is softened by 2 spaces.", type:"snakeShield" },
+  { title:"Rocket Countdown",  text:"Count down 5-4-3-2-1 together and BLAST OFF with a big jump!", easy:"Easy version: just yell blast off!", reward:"Liftoff! Zoom forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Mirror Mirror",     text:"Copy everything the next player does for 10 seconds.", easy:"Easy version: copy one move.", reward:"Perfect reflection. Stay shiny right where you are.", type:"stay" },
+  { title:"Treasure Hunter",   text:"Point to something gold, shiny or sparkly in 10 seconds!", easy:"Easy version: anything bright.", reward:"Treasure found — dig forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Ninja Training",    text:"Do 3 totally silent ninja moves. Shhh!", easy:"Easy version: one sneaky tiptoe.", reward:"Ninja reflexes! The next snake is softened by 2 spaces.", type:"snakeShield" },
+  { title:"Opera Star",        text:"Sing your own name like a famous opera singer!", easy:"Easy version: hum it.", reward:"Bravo! Encore! Glide forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"High-Five Tornado", text:"High-five every single player as fast as you can!", easy:"Easy version: one high five.", reward:"Whoosh! EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"Wizard's Spell",    text:"Invent a magic spell and cast it on the nearest snake!", easy:"Easy version: wave hands and say ZAP!", reward:"It worked! The next snake is softened by 2 spaces.", type:"snakeShield" },
+  { title:"Penguin Parade",    text:"Waddle like a penguin in a little circle.", easy:"Easy version: waddle on the spot.", reward:"March of the champions — waddle forward 2 extra steps.", type:"bonus", amount:2 },
+  { title:"Story Spark",       text:"Start a story with one line. The next player adds the next line!", easy:"Easy version: say 'once upon a time…'", reward:"What a tale! Take a storyteller's rest right here.", type:"stay" },
+  { title:"Drum Solo",         text:"Play a knee-drum solo for 5 seconds with a BIG finish!", easy:"Easy version: three little pats.", reward:"Boom-tish! Drum forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Compliment Cannon", text:"Fire one kind compliment at every player. Pew pew!", easy:"Easy version: one compliment.", reward:"Kindness blast — EVERYONE moves forward 1 tile!", type:"allBonus" },
+  { title:"Balance Master",    text:"Balance on one leg for 5 seconds like a flamingo.", easy:"Easy version: hold onto a chair.", reward:"Steady champion! +1 boost on your next roll.", type:"nextTurnBoost" },
+  { title:"Monster Stretch",   text:"Do your biggest stretch with a giant monster yawn!", easy:"Easy version: a little stretch.", reward:"So refreshed. Rest like a happy monster right here.", type:"stay" },
+  { title:"Echo Canyon",       text:"Shout 'SUPER SNAKES!' — everyone echoes it back quieter and quieter.", easy:"Easy version: one echo.", reward:"Echo-mazing! Call forward 1 extra step.", type:"bonus", amount:1 },
+  { title:"Victory Wiggle",    text:"Invent your own victory wiggle. Save it for when you win!", easy:"Easy version: any wiggle at all.", reward:"Wiggle registered! +1 boost on your next roll.", type:"nextTurnBoost" },
 ];
-const randomQuest = () => QUESTS[Math.floor(Math.random()*QUESTS.length)];
+/* Shuffled deck — no repeats until every quest has appeared, no back-to-back repeats */
+let _qOrder=[], _qPos=0, _qLast=-1;
+const randomQuest = () => {
+  if (_qPos >= _qOrder.length){
+    _qOrder = QUESTS.map((_,i)=>i);
+    for (let i=_qOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [_qOrder[i],_qOrder[j]]=[_qOrder[j],_qOrder[i]]; }
+    if (_qOrder[0]===_qLast && _qOrder.length>1) [_qOrder[0],_qOrder[1]]=[_qOrder[1],_qOrder[0]];
+    _qPos = 0;
+  }
+  _qLast = _qOrder[_qPos++];
+  return QUESTS[_qLast];
+};
 const clampToBoard = (v) => Math.max(1, Math.min(FINAL_TILE, v));
 
 /* ---------- Players (editable; default family of four) ---------- */
@@ -207,11 +242,25 @@ const DEFAULT_PLAYERS = [
   { id:2, name:"Player 3", emoji:"🌟" },
   { id:3, name:"Player 4", emoji:"🚀" },
 ];
-let players;
-try { players = JSON.parse(localStorage.getItem("ss_players")||"null") || DEFAULT_PLAYERS; }
-catch { players = DEFAULT_PLAYERS; }
-players = players.map((p,i)=>({ ...DEFAULT_PLAYERS[i], ...p, position:1, nextTurnBoost:false, snakeShield:false }));
-const savePlayers = () => { try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{} if (window.Cloud) Cloud.schedulePush(); };
+let roster;
+try { roster = JSON.parse(localStorage.getItem("ss_players")||"null") || DEFAULT_PLAYERS; }
+catch { roster = DEFAULT_PLAYERS; }
+roster = DEFAULT_PLAYERS.map((d,i)=>({ ...d, ...(roster[i]||{}) }));
+let playerCount = (()=>{ const n=parseInt(localStorage.getItem("ss_player_count")||"4",10); return (n>=2&&n<=4)?n:4; })();
+let players = roster.slice(0,playerCount).map(p=>({ ...p, position:1, nextTurnBoost:false, snakeShield:false }));
+const savePlayers = () => { try{
+  players.forEach(p=>{ roster[p.id].name=p.name; roster[p.id].emoji=p.emoji; });
+  localStorage.setItem("ss_players", JSON.stringify(roster.map(({id,name,emoji})=>({id,name,emoji}))));
+  localStorage.setItem("ss_player_count", String(playerCount));
+}catch{} if (window.Cloud) Cloud.schedulePush(); };
+function setPlayerCount(n){
+  playerCount=n;
+  players = roster.slice(0,n).map(p=>({ ...p, position:1, nextTurnBoost:false, snakeShield:false }));
+  currentTurn=0; winner=null; moving=false;
+  buildBoard(); paintPawns(); paintTurn();
+  setStatus(`Adventure restarted for ${n} players. ${players[0].name} goes first!`);
+  savePlayers();
+}
 
 /* Avatar photos in IndexedDB */
 const AvatarDB = (()=>{ let dbp=null;
@@ -224,8 +273,21 @@ const AvatarDB = (()=>{ let dbp=null;
   };
 })();
 const avatarURL = {};
+const AV_PUSHED_KEY = "ss_avatars_pushed_v1";
+const avPushed = (()=>{ try { return new Set(JSON.parse(localStorage.getItem(AV_PUSHED_KEY)||"[]")); } catch { return new Set(); } })();
+function avMark(id, on=true){ on ? avPushed.add(id) : avPushed.delete(id); try{ localStorage.setItem(AV_PUSHED_KEY, JSON.stringify([...avPushed])); }catch{} }
+async function avatarSync(){
+  if (!window.Cloud || !Cloud.isSignedIn()) return;
+  for (const p of roster){
+    if (avPushed.has("p"+p.id)) continue;
+    try {
+      const b = await AvatarDB.get("p"+p.id);
+      if (b && await Cloud.uploadPhoto("avatar-p"+p.id, b)) avMark("p"+p.id);
+    } catch {}
+  }
+}
 async function loadAvatars(){
-  for (const p of players){
+  for (const p of roster){
     let b = await AvatarDB.get("p"+p.id);
     if (!b && window.Cloud && Cloud.isSignedIn()){ b = await Cloud.getPhoto("avatar-p"+p.id); if (b) await AvatarDB.put("p"+p.id, b); }
     if (b) avatarURL[p.id]=URL.createObjectURL(b);
@@ -270,8 +332,8 @@ function buildBoard(){
     const t=document.createElement("div");
     t.className=`tile ${type}${n===100?" t100":""}`; t.dataset.n=n;
     let inner=`<span class="num">${n}</span>`;
-    if(type==="ladder") inner+=`<span class="mark">🪜</span><span class="dest">↑${LADDERS[n]}</span>`;
-    if(type==="snake")  inner+=`<span class="mark">🐍</span><span class="dest">↓${SNAKES[n]}</span>`;
+    if(type==="ladder") inner+=`<span class="dest up">↑${LADDERS[n]}</span>`;
+    if(type==="snake")  inner+=`<span class="dest down">↓${SNAKES[n]}</span>`;
     if(type==="quest")  inner+=`<span class="mark">⭐</span>`;
     if(n===100)         inner+=`<span class="mark">🏆</span>`;
     t.innerHTML=inner;
@@ -283,19 +345,36 @@ function buildBoard(){
   let art="";
   for (const [f,to] of Object.entries(LADDERS)){
     const a=cellCenter(+f), b=cellCenter(to);
-    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), ux=dx/len, uy=dy/len, px=-uy, py=ux, w=1.5;
-    const rail=(s)=>`M${a.x+px*s} ${a.y+py*s} L${b.x+px*s} ${b.y+py*s}`;
-    art+=`<path d="${rail(w)}" stroke="#3f9b63" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.75"/>`;
-    art+=`<path d="${rail(-w)}" stroke="#3f9b63" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.75"/>`;
-    const rungs=Math.max(3,Math.floor(len/5.5));
+    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), px=-dy/len, py=dx/len, w=1.5;
+    const rail=(sgn)=>`M${a.x+px*sgn} ${a.y+py*sgn} L${b.x+px*sgn} ${b.y+py*sgn}`;
+    // white casing lifts the art off busy tiles, then a single clean green
+    for (const sgn of [w,-w]){
+      art+=`<path d="${rail(sgn)}" stroke="rgba(255,255,255,.92)" stroke-width="1.7" fill="none" stroke-linecap="round"/>`;
+      art+=`<path d="${rail(sgn)}" stroke="#2f9e63" stroke-width="0.95" fill="none" stroke-linecap="round"/>`;
+    }
+    const rungs=Math.max(3,Math.floor(len/6));
     for(let i=1;i<rungs;i++){ const tt=i/rungs, cx=a.x+dx*tt, cy=a.y+dy*tt;
-      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="#3f9b63" stroke-width="0.7" stroke-linecap="round" opacity="0.75"/>`; }
+      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="rgba(255,255,255,.92)" stroke-width="1.5" stroke-linecap="round"/>`;
+      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="#2f9e63" stroke-width="0.8" stroke-linecap="round"/>`; }
   }
   for (const [f,to] of Object.entries(SNAKES)){
     const a=cellCenter(+f), b=cellCenter(to);
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), px=-dy/len, py=dx/len, amp=Math.min(7,len*0.2);
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+    const ux=dx/len, uy=dy/len, px=-uy, py=ux, amp=Math.min(6,len*0.18);
     const c1x=a.x+dx*0.25+px*amp, c1y=a.y+dy*0.25+py*amp, c2x=a.x+dx*0.75-px*amp, c2y=a.y+dy*0.75-py*amp;
-    art+=`<path d="M${a.x} ${a.y} C${c1x} ${c1y} ${mx} ${my} ${mx} ${my} S${c2x} ${c2y} ${b.x} ${b.y}" stroke="#d6584f" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.7"/>`;
+    const body=`M${a.x} ${a.y} C${c1x} ${c1y} ${mx} ${my} ${mx} ${my} S${c2x} ${c2y} ${b.x} ${b.y}`;
+    art+=`<path d="${body}" stroke="rgba(255,255,255,.92)" stroke-width="2.7" fill="none" stroke-linecap="round"/>`;
+    art+=`<path d="${body}" stroke="#e2574d" stroke-width="1.75" fill="none" stroke-linecap="round"/>`;
+    art+=`<circle cx="${b.x}" cy="${b.y}" r="0.85" fill="#e2574d"/>`;
+    // friendly face on the head, looking where it slides
+    const hx=a.x, hy=a.y;
+    art+=`<circle cx="${hx}" cy="${hy}" r="2" fill="#c8443a"/>`;
+    const e1x=hx-ux*0.5+px*0.75, e1y=hy-uy*0.5+py*0.75, e2x=hx-ux*0.5-px*0.75, e2y=hy-uy*0.5-py*0.75;
+    art+=`<circle cx="${e1x}" cy="${e1y}" r="0.55" fill="#fff"/><circle cx="${e2x}" cy="${e2y}" r="0.55" fill="#fff"/>`;
+    art+=`<circle cx="${e1x-ux*0.15}" cy="${e1y-uy*0.15}" r="0.26" fill="#26211f"/><circle cx="${e2x-ux*0.15}" cy="${e2y-uy*0.15}" r="0.26" fill="#26211f"/>`;
+    const m0x=hx-ux*1.9, m0y=hy-uy*1.9, tx=hx-ux*2.9, ty=hy-uy*2.9;
+    art+=`<path d="M${m0x} ${m0y} L${tx} ${ty}" stroke="#b3261e" stroke-width="0.35" fill="none"/>`;
+    art+=`<path d="M${tx} ${ty} l${-ux*0.5+px*0.45} ${-uy*0.5+py*0.45} M${tx} ${ty} l${-ux*0.5-px*0.45} ${-uy*0.5-py*0.45}" stroke="#b3261e" stroke-width="0.32" fill="none"/>`;
   }
   svg.innerHTML=art; boardEl.appendChild(svg);
   for (const p of players){ const el=document.createElement("div"); el.className="pawn"; el.id="pawn"+p.id; el.style.borderColor=["#7fd1f7","#e789d3","#ffd35c","#8debb1"][p.id]; boardEl.appendChild(el); }
@@ -315,8 +394,9 @@ function paintPawns(){
 
 /* ---------- UI refs ---------- */
 const el=(t,c,h)=>{ const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+const esc=(t)=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
-const statusEl=document.getElementById("status"), turnFace=document.getElementById("turnFace"), turnName=document.getElementById("turnName"), powerupsEl=document.getElementById("powerups"), rosterEl=document.getElementById("roster");
+const statusEl=document.getElementById("status"), chipGrid=document.getElementById("chipGrid");
 const pipsEl=document.getElementById("pips"), dieBtn=document.getElementById("dieBtn");
 const PIP_MAP={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 for(let i=0;i<9;i++) pipsEl.appendChild(el("span","pip"));
@@ -325,17 +405,16 @@ showDie(1);
 
 let currentTurn=0, winner=null, rolling=false, moving=false;
 function paintTurn(){
-  const p=players[currentTurn];
-  turnFace.innerHTML=face(p); turnName.textContent=p.name;
-  powerupsEl.innerHTML="";
-  if(p.nextTurnBoost) powerupsEl.appendChild(el("span","pw","⚡ +1 boost"));
-  if(p.snakeShield)  powerupsEl.appendChild(el("span","pw","🛡️ snake shield"));
-  rosterEl.innerHTML="";
+  chipGrid.innerHTML="";
   players.forEach((q,i)=>{
     const chip=el("div","rchip"+(i===currentTurn&&!winner?" active":""));
-    chip.innerHTML=`<span class="face">${face(q)}</span><span><b>${q.name}</b><small>tile ${q.position}${q.nextTurnBoost?" ⚡":""}${q.snakeShield?" 🛡️":""}</small></span>`;
-    rosterEl.appendChild(chip);
+    const pct=Math.max(0,Math.min(100,q.position||1));
+    chip.innerHTML=`<span class="face">${face(q)}</span>
+      <span class="rmeta"><b>${esc(q.name)}${q.nextTurnBoost?'<span class="pwico">⚡</span>':""}${q.snakeShield?'<span class="pwico">🛡️</span>':""}</b>
+      <span class="bar"><span class="fill" style="width:${pct}%"></span></span></span>`;
+    chipGrid.appendChild(chip);
   });
+  if (typeof dieBtn !== "undefined" && dieBtn) dieBtn.classList.toggle("done", !!winner);
 }
 const setStatus=(t)=>statusEl.textContent=t;
 
@@ -351,30 +430,49 @@ async function animateAlong(playerIdx, from, to){
     e.classList.remove("hop");
   }
 }
+function questChampion(idx){
+  if (players[idx].position>=100) return players[idx];
+  return players.find(p=>p.position>=100) || null;
+}
 function applyQuestReward(quest, idx){
   switch(quest.type){
-    case "bonus": {
-      const amount=(quest.title==="Dance Burst"||quest.title==="Rocket Jump")?2:1;
-      players[idx].position=clampToBoard(players[idx].position+amount); break; }
+    case "bonus": players[idx].position=clampToBoard(players[idx].position+(quest.amount||1)); break;
     case "allBonus": players.forEach(p=>p.position=clampToBoard(p.position+1)); break;
     case "nextTurnBoost": players[idx].nextTurnBoost=true; break;
     case "snakeShield":  players[idx].snakeShield=true; break;
   }
 }
-function showQuest(quest, done){
+function showQuest(quest, done, who=""){
   Sound.quest();
   const back=el("div","modal-back"), box=el("div","modal");
   box.innerHTML=`<p style="font-size:40px;margin:0">⭐</p><h2>${quest.title}</h2>
+    ${who?`<p class="qwho">🌟 ${esc(who)}'s mission!</p>`:""}
     <p class="qtext">${quest.text}</p><p class="easy">🐣 ${quest.easy}</p>
     <div class="reward">🎁 ${quest.reward}</div>`;
   const ok=el("button","primary-btn","We did it! 🎉"); ok.onclick=()=>{ back.remove(); done&&done(); };
   box.appendChild(ok); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
+function confetti(){
+  try { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch {}
+  const wrap = el("div","confetti");
+  const COLORS = ["#ffd35c","#ff8e72","#8debb1","#7fd1f7","#e789d3"];
+  for (let k=0;k<70;k++){
+    const c = el("span");
+    c.style.left = (Math.random()*100)+"%";
+    c.style.background = COLORS[k%COLORS.length];
+    c.style.animationDelay = (Math.random()*0.7)+"s";
+    c.style.animationDuration = (2.2+Math.random()*1.5)+"s";
+    wrap.appendChild(c);
+  }
+  document.getElementById("overlay").appendChild(wrap);
+  setTimeout(()=>wrap.remove(), 4600);
+}
 function showWin(p){
-  winner=p; Sound.win(); paintPawns(); paintTurn();
+  winner=p; Sound.win(); confetti(); paintPawns(); paintTurn();
+  const pe=document.getElementById("pawn"+p.id); if (pe) pe.classList.add("dance");
   const back=el("div","modal-back"), box=el("div","modal");
-  box.innerHTML=`<p class="win-emoji">🏆</p><h2>${p.name} wins!</h2>
-    <p class="qtext">${p.name} reached tile 100 and wins the Super Snakes adventure!</p>`;
+  box.innerHTML=`<p class="win-emoji">🏆</p><h2>${esc(p.name)} wins!</h2>
+    <p class="qtext">${esc(p.name)} reached tile 100 and wins the Super Snakes adventure!</p>`;
   const again=el("button","primary-btn","Play again"); again.onclick=()=>{ back.remove(); resetGame(); };
   box.appendChild(again); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
@@ -397,10 +495,14 @@ async function runTurn(rolled){
   moving=true;
   await animateAlong(idx,startPos,target);
 
+  const pawnEl=document.getElementById("pawn"+me.id);
   if (LADDERS[target]){
     const top=LADDERS[target];
     message+=` Wheee! Climbed a ladder to ${top}.`; Sound.climb();
-    await animateAlong(idx,target,top); target=top;
+    if (pawnEl) pawnEl.classList.add("climb");
+    await animateAlong(idx,target,top);
+    if (pawnEl) pawnEl.classList.remove("climb");
+    target=top;
   } else if (SNAKES[target]){
     let snakeTarget=SNAKES[target];
     if (me.snakeShield){
@@ -408,7 +510,10 @@ async function runTurn(rolled){
       message+=` A snake appeared, but the shield softened it to tile ${snakeTarget}.`;
     } else message+=` Oh no! Slid down a snake to ${snakeTarget}.`;
     Sound.slide();
-    await animateAlong(idx,target,snakeTarget); target=snakeTarget;
+    if (pawnEl) pawnEl.classList.add("slide");
+    await animateAlong(idx,target,snakeTarget);
+    if (pawnEl) pawnEl.classList.remove("slide");
+    target=snakeTarget;
   }
   me.position=target;
 
@@ -419,11 +524,16 @@ async function runTurn(rolled){
     showQuest(quest, async ()=>{
       applyQuestReward(quest, idx);
       if (players[idx].position!==target) await animateAlong(idx,target,players[idx].position);
-      if (players[idx].position===FINAL_TILE){ moving=false; showWin(players[idx]); return; }
+      const champ = questChampion(idx);   // any player a team boost carried to 100 wins — not just the roller
+      if (champ){
+        setStatus(`${message} Quest done: ${quest.title}. ${champ.name} reached tile 100!`);
+        moving=false; savePlayers(); showWin(champ);
+        return;
+      }
       const upcoming=players[(idx+1)%players.length];
       setStatus(`${message} Quest done: ${quest.title}. Now it's ${upcoming.name}'s turn.`);
       currentTurn=(idx+1)%players.length; moving=false; paintPawns(); paintTurn();
-    });
+    }, me.name);
     return;
   }
   const upcoming=players[(idx+1)%players.length];
@@ -442,7 +552,8 @@ function rollDice(){
   },750);
 }
 function resetGame(){
-  players.forEach(p=>{ p.position=1; p.nextTurnBoost=false; p.snakeShield=false; });
+  players.forEach(p=>{ p.position=1; p.nextTurnBoost=false; p.snakeShield=false;
+    const pe=document.getElementById("pawn"+p.id); if (pe) pe.classList.remove("dance"); });
   currentTurn=0; winner=null; rolling=false; moving=false;
   showDie(1); setStatus("Fresh start! Tap the dice to begin again.");
   paintPawns(); paintTurn();
@@ -452,9 +563,20 @@ function resetGame(){
 function openFamily(){
   const back=el("div","modal-back"), box=el("div","modal");
   box.innerHTML=`<h2>Your family 👨‍👩‍👧‍👦</h2><p style="color:var(--muted);font-size:14px;margin:0">Names, emoji and optional photos. Sign in (☁️) to sync photos to your private account.</p>`;
-  players.forEach((p)=>{
-    box.appendChild(el("label",null,`Player ${p.id+1}`));
-    const row=el("div","p-edit");
+  let tempCount=playerCount;
+  const rows=[], labels=[];
+  const refreshRows=()=>{ rows.forEach((r,i)=>{ r.hidden=i>=tempCount; labels[i].hidden=i>=tempCount; }); };
+  box.appendChild(el("label",null,"How many players?"));
+  const seg=el("div","seg");
+  [2,3,4].forEach((n)=>{
+    const b=el("button", n===tempCount?"sel":"", `${n} players`);
+    b.onclick=()=>{ tempCount=n; [...seg.children].forEach((c,j)=>c.className=(j===n-2?"sel":"")); refreshRows(); };
+    seg.appendChild(b);
+  });
+  box.appendChild(seg);
+  roster.forEach((p)=>{
+    const lab=el("label",null,`Player ${p.id+1}`); labels.push(lab); box.appendChild(lab);
+    const row=el("div","p-edit"); rows.push(row);
     const f=el("span","face",face(p));
     const nameI=el("input"); nameI.type="text"; nameI.value=p.name; nameI.oninput=()=>{ p.name=nameI.value||`Player ${p.id+1}`; };
     const emo=el("button","mini-btn",p.emoji); emo.title="Cycle emoji";
@@ -465,16 +587,26 @@ function openFamily(){
     up.onclick=()=>file.click();
     file.onchange=async()=>{ const ff=file.files[0]; if(!ff)return;
       const blob=await downscale(ff,300,0.82); await AvatarDB.put("p"+p.id,blob);
-      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+p.id, blob);
+      avMark("p"+p.id,false);
+      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+p.id, blob).then(ok=>{ if(ok) avMark("p"+p.id); });
       if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); avatarURL[p.id]=URL.createObjectURL(blob); f.innerHTML=face(p); };
     const clr=el("button","mini-btn","✕");
-    clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
+    clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); avMark("p"+p.id,false); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
     row.append(f,nameI,emo,up,clr,file); box.appendChild(row);
   });
+  refreshRows();
+  const rr = el("button","reset-row","↺ Restart adventure — everyone back to tile 1");
+  rr.onclick = () => { if (confirm("Restart the adventure?")){ resetGame(); savePlayers(); back.remove(); } };
+  box.appendChild(rr);
+  const commit=()=>{
+    players.forEach(pl=>{ pl.name=roster[pl.id].name; pl.emoji=roster[pl.id].emoji; });
+    if (tempCount!==playerCount) setPlayerCount(tempCount);
+    else { savePlayers(); paintPawns(); paintTurn(); }
+  };
   const save=el("button","primary-btn","Save family");
-  save.onclick=()=>{ savePlayers(); back.remove(); paintPawns(); paintTurn(); };
+  save.onclick=()=>{ commit(); back.remove(); };
   box.appendChild(save); back.appendChild(box);
-  back.onclick=(e)=>{ if(e.target===back){ savePlayers(); back.remove(); paintPawns(); paintTurn(); } };
+  back.onclick=(e)=>{ if(e.target===back){ commit(); back.remove(); } };
   document.getElementById("overlay").appendChild(back);
 }
 function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=new Image();
@@ -484,10 +616,23 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
     cv.toBlob(b=>res(b||fileBlob),"image/jpeg",q); URL.revokeObjectURL(img.src); };
   img.onerror=()=>res(fileBlob); img.src=URL.createObjectURL(fileBlob); }); }
 
+function openHelp(){
+  const back=el("div","modal-back"), box=el("div","modal help-modal");
+  box.innerHTML=`<h2>How to play 🎲</h2><ul class="help-list">
+    <li>🎲 Take turns rolling. Climb 🪜 ladders, dodge 🐍 snakes.</li>
+    <li>⭐ Land on every 5th tile for a fun family quest — with an easy version for the littlest player.</li>
+    <li>🎁 Quests can give bonus steps, boosts, or a snake shield.</li>
+    <li>🏁 You need an exact roll to land on 100 — but a quest bonus that carries you there wins too!</li></ul>`;
+  const ok=el("button","primary-btn","Got it!"); ok.onclick=()=>back.remove();
+  box.appendChild(ok); back.appendChild(box);
+  back.onclick=(e)=>{ if(e.target===back) back.remove(); };
+  document.getElementById("overlay").appendChild(back);
+}
+
 /* ---------- Wire ---------- */
 dieBtn.onclick=rollDice;
-document.getElementById("resetBtn").onclick=()=>{ if(confirm("Restart the adventure?")) resetGame(); };
 document.getElementById("famBtn").onclick=openFamily;
+document.getElementById("helpBtn").onclick=openHelp;
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=Sound.musicOn?1:0.45;
 musicBtn.onclick=()=>{ Sound.unlock(); Sound.setOn(!Sound.musicOn); paintMusicBtn(); };
@@ -499,17 +644,22 @@ addEventListener("pointerdown",function once(){ Sound.unlock(); if(Sound.musicOn
 
   /* ---------------- Cloud sync (optional account) ---------------- */
   if (window.Cloud) Cloud.init("supersnakes", {
-    collect: () => ({ players: players.map(({id,name,emoji})=>({id,name,emoji})), music: Sound.musicOn }),
+    collect: () => ({ players: roster.map(({id,name,emoji})=>({id,name,emoji})), playerCount, music: Sound.musicOn }),
     apply: async (st) => {
       if (Array.isArray(st.players)) {
-        st.players.forEach(rp => { const p = players.find(x=>x.id===rp.id); if (p){ p.name=rp.name||p.name; p.emoji=rp.emoji||p.emoji; } });
-        try{ localStorage.setItem("ss_players", JSON.stringify(players.map(({id,name,emoji})=>({id,name,emoji})))); }catch{}
+        st.players.forEach(rp => { const p = roster.find(x=>x.id===rp.id); if (p){ p.name=rp.name||p.name; p.emoji=rp.emoji||p.emoji; } });
+        players.forEach(pl=>{ pl.name=roster[pl.id].name; pl.emoji=roster[pl.id].emoji; });
+        try{ localStorage.setItem("ss_players", JSON.stringify(roster.map(({id,name,emoji})=>({id,name,emoji})))); }catch{}
       }
+      const rc = parseInt(st.playerCount,10);
+      if (rc>=2 && rc<=4 && rc!==playerCount) setPlayerCount(rc);
       if (st.music!==undefined){ Sound.setOn(!!st.music); paintMusicBtn(); }
       await loadAvatars();
+      avatarSync();
       paintPawns(); paintTurn();
     },
   });
+  if (window.Cloud) avatarSync();
 })();
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>

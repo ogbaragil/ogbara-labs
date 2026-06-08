@@ -3,7 +3,7 @@
   "short_name": "Super Snakes",
   "description": "Family snakes & ladders with quest tiles, power-ups and a snake shield.",
   "id": "/",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

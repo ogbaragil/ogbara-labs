@@ -107,19 +107,3 @@ on another device and sign in: progress follows you.
   that's the reason to upgrade to Pro ($25/mo) or export periodically.
 
 
-## Background music hosting (How Many?)
-
-The "Kids Happy Music" track (Pixabay Content License, by MFCC — free for this use, no
-attribution required) is streamed at runtime rather than bundled, to keep the app small.
-Host it in your own Supabase storage:
-
-1. Dashboard → **Storage** → **New bucket** → name it exactly `assets` → toggle **Public bucket ON** → Create.
-   (Public buckets are readable by anyone without policies — correct for music.)
-2. Open the bucket → **Upload file** → upload the music file and name it exactly
-   `kids-happy-music.mp3` (the repo zip includes `kids-happy-64k.mp3`, a 577 KB compressed
-   copy — rename it on upload, or upload the original 2.3 MB file under that name).
-3. Done — the app looks for:
-   `https://qfjudxzxyvqraogwskwc.supabase.co/storage/v1/object/public/assets/kids-happy-music.mp3`
-
-If the file is missing or unreachable, the app automatically falls back to its built-in
-synthesised melody, so nothing breaks in the meantime.

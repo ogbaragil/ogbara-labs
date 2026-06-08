@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Ogbara Labs</title>
+<meta name="description" content="How Ogbara Labs apps handle your data: local-first, no ads, no trackers, optional sync.">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root{--bg:#101512; --bg2:#161d18; --ink:#eef3ee; --muted:#a8b8a8; --ac:#cdf463; --line:rgba(238,243,238,.12);
+        --display:"Fraunces", Georgia, serif; --body:"Public Sans", system-ui, sans-serif;}
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;800&family=Public+Sans:wght@400;600;700&display=swap');
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--body); line-height:1.7;}
+  .wrap{max-width:760px; margin:0 auto; padding:40px 20px 70px;}
+  a{color:var(--ac);}
+  .back{display:inline-block; margin-bottom:26px; color:var(--muted); text-decoration:none; font-weight:600; font-size:14px;}
+  .back:hover{color:var(--ink);}
+  h1{font-family:var(--display); font-weight:800; font-size:clamp(30px,5vw,40px); margin:0 0 6px; letter-spacing:-.5px;}
+  .updated{color:var(--muted); font-size:13.5px; margin:0 0 34px;}
+  h2{font-family:var(--display); font-weight:600; font-size:21px; margin:34px 0 10px;}
+  p, li{color:var(--muted); font-size:15.5px; margin:0 0 12px;}
+  ul{padding-left:20px; margin:0 0 12px;}
+  b{color:var(--ink);}
+  .card{background:var(--bg2); border:1px solid var(--line); border-radius:18px; padding:18px 20px; margin:18px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Ogbara Labs</a>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: 6 June 2026 · Applies to all Ogbara Labs apps: How&nbsp;Many?, Life&nbsp;Grid, Couples Snakes&nbsp;&amp;&nbsp;Ladders, and Super&nbsp;Snakes&nbsp;&amp;&nbsp;Ladders.</p>
+
+  <div class="card">
+    <p><b>The short version.</b> Our apps are local-first: your data lives in your browser, on your device. We show no ads, run no third-party trackers, and never sell data. If you choose to create an account, the data needed to sync your apps is stored with our hosting provider and is accessible only to you.</p>
+  </div>
+
+  <h2>What we collect without an account</h2>
+  <p>Nothing personal. The apps store their working data — game progress, journal entries, reflections, photos you add, and settings — using your browser's local storage (localStorage and IndexedDB) on your own device. That data never reaches our servers. We don't use analytics services, advertising identifiers, or tracking cookies.</p>
+
+  <h2>If you create an account</h2>
+  <p>Sync is optional. If you sign in, we collect and store:</p>
+  <ul>
+    <li><b>Your email address and a password</b> (the password is hashed; we never see it), used only to operate your account.</li>
+    <li><b>Your app data</b> — the same progress, entries, and settings described above — so it can follow you across devices.</li>
+    <li><b>Photos you add in Life Grid</b>, stored in a private bucket that only your signed-in account can access.</li>
+  </ul>
+  <p>Account data is hosted by <b>Supabase</b>, our infrastructure provider, with per-user access rules so one account can never read another's data. We don't send you marketing email and we don't share or sell your information to anyone.</p>
+
+  <h2>Children</h2>
+  <p>How&nbsp;Many? is designed for young children, and we've built it so that no account is needed and no personal information is collected from children. Account and sync features are intended for parents and adults.</p>
+
+  <h2>Your data stays yours</h2>
+  <ul>
+    <li>You can use every app fully without an account.</li>
+    <li>You can export your data from apps that hold meaningful content (for example, Life Grid's backup export).</li>
+    <li>You can erase local data at any time via the in-app reset or your browser's site-data controls.</li>
+    <li>To delete your account and everything synced with it, email us and we'll remove it.</li>
+  </ul>
+
+  <h2>A note on durability</h2>
+  <p>Browser storage is controlled by your device's operating system and can be cleared by it — for example, iOS may remove a website's storage after a period of not visiting unless the app is installed to your Home Screen. Installing the apps, signing in, or exporting backups protects your data; the apps will remind you when it matters.</p>
+
+  <h2>Changes & contact</h2>
+  <p>If this policy changes, we'll update this page and the date above. Questions or deletion requests: <a href="mailto:hello@ogbaralabs.xyz">hello@ogbaralabs.xyz</a>.</p>
+
+  <p style="margin-top:40px"><a href="/terms">Terms of Use →</a></p>
+</div>
+</body>
+</html>

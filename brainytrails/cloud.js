@@ -4,9 +4,7 @@
    When supabase-config.js is filled in, a ☁️ account button appears.
    Signed-in users get: state backup/sync (table public.app_state) and
    photo/avatar storage (bucket "photos", path {uid}/{app}/{id}.jpg).
-   Sync model: debounced push on change, pull on sign-in/open/focus.
-   If the app supplies a merge(local, remote) hook, sync is merge-aware
-   (read-merge-write with optimistic concurrency); otherwise last-write-wins.
+   Sync model: debounced push on change, pull on sign-in, last-write-wins.
    ===================================================================== */
 (function () {
   "use strict";
@@ -106,29 +104,16 @@
     } else {
       box.innerHTML = `
         <h3>Your account ☁️</h3>
-        <p>Changes sync automatically while you're signed in. <b>Back up</b> sends this device's data to the cloud now; <b>Restore</b> replaces this device's data with the cloud copy.</p>
+        <p>Progress in this app syncs automatically while you're signed in. Same login works in every Ogbara Labs app.</p>
         <div class="cloud-acct">${user.email || user.id}</div>
-        <button class="cloud-btn pri" id="clBackup">⬆ Back up now</button>
-        <button class="cloud-btn soft" id="clRestore">⬇ Restore from cloud</button>
+        <button class="cloud-btn pri" id="clSync">Sync now</button>
         <button class="cloud-btn danger" id="clOut">Sign out</button>
         <div class="cloud-msg"></div>
         <button class="cloud-close" id="clClose">Close</button>`;
-      box.querySelector("#clBackup").onclick = async () => {
-        say("Backing up…");
-        try { await pushNow(); say("Backed up — your cloud copy is current.", "ok"); }
-        catch (e) { say("Backup failed: " + (e.message || e), "err"); }
-      };
-      let restoreArmed = false;
-      box.querySelector("#clRestore").onclick = async () => {
-        if (!restoreArmed) {
-          restoreArmed = true;
-          say("This replaces the data on THIS device with the cloud copy. Tap Restore again to confirm.", "err");
-          return;
-        }
-        restoreArmed = false;
-        say("Restoring…");
-        try { await pull(true); say("Restored from the cloud copy.", "ok"); }
-        catch (e) { say("Restore failed: " + (e.message || e), "err"); }
+      box.querySelector("#clSync").onclick = async () => {
+        say("Syncing…");
+        try { await pull(true); await pushNow(); say("Everything is up to date.", "ok"); }
+        catch (e) { say("Sync failed: " + (e.message || e), "err"); }
       };
       box.querySelector("#clOut").onclick = async () => {
         await client.auth.signOut();
@@ -140,49 +125,18 @@
   }
 
   /* ---------------- Sync core ---------------- */
-  let lastPullAt = 0;
-
-  async function fetchRemote() {
-    const { data, error } = await client.from("app_state")
-      .select("state, updated_at").eq("user_id", user.id).eq("app", appKey).maybeSingle();
-    if (error) throw error;
-    return data || null;
-  }
-  async function applyState(st) {
-    applying = true;
-    try { await hooks.apply(st); } finally { applying = false; }
-  }
-
   async function pull(force) {
     if (!client || !user || !hooks.collect || !hooks.apply) return;
-    setStatus("sync"); lastPullAt = Date.now();
+    setStatus("sync");
     try {
-      const data = await fetchRemote();
-      if (hooks.merge) {
-        if (force) {
-          // Explicit restore: the cloud copy wins wholesale (the escape hatch from bad local state).
-          if (!data || !data.state) throw new Error("No cloud copy yet — back up first.");
-          await applyState(data.state);
-          localStorage.setItem(touchKey(), data.updated_at);
-          setStatus("idle");
-          if (hooks.onSynced) setTimeout(() => { try { hooks.onSynced(); } catch {} }, 0);
-          return;
-        }
-        // Merge-aware: reconcile field-by-field; never blindly replace either side.
-        if (!data || !data.state) { await pushNow(); setStatus("idle"); return; }
-        const m = hooks.merge(hooks.collect(), data.state);
-        if (m.needsApply) await applyState(m.state);
-        localStorage.setItem(touchKey(), data.updated_at);
-        if (m.needsPush) await pushNow();
-        setStatus("idle");
-        if (hooks.onSynced) setTimeout(() => { try { hooks.onSynced(); } catch {} }, 0);
-        return;
-      }
-      // Legacy whole-document behaviour for apps without a merge hook
+      const { data, error } = await client.from("app_state")
+        .select("state, updated_at").eq("user_id", user.id).eq("app", appKey).maybeSingle();
+      if (error) throw error;
       if (data && data.state) {
         const localTouched = localStorage.getItem(touchKey()) || "1970-01-01";
         if (force || data.updated_at > localTouched) {
-          await applyState(data.state);
+          applying = true;
+          try { await hooks.apply(data.state); } finally { applying = false; }
           localStorage.setItem(touchKey(), data.updated_at);
         } else {
           await pushNow(); // local is newer → publish it
@@ -198,48 +152,9 @@
     if (!client || !user || !hooks.collect || applying) return;
     setStatus("sync");
     try {
-      if (!hooks.merge) {  // legacy: unconditional upsert
-        const stamp = now();
-        const { error } = await client.from("app_state").upsert(
-          { user_id: user.id, app: appKey, state: hooks.collect(), updated_at: stamp },
-          { onConflict: "user_id,app" });
-        if (error) throw error;
-        localStorage.setItem(touchKey(), stamp);
-        setStatus("idle"); return;
-      }
-      // Merge-aware: read → merge → conditional write. If another device pushed
-      // between our read and write, the conditional update misses and we retry
-      // against the fresh remote, so no edit is ever silently dropped.
-      let merged = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const data = await fetchRemote();
-        const stamp = now();
-        if (!data || !data.state) {
-          const { error } = await client.from("app_state").upsert(
-            { user_id: user.id, app: appKey, state: hooks.collect(), updated_at: stamp },
-            { onConflict: "user_id,app" });
-          if (error) throw error;
-          localStorage.setItem(touchKey(), stamp);
-          setStatus("idle"); return;
-        }
-        const m = hooks.merge(hooks.collect(), data.state);
-        merged = m.state;
-        if (m.needsApply) await applyState(m.state);
-        const { data: upd, error } = await client.from("app_state")
-          .update({ state: merged, updated_at: stamp })
-          .eq("user_id", user.id).eq("app", appKey).eq("updated_at", data.updated_at)
-          .select("updated_at");
-        if (error) throw error;
-        if (upd && upd.length) {   // our write landed on the version we merged against
-          localStorage.setItem(touchKey(), stamp);
-          setStatus("idle"); return;
-        }
-        // someone else won the race — loop: re-fetch, re-merge, try again
-      }
-      // three races in a row is vanishingly unlikely; land the last merge unconditionally
       const stamp = now();
       const { error } = await client.from("app_state").upsert(
-        { user_id: user.id, app: appKey, state: merged || hooks.collect(), updated_at: stamp },
+        { user_id: user.id, app: appKey, state: hooks.collect(), updated_at: stamp },
         { onConflict: "user_id,app" });
       if (error) throw error;
       localStorage.setItem(touchKey(), stamp);
@@ -296,21 +211,7 @@
       if (user && !was) pull().catch(() => {});
     });
     if (user) { setStatus("idle"); pull().catch(() => {}); }
-    // Re-pull when the app comes back to the foreground, so a tab that sat in
-    // the background all day doesn't push stale state tonight. Throttled.
-    const onWake = () => {
-      if (!user) return;
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      if (Date.now() - lastPullAt < 15000) return;
-      pull().catch(() => {});
-    };
-    try {
-      document.addEventListener("visibilitychange", onWake);
-      window.addEventListener("focus", onWake);
-    } catch {}
   };
 
-  Cloud._pull = (f) => pull(f);   // test hooks
-  Cloud._push = () => pushNow();
   window.Cloud = Cloud;
 })();

@@ -27,7 +27,7 @@
   body{margin:0; font-family:var(--body); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column;
        background:radial-gradient(900px 480px at 80% -10%, rgba(255,143,177,.14), transparent 55%),
                   radial-gradient(700px 520px at -10% 50%, rgba(176,125,219,.12), transparent 55%), var(--bg);
-       padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); user-select:none;}
+       padding-top:env(safe-area-inset-top); padding-bottom:calc(136px + env(safe-area-inset-bottom)); user-select:none;}
   button,input{font-family:inherit;} button{cursor:pointer; border:none;}
   .wrap{flex:1; width:100%; max-width:980px; margin:0 auto; padding:14px 14px 18px; display:flex; flex-direction:column; gap:12px;}
 
@@ -37,53 +37,88 @@
   .icon-btns{display:flex; gap:8px;}
   .icon-btn{width:40px; height:40px; border-radius:13px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:17px; display:grid; place-items:center;}
 
-  .layout{flex:1; display:flex; flex-direction:column; gap:12px; min-height:0;}
-  @media(min-width:860px){ .layout{flex-direction:row; align-items:flex-start;} .board-pane{flex:1.4;} .side-pane{flex:1; position:sticky; top:14px;} }
+  .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
 
-  /* Board */
-  .board-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:12px;}
-  .board-outer{position:relative; width:100%; max-width:560px; margin:0 auto;}
-  .board{position:relative; width:100%; aspect-ratio:1; background:var(--board); border-radius:14px; overflow:hidden;
-         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr); border:2px solid #4a2238;}
-  .tile{position:relative; border:0.5px solid var(--tile-line);}
-  .tile .num{position:absolute; top:2px; left:3px; font-size:clamp(7px,1.6vw,10px); font-weight:800; color:var(--num); line-height:1;}
+  /* Board — the hero. One surface, no frames. */
+  .board-outer{position:relative; width:100%; max-width:min(94vw, calc(100dvh - 250px)); margin:0 auto;}
+  .board{position:relative; width:100%; aspect-ratio:1; background:var(--board); border-radius:18px; overflow:hidden;
+         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
+         box-shadow:0 18px 44px rgba(20,6,15,.5), inset 0 0 0 1px rgba(122,74,97,.25);}
+  .tile{position:relative;}
+  .tile.alt{background:#f7e7ef;}
+  .tile.qt{background:radial-gradient(circle at 50% 55%, rgba(255,143,177,.34), rgba(255,143,177,.12) 70%);}
+  .tile .num{position:absolute; top:2px; left:3px; font-size:clamp(6.5px,1.5vw,9.5px); font-weight:800; color:#b48ba0; line-height:1;}
   .tile .love{position:absolute; bottom:1px; right:2px; font-size:clamp(9px,2.2vw,13px); line-height:1;}
-  .tile.t100{background:linear-gradient(135deg,#ffe3ee,#f3e3ff);}
-  svg.art{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+  .tile.t100{background:linear-gradient(135deg,#ffd9e9,#e9d4ff);}
+  .tile.t100::after{content:"💞"; position:absolute; inset:0; display:grid; place-items:center; font-size:clamp(13px,3.4vw,22px);}
+  .tile.t100 .num{color:#9a5a78;}
+  svg.art{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; filter:drop-shadow(0 1px 1px rgba(122,74,97,.35));}
+
   .pawn{position:absolute; width:8.5%; aspect-ratio:1; border-radius:50%; display:grid; place-items:center;
         font-size:clamp(12px,3vw,18px); transition:left .12s linear, top .12s linear; z-index:5;
         border:2.5px solid; background:#fff; box-shadow:0 3px 8px rgba(43,15,32,.35); overflow:hidden;}
   .pawn img{width:100%; height:100%; object-fit:cover;}
   .pawn.p1{border-color:var(--p1);} .pawn.p2{border-color:var(--p2);}
   .pawn.active{box-shadow:0 0 0 3px rgba(255,210,125,.65), 0 3px 8px rgba(43,15,32,.4);}
+  .pawn.hop{animation:hopArc .14s ease-out;}
+  @keyframes hopArc{0%{margin-top:0}45%{margin-top:-2.6%}100%{margin-top:0}}
+  .pawn.climb{box-shadow:0 0 0 4px rgba(255,210,125,.85), 0 0 18px rgba(255,210,125,.8); animation:climbPulse .35s ease-in-out infinite;}
+  @keyframes climbPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+  .pawn.slide{animation:slideShake .18s linear infinite; filter:saturate(1.5) hue-rotate(-12deg);}
+  @keyframes slideShake{0%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}100%{transform:rotate(-6deg)}}
 
-  /* Side: status + dice */
-  .side-pane{display:flex; flex-direction:column; gap:12px;}
-  .status-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px;}
-  .turn-line{font-family:var(--display); font-style:italic; font-size:19px; margin:0 0 4px;}
-  .event-line{color:var(--muted); font-size:14px; min-height:20px; margin:0;}
-  .players-row{display:flex; gap:10px; margin-top:14px;}
-  .pchip{flex:1; display:flex; align-items:center; gap:9px; background:var(--panel2); border-radius:14px; padding:9px 11px; border:1.5px solid transparent;}
-  .pchip.active{border-color:var(--gold);}
-  .pchip .dotface{width:32px; height:32px; border-radius:50%; border:2.5px solid; display:grid; place-items:center; font-size:16px; background:#fff; flex:none; overflow:hidden;}
+  /* Fixed dock: ticker, chips flanking the die. The die IS the spin button. */
+  .dock{position:fixed; left:0; right:0; bottom:0; z-index:40;
+        background:rgba(58,21,48,.94); backdrop-filter:blur(10px);
+        border-top:1px solid var(--line);
+        padding:10px 14px calc(12px + env(safe-area-inset-bottom));}
+  .dock-inner{max-width:min(94vw, calc(100dvh - 250px)); margin:0 auto;}
+  .turn-line{font-family:var(--display); font-style:italic; font-size:16.5px; margin:0; text-align:center;}
+  .event-line{color:var(--muted); font-size:12.5px; min-height:17px; margin:2px 0 8px; text-align:center;
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .dock-row{display:flex; align-items:center; gap:12px;}
+  .chip-slot{flex:1; min-width:0;}
+  .pchip{display:flex; align-items:center; gap:9px; background:var(--panel2); border-radius:16px; padding:9px 11px; border:1.5px solid transparent;}
+  .pchip.active{border-color:var(--gold); box-shadow:0 0 14px rgba(255,210,125,.25);}
+  .pchip .dotface{width:34px; height:34px; border-radius:50%; border:2.5px solid; display:grid; place-items:center; font-size:17px; background:#fff; flex:none; overflow:hidden;}
   .pchip .dotface img{width:100%;height:100%;object-fit:cover;}
   .pchip.one .dotface{border-color:var(--p1);} .pchip.two .dotface{border-color:var(--p2);}
-  .pchip b{display:block; font-size:14px; line-height:1.2;}
-  .pchip small{color:var(--muted); font-size:11.5px;}
+  .pmeta{min-width:0; flex:1;}
+  .pmeta b{display:block; font-size:13.5px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .bar{display:block; height:5px; border-radius:999px; background:rgba(253,238,244,.14); margin-top:5px; overflow:hidden;}
+  .bar .fill{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--rose-deep),var(--plum)); transition:width .25s ease;}
 
-  .dice-card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px; text-align:center;}
-  .die{width:84px; height:84px; margin:0 auto 12px; background:#fff; border-radius:18px; display:grid; place-items:center;
-       box-shadow:0 8px 22px rgba(43,15,32,.45), inset 0 -4px 0 rgba(43,15,32,.08); transition:transform .15s;}
-  .die.spin{animation:wob .12s linear infinite;}
+  .die-btn{flex:none; width:74px; height:74px; border-radius:20px; background:#fff;
+           display:grid; place-items:center; position:relative;
+           box-shadow:0 6px 0 rgba(20,6,15,.55), 0 10px 22px rgba(20,6,15,.5), inset 0 -4px 0 rgba(43,15,32,.08);
+           transition:transform .1s, box-shadow .1s, opacity .25s;}
+  .die-btn:active{transform:translateY(4px); box-shadow:0 2px 0 rgba(20,6,15,.55), 0 6px 14px rgba(20,6,15,.5);}
+  .die-btn.spin{animation:wob .12s linear infinite;}
+  .die-btn.done{opacity:.45;}
+  .die-btn::after{content:"tap to spin"; position:absolute; bottom:-2px; left:0; right:0; text-align:center;
+                  font-size:8px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:#b48ba0;}
   @keyframes wob{0%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}100%{transform:rotate(-7deg)}}
-  .pips{width:58px; height:58px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
-  .pip{border-radius:50%; background:#2b0f20; opacity:0; align-self:center; justify-self:center; width:13px; height:13px;}
+  .pips{width:50px; height:50px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
+  .pip{border-radius:50%; background:#2b0f20; opacity:0; align-self:center; justify-self:center; width:11px; height:11px;}
   .pip.on{opacity:1;}
-  .roll-btn{width:100%; padding:15px; border-radius:16px; background:linear-gradient(135deg,var(--rose-deep),var(--plum)); color:#fff;
-            font-weight:800; font-size:17px; letter-spacing:.4px; box-shadow:0 6px 0 rgba(43,15,32,.4); transition:transform .1s, box-shadow .1s, opacity .2s;}
-  .roll-btn:active{transform:translateY(3px); box-shadow:0 3px 0 rgba(43,15,32,.4);}
-  .roll-btn:disabled{opacity:.5;}
-  .reset-link{margin-top:10px; background:none; color:var(--muted); font-weight:700; font-size:13.5px; text-decoration:underline;}
+
+  .reset-row{width:100%; margin-top:16px; padding:12px; border-radius:12px; background:var(--panel2);
+             color:var(--muted); border:1px solid var(--line); font-weight:700; font-size:14px;}
+
+  /* Drama */
+  .modal{animation:popUp .3s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
+  .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}
+  .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
+  @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
+
+  .help-fab{position:fixed; right:14px; bottom:calc(154px + env(safe-area-inset-bottom)); z-index:41;
+    width:42px; height:42px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); font-weight:900; font-size:18px; box-shadow:0 6px 16px rgba(20,6,15,.5); backdrop-filter:blur(6px);}
+  .help-modal{text-align:left;}
+  .help-modal h2{text-align:center;}
+  .help-list{margin:10px 0 0; padding-left:6px; color:var(--muted); font-size:14px; line-height:1.75; list-style:none;}
+  .help-list li{margin:7px 0;}
 
   /* Modals */
   .modal-back{position:fixed; inset:0; background:rgba(20,6,15,.78); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
@@ -104,12 +139,20 @@
   .quest-card{text-align:center;}
   .quest-card .qicon{font-size:44px;}
   .quest-card p.q{font-family:var(--display); font-style:italic; font-size:19px; line-height:1.5; margin:10px 0;}
+  .quest-card .qwho{display:inline-block; margin:8px auto 0; padding:4px 13px; border-radius:999px;
+    background:rgba(255,143,177,.15); border:1px solid rgba(255,143,177,.45); color:var(--rose);
+    font-weight:800; font-size:12.5px; letter-spacing:.3px;}
+  .quest-card .qsub{color:var(--muted); font-size:13px; margin:6px 0 0;}
+  .quest-actions{display:flex; gap:10px; margin-top:14px;}
+  .quest-actions .soft-btn{flex:1; background:rgba(255,255,255,.08); color:inherit; border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:12px; font-weight:700;}
+  .quest-actions .primary-btn{flex:1.4; margin-top:0;}
   .quest-card small{color:var(--muted);}
   .win-title{font-size:42px; margin:0;}
   .switch-row{display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-weight:700; font-size:15px;}
   .toggle{min-width:58px; padding:8px 0; border-radius:999px; background:var(--panel2); color:var(--muted); font-weight:800; border:1px solid var(--line);}
   .toggle.on{background:rgba(141,224,185,.16); color:var(--mint); border-color:var(--mint);}
   .footer{font-size:11.5px; color:#9a6b82; text-align:center;}
+  .footer a{color:inherit; text-decoration:underline; text-underline-offset:2px;}
   @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important;} }
 </style>
 </head>
@@ -124,24 +167,22 @@
   </header>
 
   <div class="layout">
-    <div class="board-pane">
-      <div class="board-card"><div class="board-outer">
-        <div class="board" id="board"></div>
-      </div></div>
+    <div class="board-outer">
+      <div class="board" id="board"></div>
     </div>
+    <p class="footer">Made with care by Ogbara Labs · always tasteful &amp; consensual 💕<br><a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a></p>
+  </div>
 
-    <div class="side-pane">
-      <div class="status-card">
-        <p class="turn-line" id="turnHint">Loading…</p>
-        <p class="event-line" id="lastEvent"></p>
-        <div class="players-row" id="playersRow"></div>
+  <button class="help-fab" id="helpBtn" aria-label="How to play">?</button>
+  <div class="dock">
+    <div class="dock-inner">
+      <p class="turn-line" id="turnHint">Loading…</p>
+      <p class="event-line" id="lastEvent"></p>
+      <div class="dock-row">
+        <div class="chip-slot" id="slotP1"></div>
+        <button class="die-btn" id="die" aria-label="Spin the die"><div class="pips" id="pips"></div></button>
+        <div class="chip-slot" id="slotP2"></div>
       </div>
-      <div class="dice-card">
-        <div class="die" id="die"><div class="pips" id="pips"></div></div>
-        <button class="roll-btn" id="rollBtn">SPIN 🎲</button>
-        <button class="reset-link" id="resetBtn">Reset game</button>
-      </div>
-      <p class="footer">An Ogbara Labs experiment · always tasteful &amp; consensual 💕</p>
     </div>
   </div>
 </div>
@@ -158,42 +199,124 @@
    final "ultimate prompt" on win. Music synthesised (no mp3 needed). */
 
 const COLS = 10;
-const LADDERS = { 6:26, 44:64, 18:43, 28:48, 73:95 };
-const SNAKES  = { 24:3, 41:21, 53:31, 68:47, 72:50, 83:62, 91:71, 96:75, 99:80 };
+const LADDERS = { 6:26, 18:43, 28:48, 44:64, 51:77, 62:81, 73:95 };
+const SNAKES  = { 24:3, 41:21, 53:31, 68:47, 84:63, 91:71, 96:75 };
 const TRANSITIONS = { ...LADDERS, ...SNAKES };
 
 const LOVE_QUESTS = {
-  Romantic: {
-    7:"Give a specific, heartfelt compliment about a quality you love in your partner.",
-    25:"Share a favorite memory you have of a moment you spent together.",
-    45:"Look into each other's eyes for at least 30 seconds without talking.",
-    58:"Hold hands and share what you first noticed or admired about each other.",
-    65:"Name three things you are grateful for about your relationship.",
-    73:"Tell your partner one thing they do that always makes you feel loved.",
-    85:"Slow dance with your partner for 30 seconds to a song you both like.",
-    93:"Describe how your life has changed for the better since meeting your partner.",
-  },
-  Fun: {
-    7:"Do your silliest dance for 10 seconds.",
-    25:"Tell a goofy joke that's so bad, it's good.",
-    45:"Do your best celebrity impression. Your partner has to guess who it is.",
-    58:"Swap seats or spots with your partner in the funniest way possible.",
-    65:"Make up a two-line song about the game and sing it.",
-    73:"Pretend you're both in a movie scene and act it out dramatically.",
-    85:"Invent a secret handshake with your partner and perform it now.",
-    93:"Pick an everyday object nearby and come up with the weirdest use for it.",
-  },
-  Spicy: {
-    7:"Give a flirty compliment on your partner.",
-    25:"Give your partner a two-minute neck or shoulder massage.",
-    45:"Describe a PG-13 fantasy you'd like to try someday.",
-    58:"Whisper the sexiest thing you can think of into your partner's ear.",
-    65:"Remove one small piece of clothing, with your partner's consent.",
-    73:"Let your partner choose a spot for you to lightly tease with your fingers.",
-    85:"Give a kiss on a non-obvious body part (e.g., neck, shoulder, or arm).",
-    93:"Share a daring place you'd like to kiss or be kissed by your partner.",
-  },
+  Romantic: [
+    "Give a specific, heartfelt compliment about a quality you love in your partner.",
+    "Share a favourite memory of a moment you spent together.",
+    "Look into each other's eyes for 30 seconds without talking.",
+    "Hold hands and share what you first noticed about each other.",
+    "Name three things you're grateful for about your relationship.",
+    "Tell your partner one thing they do that always makes you feel loved.",
+    "Slow dance for 30 seconds to a song you both like — hum it if you must.",
+    "Describe how your life has changed for the better since meeting your partner.",
+    "Tell your partner about a small everyday habit of theirs you secretly adore.",
+    "Describe your partner in exactly three words, then explain one of them.",
+    "Share the moment you first realised you were falling for them.",
+    "Tell your partner something you've never properly thanked them for.",
+    "Plan your dream weekend away together, out loud, in under a minute.",
+    "Recreate (or describe) your very first photo together.",
+    "Tell your partner what you hope you two are doing ten years from now.",
+    "Give your partner a 30-second hand massage while telling them about your day.",
+    "Share a hard time when your partner's support carried you through.",
+    "Say one thing you want to do better as a partner — then one thing they already do brilliantly.",
+    "Describe your partner's laugh and what it does to you.",
+    "Tell your partner which of their dreams you most want to see come true.",
+    "Forehead-to-forehead: take three slow breaths together.",
+    "Tell your partner what 'home' means to you — and how they fit in it.",
+    "Recall your first kiss. Compare notes on the details.",
+    "Tell your partner one way they've made you a better person.",
+    "Share a song that reminds you of them and say why.",
+    "Whisper one sentence you'd put in a love letter to them.",
+    "Tell your partner what you missed most about them the last time you were apart.",
+    "Name a tiny moment from this past week that made you feel close to them.",
+    "Tell your partner your favourite thing about how you two argue and repair.",
+    "Make a toast (with whatever drink is nearby) to one specific thing about your partner.",
+  ],
+  Fun: [
+    "Do your silliest dance for 10 seconds.",
+    "Tell a joke so bad it's good.",
+    "Do your best celebrity impression — your partner has to guess who.",
+    "Swap seats with your partner in the funniest way possible.",
+    "Make up a two-line song about this game and sing it.",
+    "Act out a dramatic movie scene together for 15 seconds.",
+    "Invent a secret handshake and perform it now.",
+    "Pick a nearby object and pitch its weirdest possible use.",
+    "Speak in an accent of your partner's choosing until your next turn.",
+    "Impersonate your partner for 15 seconds. Lovingly.",
+    "Narrate your partner's next move like a nature documentary.",
+    "Have a 10-second staring contest. Loser does a victory lap for the winner.",
+    "Say the alphabet backwards as far as you can. Partner counts.",
+    "Strike your most heroic pose and hold it for 10 seconds.",
+    "Make your partner laugh in 20 seconds without touching them.",
+    "Describe your partner as if writing a five-star review.",
+    "Invent a nickname for your partner based on tonight only.",
+    "Mime your favourite shared memory until your partner guesses it.",
+    "Do 10 seconds of air guitar like the room is a stadium.",
+    "Talk for 15 seconds about cheese with total passion.",
+    "Let your partner restyle your hair for 15 seconds. Wear it until your next turn.",
+    "Recreate the face from your worst photo ever taken.",
+    "Speak only in questions until your next turn.",
+    "Give a weather forecast for your relationship this week.",
+    "Do your best slow-motion replay of your last dice roll.",
+    "Pretend the floor is lava for your next move.",
+    "Trade an accessory (watch, sock, hairband) until the game ends.",
+    "Applaud your partner like they just won an Oscar. Acceptance speech required.",
+    "Hum a song; partner guesses it in 15 seconds.",
+    "Invent a brand-new word and use it in a sentence about your partner.",
+  ],
+  Spicy: [
+    "Give your partner a flirty compliment.",
+    "Give a two-minute neck or shoulder massage.",
+    "Describe a fantasy you'd like to try someday.",
+    "Whisper the sexiest thing you can think of into your partner's ear.",
+    "Remove one small piece of clothing.",
+    "Let your partner choose a spot for you to lightly tease with your fingers.",
+    "Kiss your partner somewhere unexpected — neck, shoulder, wrist…",
+    "Share a daring place you'd like to kiss or be kissed.",
+    "Describe what your partner is wearing like a smitten fashion critic.",
+    "Trace one finger slowly along your partner's arm, shoulder to wrist.",
+    "Tell your partner the exact moment they last looked irresistible.",
+    "Give a 30-second scalp massage.",
+    "Whisper what you'd plan if tonight had no obligations.",
+    "Kiss your partner's hand like royalty — make eye contact.",
+    "Describe your ideal kiss in detail. Then demonstrate.",
+    "Tell your partner the first thing you'd grab for a spontaneous hotel night.",
+    "Slowly remove one accessory from your partner (jewellery, watch, glasses).",
+    "Sit closer than necessary until your next turn.",
+    "Tell your partner about a time you couldn't stop thinking about them at the worst moment.",
+    "Hold a hug five seconds longer than feels normal.",
+    "Whisper a one-sentence invitation for later tonight.",
+    "Give your partner a slow 10-second kiss on the neck.",
+    "Describe your partner's best feature — take your time.",
+    "Let your partner pose you for a flattering photo. They keep it.",
+    "Play with your partner's hair for 30 seconds.",
+    "Tell your partner what scent of theirs undoes you.",
+    "Stand close, hands on waists, sway for 20 seconds — no music needed.",
+    "Tell your partner one thing you find unbearably attractive that they don't even notice doing.",
+    "Kiss along your partner's knuckles, one by one.",
+    "Make eye contact and count three things you want to say with it. Say one.",
+  ],
 };
+/* Heart tiles: extra quest triggers, chosen to never collide with snake/ladder ends */
+const QUEST_TILES = [7,15,25,36,49,58,70,88];
+/* Shuffled deck draw — no repeats until a full cycle, no back-to-back repeats across cycles */
+const _deck = {};
+function drawQuest(mode){
+  const deck = LOVE_QUESTS[mode];
+  let st = _deck[mode];
+  if (!st || st.i >= st.order.length){
+    const order = deck.map((_,i)=>i);
+    for (let i=order.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }
+    if (st && order[0] === st.last && order.length > 1) [order[0],order[1]] = [order[1],order[0]];
+    st = _deck[mode] = { order, i:0, last:-1 };
+  }
+  const idx = st.order[st.i++]; st.last = idx;
+  return deck[idx];
+}
 
 /* ---------- Persistence (mirrors snl_* keys) ---------- */
 const get = (k,d)=>{ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch{ return d; } };
@@ -227,6 +350,22 @@ const AvatarDB = (()=>{ let dbp=null;
   };
 })();
 const avatarURL = { 1:null, 2:null };
+/* Avatars uploaded while signed out are silently dropped by Cloud.uploadPhoto —
+   track what's confirmed in the cloud and backfill the rest after each sync. */
+const AV_PUSHED_KEY = "snl_avatars_pushed_v1";
+const avPushed = (()=>{ try { return new Set(JSON.parse(localStorage.getItem(AV_PUSHED_KEY)||"[]")); } catch { return new Set(); } })();
+function avMark(id, on=true){ on ? avPushed.add(id) : avPushed.delete(id); try{ localStorage.setItem(AV_PUSHED_KEY, JSON.stringify([...avPushed])); }catch{} }
+async function avatarSync(){
+  if (!window.Cloud || !Cloud.isSignedIn()) return;
+  for (const i of [1,2]){
+    if (avPushed.has("p"+i)) continue;
+    try {
+      const b = await AvatarDB.get("p"+i);
+      if (b && await Cloud.uploadPhoto("avatar-p"+i, b)) avMark("p"+i);
+    } catch {}
+  }
+}
+
 async function loadAvatars(){
   for (const i of [1,2]) {
     let b = await AvatarDB.get("p"+i);
@@ -272,17 +411,17 @@ function cellCenter(n){ // % coords of tile centre
 }
 
 const el=(t,c,h)=>{ const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+const esc=(t)=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
 
 /* ---------- Build board DOM + SVG art ---------- */
 const boardEl = document.getElementById("board");
 function buildBoard(){
   boardEl.innerHTML="";
-  const quests = LOVE_QUESTS[S.loveMode];
   for (let r=0;r<10;r++) for (let c=0;c<10;c++){
     const n = numAt(r,c);
-    const t = el("div","tile"+(n===100?" t100":""));
-    t.innerHTML = `<span class="num">${n}</span>${quests[n]?'<span class="love">💕</span>':''}`;
+    const t = el("div","tile"+((r+c)%2?" alt":"")+(QUEST_TILES.includes(n)?" qt":"")+(n===100?" t100":""));
+    t.innerHTML = `<span class="num">${n}</span>${QUEST_TILES.includes(n)?'<span class="love">💕</span>':''}`;
     boardEl.appendChild(t);
   }
   // SVG snakes & ladders
@@ -319,7 +458,7 @@ function buildBoard(){
 function pawnFace(i){
   const pl = i===1?S.p1:S.p2;
   if (avatarURL[i]) return `<img src="${avatarURL[i]}" alt="">`;
-  return pl.gender==="female"?"👩":"👨";
+  return pl.gender==="female" ? "👩" : "👨";
 }
 function paintPawns(){
   for (const i of [1,2]){
@@ -336,17 +475,22 @@ function paintPawns(){
 }
 
 /* ---------- Status UI ---------- */
-const turnHint=document.getElementById("turnHint"), lastEvent=document.getElementById("lastEvent"), playersRow=document.getElementById("playersRow");
+const turnHint=document.getElementById("turnHint"), lastEvent=document.getElementById("lastEvent");
 function startRule(){ return S.difficulty==="Hard" ? "spin a 6 to start!" : "spin anything to start!"; }
 function name(i){ return (i===1?S.p1.name:S.p2.name) || ("Player "+i); }
 function paintStatus(){
-  playersRow.innerHTML="";
   for (const i of [1,2]){
     const pl=i===1?S.p1:S.p2;
+    const slot=document.getElementById("slotP"+i);
+    if (!slot) continue;
+    slot.innerHTML="";
     const chip = el("div",`pchip ${i===1?"one":"two"}${S.current===i&&!S.winner?" active":""}`);
-    chip.innerHTML = `<span class="dotface">${pawnFace(i)}</span><span><b>${name(i)}</b><small>tile ${pl.position}</small></span>`;
-    playersRow.appendChild(chip);
+    const pct = Math.max(0, Math.min(100, pl.position||0));
+    chip.innerHTML = `<span class="dotface">${pawnFace(i)}</span>
+      <span class="pmeta"><b>${esc(name(i))}</b><span class="bar"><span class="fill" style="width:${pct}%"></span></span></span>`;
+    slot.appendChild(chip);
   }
+  if (typeof dieEl !== "undefined" && dieEl) dieEl.classList.toggle("done", !!S.winner);
 }
 function setHint(t){ turnHint.textContent=t; }
 function setEvent(t){ lastEvent.textContent=t; }
@@ -362,10 +506,13 @@ showDie(1);
 async function hopTo(i, from, to, stepMs){
   S.animating=true;
   const step = to>from?1:-1;
+  const pawnEl = document.getElementById("pawn"+i);
   for (let pos=from+step; step>0?pos<=to:pos>=to; pos+=step){
     (i===1?S.p1:S.p2).position=pos; Music.sfxStep(); paintPawns(); paintStatus();
+    if (pawnEl){ pawnEl.classList.remove("hop"); try{ void pawnEl.offsetWidth; }catch{} pawnEl.classList.add("hop"); }
     await delay(stepMs);
   }
+  if (pawnEl) pawnEl.classList.remove("hop");
   S.animating=false;
 }
 async function resolveTransition(i, at){
@@ -374,7 +521,10 @@ async function resolveTransition(i, at){
   const dir = to>at?"ladder":"snake";
   setEvent(lastEvent.textContent+` (${dir} to ${to})`);
   dir==="ladder"?Music.sfxClimb():Music.sfxSlide();
-  await hopTo(i, at, to, 80);
+  const pawnEl = document.getElementById("pawn"+i);
+  if (pawnEl) pawnEl.classList.add(dir==="ladder"?"climb":"slide");
+  await hopTo(i, at, to, dir==="ladder"?90:60);   // snakes feel fast, ladders triumphant
+  if (pawnEl) pawnEl.classList.remove("climb","slide");
   return {finalPos:to, jumped:true};
 }
 function finishTurn(keep, actor){
@@ -382,21 +532,49 @@ function finishTurn(keep, actor){
   else { S.current = S.current===1?2:1; setHint(`Your turn, ${name(S.current)}`); }
   paintPawns(); paintStatus();
 }
+function confetti(){
+  try { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch {}
+  const wrap = el("div","confetti");
+  const COLORS = ["#ff8fb1","#b07ddb","#ffd27d","#8de0b9","#ffffff"];
+  for (let k=0;k<70;k++){
+    const p = el("span");
+    p.style.left = (Math.random()*100)+"%";
+    p.style.background = COLORS[k%COLORS.length];
+    p.style.animationDelay = (Math.random()*0.7)+"s";
+    p.style.animationDuration = (2.2+Math.random()*1.5)+"s";
+    wrap.appendChild(p);
+  }
+  document.getElementById("overlay").appendChild(wrap);
+  setTimeout(()=>wrap.remove(), 4600);
+}
 function showWin(actor){
-  S.winner=S.current; Music.sfxWin(); setHint(`${actor} wins! 🎉`);
+  S.winner=S.current; Music.sfxWin(); confetti(); setHint(`${actor} wins! 🎉`);
   const back=el("div","modal-back"), box=el("div","modal quest-card");
-  box.innerHTML=`<p class="win-title">🎉</p><h2>Congratulations, ${actor}!</h2>
-    <p class="q">${S.ultimatePrompt ? S.ultimatePrompt : "You have won the game!"}</p>
+  box.innerHTML=`<p class="win-title">🎉</p><h2>Congratulations, ${esc(actor)}!</h2>
+    <p class="q">${S.ultimatePrompt ? esc(S.ultimatePrompt) : "You have won the game!"}</p>
     ${S.ultimatePrompt?'<small>The ultimate prompt — winner\'s privilege 💞</small>':""}`;
   const again=el("button","primary-btn","Play again"); again.onclick=()=>{ back.remove(); resetGame(); };
   box.appendChild(again); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
-function showQuest(text){
+function showQuest(text, kind="tile", who=""){
   Music.sfxLove();
+  const FRAME = {
+    tile:   { icon:"💕", title:"Love Quest!",     sub:"" },
+    ladder: { icon:"🪜", title:"Ladder of Love!", sub:"You climbed — celebrate with this:" },
+    snake:  { icon:"🐍", title:"Snake's Forfeit", sub:"Slithered down… make it up to your partner:" },
+  };
+  const f = FRAME[kind] || FRAME.tile;
   const back=el("div","modal-back"), box=el("div","modal quest-card");
-  box.innerHTML=`<p class="qicon">💕</p><h2>Love Quest!</h2><p class="q">${text}</p><small>Always tasteful and consensual.</small>`;
+  box.innerHTML=`<p class="qicon">${f.icon}</p><h2>${f.title}</h2>
+    ${who?`<p class="qwho">💌 ${esc(who)}, this one's yours</p>`:""}
+    ${f.sub?`<p class="qsub">${f.sub}</p>`:""}
+    <p class="q">${text}</p>
+    <small>Always tasteful &amp; consensual — passing is always okay.</small>`;
+  const row=el("div","quest-actions");
+  const pass=el("button","soft-btn","Pass 💛"); pass.onclick=()=>back.remove();
   const ok=el("button","primary-btn","We did it 💖"); ok.onclick=()=>back.remove();
-  box.appendChild(ok); back.appendChild(box);
+  row.append(pass, ok); box.appendChild(row);
+  back.appendChild(box);
   back.onclick=(e)=>{ if(e.target===back) back.remove(); };
   document.getElementById("overlay").appendChild(back);
 }
@@ -433,12 +611,15 @@ async function spin(){
   setEvent(`${actor} spun ${roll} → ${curPos} → ${target}`);
   await hopTo(mover,curPos,target,100);
   const {finalPos,jumped}=await resolveTransition(mover,target);
-  const quests=LOVE_QUESTS[S.loveMode];
-  if (quests[finalPos]){
-    setEvent(lastEvent.textContent+` • Love Quest!`);
-    showQuest(quests[finalPos]);
-  }
   if (finalPos>=100){ showWin(actor); return; }
+  if (jumped){
+    const kind = finalPos > target ? "ladder" : "snake";   // climbed up, or slid down
+    setEvent(lastEvent.textContent + (kind==="ladder" ? " • Ladder quest! 🪜" : " • Snake forfeit! 🐍"));
+    showQuest(drawQuest(S.loveMode), kind, actor);
+  } else if (QUEST_TILES.includes(finalPos)){
+    setEvent(lastEvent.textContent + " • Love Quest! 💕");
+    showQuest(drawQuest(S.loveMode), "tile", actor);
+  }
   finishTurn(roll===6&&!jumped,actor);
 }
 function resetGame(){
@@ -460,18 +641,19 @@ function openSetup(firstRun=false){
     const row=el("div","avatar-row"); row.style.marginTop="8px";
     const prev=el("span","avatar-prev",pawnFace(i));
     const seg=el("div","seg"); seg.style.flex="1";
-    ["female","male"].forEach(g=>{ const b=el("button",pl.gender===g?"sel":"", g==="female"?"👩 Female":"👨 Male");
+    [["female","👩 Female"],["male","👨 Male"]].forEach(([g,label])=>{ const b=el("button",pl.gender===g?"sel":"", label);
       b.onclick=()=>{ pl.gender=g; [...seg.children].forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); if(!avatarURL[i]) prev.innerHTML=pawnFace(i); }; seg.append(b); });
     const up=el("button","mini-btn","📷"); up.title="Set photo";
     const file=el("input"); file.type="file"; file.accept="image/*"; file.hidden=true;
     up.onclick=()=>file.click();
     file.onchange=async()=>{ const f=file.files[0]; if(!f)return;
       const blob=await downscale(f,300,0.82); await AvatarDB.put("p"+i,blob);
-      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+i, blob);
+      avMark("p"+i,false);
+      if (window.Cloud) Cloud.uploadPhoto("avatar-p"+i, blob).then(ok=>{ if(ok) avMark("p"+i); });
       if (avatarURL[i]) URL.revokeObjectURL(avatarURL[i]);
       avatarURL[i]=URL.createObjectURL(blob); prev.innerHTML=pawnFace(i); };
     const clr=el("button","mini-btn","✕"); clr.title="Remove photo";
-    clr.onclick=async()=>{ await AvatarDB.del("p"+i); if (window.Cloud) Cloud.deletePhoto("avatar-p"+i); if(avatarURL[i])URL.revokeObjectURL(avatarURL[i]); avatarURL[i]=null; prev.innerHTML=pawnFace(i); };
+    clr.onclick=async()=>{ await AvatarDB.del("p"+i); avMark("p"+i,false); if (window.Cloud) Cloud.deletePhoto("avatar-p"+i); if(avatarURL[i])URL.revokeObjectURL(avatarURL[i]); avatarURL[i]=null; prev.innerHTML=pawnFace(i); };
     row.append(prev,seg,up,clr,file); fields.append(row);
   };
   mkName(1); mkName(2);
@@ -497,6 +679,11 @@ function openSetup(firstRun=false){
   tog.onclick=()=>{ S.musicEnabled=!S.musicEnabled; tog.classList.toggle("on",S.musicEnabled); tog.textContent=S.musicEnabled?"On":"Off"; Music.setOn(S.musicEnabled); };
   musicRow.append(tog); fields.append(musicRow);
 
+  if (!firstRun){
+    const rr = el("button","reset-row","↺ Reset game — positions start over");
+    rr.onclick = () => { if (confirm("Reset positions and start over?")){ resetGame(); S.setupOpen=false; back.remove(); } };
+    fields.append(rr);
+  }
   box.appendChild(fields);
   const start=el("button","primary-btn", firstRun?"Start the game 💘":"Save");
   start.onclick=()=>{
@@ -516,9 +703,23 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
   img.onerror=()=>res(fileBlob); img.src=URL.createObjectURL(fileBlob); }); }
 
 /* ---------- Wire up ---------- */
-document.getElementById("rollBtn").onclick=spin;
-document.getElementById("resetBtn").onclick=()=>{ if(confirm("Reset positions and start over?")) resetGame(); };
+function openHelp(){
+  const back=el("div","modal-back"), box=el("div","modal help-modal");
+  box.innerHTML=`<h2>How to play 💞</h2><ul class="help-list">
+    <li>🎲 Tap the die and take turns moving along the board.</li>
+    <li>🪜 Ladders lift you up — and earn a Ladder of Love quest.</li>
+    <li>🐍 Snakes slide you down — make it up with a Snake's Forfeit.</li>
+    <li>💕 Heart tiles draw a love quest. Pick Romantic, Fun or Spicy in Settings.</li>
+    <li>💛 Passing any quest is always okay.</li>
+    <li>🏆 First to tile 100 wins — and claims the winner's prize set in Settings.</li></ul>`;
+  const ok=el("button","primary-btn","Got it 💖"); ok.onclick=()=>back.remove();
+  box.appendChild(ok); back.appendChild(box);
+  back.onclick=(e)=>{ if(e.target===back) back.remove(); };
+  document.getElementById("overlay").appendChild(back);
+}
+document.getElementById("die").onclick=spin;
 document.getElementById("settingsBtn").onclick=()=>openSetup(false);
+document.getElementById("helpBtn").onclick=openHelp;
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=S.musicEnabled?1:0.45;
 musicBtn.onclick=()=>{ S.musicEnabled=!S.musicEnabled; set("snl_music_enabled",S.musicEnabled); Music.unlock(); Music.setOn(S.musicEnabled); if(S.musicEnabled)Music.start(); paintMusicBtn(); };
@@ -551,10 +752,12 @@ addEventListener("pointerdown",function once(){ Music.unlock(); if(S.musicEnable
       set("snl_final_prompt",S.ultimatePrompt); set("snl_music_enabled",S.musicEnabled);
       set("snl_love_mode",S.loveMode); set("snl_difficulty",S.difficulty);
       await loadAvatars();
+      avatarSync();
       buildBoard(); paintStatus();
       if (!S.winner && !S.spinning && !S.animating) setHint(`${name(S.current)}, ${startRule()}`);
     },
   });
+  if (window.Cloud) avatarSync();
 })();
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>
