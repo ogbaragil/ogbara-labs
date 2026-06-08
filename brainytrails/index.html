@@ -16,6 +16,14 @@
     /* --muted darkened for WCAG-friendlier small text */
     --mint:#10b981; --sky:#0ea5e9; --coral:#f43f5e;
   }
+  /* Brand font: Apple devices get SF Pro Rounded; everyone else falls back to a
+     plain system font. To give Android/Windows the same rounded feel, drop a
+     rounded woff2 (e.g. Baloo 2, Nunito, Quicksand) into ./fonts/, then:
+       1) uncomment the @font-face below and 2) add "BT Rounded" to the stack
+       3) add "./fonts/rounded.woff2" to sw.js ASSETS so it caches offline.
+     See fonts/README.md. (Left inert by default so nothing 404s.) */
+  /* @font-face{font-family:"BT Rounded"; src:url("./fonts/rounded.woff2") format("woff2");
+       font-weight:400 900; font-display:swap;} */
   *{margin:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   [hidden]{display:none !important;}
   body:has(.modal-back){overflow:hidden;}   /* nothing behind a modal moves */
@@ -165,6 +173,33 @@
     padding:9px 16px; border-radius:999px; box-shadow:0 8px 20px rgba(245,158,11,.45); white-space:nowrap;}
   header{padding-left:62px;}
 
+  /* daily campfire: small animated fire tucked under the rewards (backpack) ring */
+  #campfire{position:fixed; top:calc(70px + env(safe-area-inset-top)); right:16px; z-index:44;
+    width:46px; height:46px; display:grid; place-items:center; background:none; border:none; padding:0;}
+  #campfire .flame{font-size:30px; line-height:1; display:block; transform-origin:50% 90%;}
+  #campfire .streak{position:absolute; bottom:-3px; right:-3px; min-width:17px; height:17px; padding:0 3px;
+    border-radius:999px; background:var(--sun); color:#fff; font-size:10px; font-weight:900;
+    display:none; align-items:center; justify-content:center; border:2px solid var(--bg);}
+  #campfire.has-streak .streak{display:flex;}
+  /* pending: dull ember, with an occasional wiggle to draw the eye */
+  #campfire.pending .flame{filter:grayscale(.8) brightness(1.1) opacity(.5); animation:emberPoke 5s ease-in-out infinite;}
+  @keyframes emberPoke{0%,84%,100%{transform:scale(1) rotate(0);}88%{transform:scale(1.2) rotate(-7deg);}
+    92%{transform:scale(1.12) rotate(7deg);}96%{transform:scale(1.06) rotate(-3deg);}}
+  /* lit: warm, lively flicker + soft glow */
+  #campfire.lit .flame{filter:drop-shadow(0 0 6px rgba(245,158,11,.75)); animation:flameFlicker 1.1s ease-in-out infinite;}
+  @keyframes flameFlicker{0%,100%{transform:scale(1,1) translateY(0);}
+    25%{transform:scale(1.08,.95) translateY(-1px);}50%{transform:scale(.94,1.08) translateY(-2px);}
+    75%{transform:scale(1.05,.98) translateY(-1px);}}
+  body.in-play #campfire{display:none;}
+
+  /* music toggle — bottom-left (the cloud chip lives in Parents' Corner now) */
+  #musicBtn{position:fixed; left:12px; bottom:calc(16px + env(safe-area-inset-bottom)); z-index:31;
+    width:44px; height:44px; border-radius:50%; background:var(--panel); border:1.5px solid var(--line);
+    font-size:19px; display:grid; place-items:center; box-shadow:0 6px 16px rgba(46,36,86,.15);}
+  #musicBtn:active{transform:scale(.92);}
+  #musicBtn.off{opacity:.6;}
+  body.in-play #musicBtn{display:none;}
+
   /* backpack */
   .bp-title{margin-top:16px; font-size:12px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); text-align:left;}
   .crowns{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
@@ -232,8 +267,10 @@
   .q-visual{margin-top:14px; font-size:clamp(26px,7.5vw,40px); line-height:1.5; word-spacing:4px;}
   .q-pic{margin-top:14px; display:flex; justify-content:center;}
   .q-pic svg{width:auto; max-width:88%;}
-  .say-btn{position:absolute; top:10px; right:10px; width:42px; height:42px; border-radius:50%;
-    background:var(--bg); border:1.5px solid var(--line); font-size:17px;}
+  .say-btn{display:block; margin:16px auto 0; width:max-content; min-height:40px; padding:9px 18px;
+    border-radius:999px; background:var(--bg); border:1.5px solid var(--line); font-size:14px; font-weight:900;
+    color:var(--muted); line-height:1;}
+  .say-btn:active{transform:scale(.96);}
   .coach{margin-top:10px; background:#fff7e2; border:2px solid #f5d98b; border-radius:18px;
     padding:13px 15px; animation:popUp .25s ease;}
   .coach-head{font-weight:900; font-size:14.5px; color:#8a5a06; margin-bottom:4px;}
@@ -337,6 +374,20 @@
   .teach h2,.teach .sheet-icon{text-align:center; display:block;}
   .teach-steps .step{background:#efe9ff; border:1.5px solid #ddd0fb; border-radius:15px; padding:12px 14px;
     margin-top:9px; font-size:15px; line-height:1.55; animation:popUp .25s ease;}
+
+  /* learn-it-first concept screen (shown the first time a skill is met) */
+  .learn-eg{background:var(--bg); border:1.5px solid var(--line); border-radius:18px; padding:14px 14px 12px;
+    margin-top:10px; text-align:center;}
+  .learn-eg .eg-prompt{font-weight:900; font-size:16px; line-height:1.35;}
+  .learn-eg .q-pic{margin-top:8px; display:flex; justify-content:center;}
+  .learn-eg .eg-visual{margin-top:8px; font-size:26px; line-height:1.4; word-spacing:4px;}
+  .learn-eg .eg-ans{margin-top:10px; font-weight:900; font-size:15px; color:var(--mint);}
+
+  /* keyboard focus ring — high-contrast, completes keyboard play */
+  :focus-visible{outline:3px solid var(--ink); outline-offset:2px;}
+  .choice-btn:focus-visible,.tap-tile:focus-visible,.line-tick:focus-visible,.chip:focus-visible,
+  .key:focus-visible,.node:focus-visible{outline:3px solid var(--ink); outline-offset:3px;}
+
   .result-head{font-size:32px; font-weight:900; letter-spacing:2px;}
   .result-xp{margin-top:10px; font-size:17px; font-weight:900; color:var(--sun);}
 
@@ -362,6 +413,8 @@
 </head>
 <body>
 <button id="hud" aria-label="My Backpack"><span id="hudLv">1</span></button>
+<button id="campfire" hidden></button>
+<button id="musicBtn" aria-label="Music">🎶</button>
 <button id="parentsBtn" aria-label="Parents' Corner — hold to open">👨‍👩‍👧</button>
 <button id="testChip" hidden>🧪 TEST MODE — tap to exit</button>
 <nav id="islRail" aria-label="Jump to island"></nav>
@@ -403,10 +456,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=20"></script>
+<script src="curriculum.js?v=22"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=20"></script>
-<script src="app.js?v=20"></script>
+<script src="cloud.js?v=22"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>

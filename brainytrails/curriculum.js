@@ -38,9 +38,17 @@ const BT = (() => {
     while (out.size < count) { if (f !== ans && !out.has(f)) out.add(f); f++; }
     return [...out].slice(0, count);
   }
-  const numChoices = (ans, lo, hi, n = 3) =>
+  const numChoices = (ans, lo, hi, n = 4) =>
     shuffle([{ label: String(ans), correct: true },
       ...nearby(ans, n - 1, lo, hi).map(v => ({ label: String(v), correct: false }))]);
+
+  /* exactly 4 pills: the answer + up to 3 distinct distractors (first-come from cands) */
+  const fourChoices = (right, cands) => {
+    const seen = new Set([String(right)]);
+    const out = [{ label: String(right), correct: true }];
+    for (const c of cands) { const s = String(c); if (out.length < 4 && !seen.has(s)) { seen.add(s); out.push({ label: s, correct: false }); } }
+    return shuffle(out);
+  };
 
   /* ===================== SKILLS ===================== */
   const SKILLS = {
@@ -110,8 +118,7 @@ const BT = (() => {
       name: "Shape Spotter", icon: "🔷", island: "sprout", unit: "shape", prereqs: [],
       gen(d) {
         const SHAPES = [["circle", "⚫"], ["square", "🟦"], ["triangle", "🔺"], ["star", "⭐"], ["heart", "❤️"], ["diamond", "🔶"]];
-        const n = d > 0.5 ? 4 : 3;
-        const opts = shuffle(SHAPES).slice(0, n);
+        const opts = shuffle(SHAPES).slice(0, 4);
         const target = pick(opts);
         return {
           format: "choice",
@@ -155,9 +162,9 @@ const BT = (() => {
         const seq = [];
         while (seq.length < 6) seq.push(unit[seq.length % unit.length]);
         const next = unit[seq.length % unit.length];
-        const wrong = next === A ? B : A;
-        const choices = [{ label: next, correct: true }, { label: wrong, correct: false }];
-        if (d > 0.6) choices.push({ label: C, correct: false });
+        const D = shuffle(["🍎", "🍌", "⭐", "🐸", "🎈", "⚽"]).find(x => x !== A && x !== B && x !== C);
+        const choices = [{ label: next, correct: true },
+          ...[A, B, C, D].filter(x => x !== next).slice(0, 3).map(x => ({ label: x, correct: false }))];
         return {
           format: "choice",
           prompt: "What comes next?",
@@ -297,7 +304,7 @@ const BT = (() => {
     "pos.ordinal": {
       name: "Line Leaders", icon: "🚶", island: "sprout", unit: "count", prereqs: ["count.to10"],
       gen(d) {
-        const ANIMALS = shuffle(["🦁", "🐰", "🐢", "🦊", "🐧", "🐮"]).slice(0, lerp(4, 5, d));
+        const ANIMALS = shuffle(["🦁", "🐰", "🐢", "🦊", "🐧", "🐮"]).slice(0, 4);
         const ORD = ["1st", "2nd", "3rd", "4th", "5th"];
         const k = ri(0, ANIMALS.length - 1);
         return {
@@ -323,7 +330,7 @@ const BT = (() => {
         const face = half ? CLOCKS_H[h - 1] : CLOCKS_O[h - 1];
         const right = half ? `half past ${h}` : `${h} o'clock`;
         const wrongs = new Set();
-        while (wrongs.size < 2) {
+        while (wrongs.size < 3) {
           const wh = ri(1, 12);
           const w = Math.random() < 0.5 ? `${wh} o'clock` : `half past ${wh}`;
           if (w !== right) wrongs.add(w);
@@ -486,13 +493,13 @@ const BT = (() => {
         const n = pick(d < 0.5 ? [2, 4] : [2, 3, 4, 8]);
         const k = ri(1, n - 1);
         const right = `${k}/${n}`;
-        const wrongSet = new Set([`${n}/${k}`, `${k}/${n + 1}`, `${k + 1}/${n}`].filter(w => w !== right));
+        const wrongSet = [`${n}/${k}`, `${k}/${n + 1}`, `${k + 1}/${n}`, `${k}/${Math.max(2, n - 1)}`, `${k + 1}/${n + 1}`];
         return { format: "choice",
           prompt: `A pizza is cut into ${n} equal slices. You eat ${k}. What fraction did you eat?`,
           say: `A pizza is cut into ${n} equal slices and you eat ${k}. What fraction is that?`,
           visual: null,
           pic: { kind: "pie", n, k },
-          choices: shuffle([{ label: right, correct: true }, ...[...wrongSet].slice(0, 2).map(w => ({ label: w, correct: false }))]),
+          choices: fourChoices(right, wrongSet),
           hint: "Slices you ate on top, total slices on the bottom.",
           steps: [`The bottom number is ALL the slices: ${n}.`, `The top number is what you ate: ${k}.`, `So it's ${right}!`] };
       },
@@ -576,12 +583,13 @@ const BT = (() => {
         const base = pick(d < 0.5 ? [[1, 2], [1, 4]] : [[1, 2], [1, 3], [1, 4], [3, 4], [2, 3]]);
         const m = ri(2, 4);
         const right = `${base[0] * m}/${base[1] * m}`;
-        const wrongs = new Set([`${base[0] * m}/${base[1] * m + 1}`, `${base[0] + 1}/${base[1]}`, `${base[1]}/${base[0] * m}`].filter(w => w !== right));
+        const t = base[0] * m, bb = base[1] * m;
+        const wrongs = [`${t + 1}/${bb}`, `${t}/${bb + 1}`, `${t}/${bb - 1}`, `${t + 2}/${bb}`, `${t}/${bb + 2}`];
         return { format: "choice", prompt: `Which equals ${base[0]}/${base[1]}?`,
           say: `Which fraction is the same as ${base[0]} over ${base[1]}?`,
           visual: null,
           pic: { kind: "pie", n: base[1], k: base[0] },
-          choices: shuffle([{ label: right, correct: true }, ...[...wrongs].slice(0, 2).map(w => ({ label: w, correct: false }))]),
+          choices: fourChoices(right, wrongs),
           hint: "Multiply the top AND bottom by the same number.",
           steps: [`Multiply top and bottom of ${base[0]}/${base[1]} by ${m}.`, `Top: ${base[0]} × ${m} = ${base[0] * m}. Bottom: ${base[1]} × ${m} = ${base[1] * m}.`, `So ${base[0]}/${base[1]} = ${right} — twins!`] };
       },
@@ -713,7 +721,7 @@ const BT = (() => {
       name: "Angle Spotter", icon: "📐", island: "storm", unit: "angles", prereqs: ["shape.names2d"],
       gen(d) {
         const KINDS = [["acute", () => ri(10, 80)], ["right", () => 90], ["obtuse", () => ri(100, 170)], ["straight", () => 180]];
-        const pool = d < 0.5 ? KINDS.slice(0, 3) : KINDS;
+        const pool = KINDS;
         const [kind, gen] = pick(pool);
         const deg = gen();
         return { format: "choice", prompt: `An angle measures ${deg}°. What kind is it?`,
@@ -764,7 +772,7 @@ const BT = (() => {
     "data.compare": {
       name: "Graph Battle", icon: "⚔️", island: "storm", unit: "data", prereqs: ["data.read"],
       gen(d) {
-        const fruits = shuffle(FRUITS).slice(0, d < 0.5 ? 3 : 4);
+        const fruits = shuffle(FRUITS).slice(0, 4);
         const bars = shuffle(Array.from({ length: fruits.length }, (_, i) => i + 1));
         const most = Math.random() < 0.5;
         const targetVal = most ? Math.max(...bars) : Math.min(...bars);
@@ -787,11 +795,11 @@ const BT = (() => {
         const den = pick(d < 0.5 ? [4, 5, 8] : [5, 8, 10, 12]);
         const a = ri(1, den - 2), b = ri(1, den - a - 1);
         const right = `${a + b}/${den}`;
-        const wrongs = [`${a + b}/${den * 2}`, `${a + b + 1}/${den}`, `${a * b}/${den}`].filter(w => w !== right);
+        const wrongs = [`${a + b}/${den * 2}`, `${a + b + 1}/${den}`, `${a * b}/${den}`, `${a + b}/${den + 1}`, `${Math.max(1, a + b - 1)}/${den}`];
         return { format: "choice", prompt: `${a}/${den} + ${b}/${den} = ?`,
           say: `${a} over ${den} plus ${b} over ${den} equals what?`,
           visual: null,
-          choices: shuffle([{ label: right, correct: true }, ...wrongs.slice(0, 2).map(w => ({ label: w, correct: false }))]),
+          choices: fourChoices(right, wrongs),
           hint: "Same bottoms? Just add the tops!",
           steps: ["The bottoms match, so they stay the same.", `Add the tops: ${a} + ${b} = ${a + b}.`, `Answer: ${right}!`] };
       },
@@ -805,11 +813,11 @@ const BT = (() => {
         const a1 = 1, a2 = ri(1, b - m - 1);
         const top = a1 * m + a2;
         const right = `${top}/${b}`;
-        const wrongs = [`${a1 + a2}/${s + b}`, `${top + 1}/${b}`, `${a1 + a2}/${b}`].filter(w => w !== right);
+        const wrongs = [`${a1 + a2}/${s + b}`, `${top + 1}/${b}`, `${a1 + a2}/${b}`, `${top}/${b + 1}`, `${Math.max(1, top - 1)}/${b}`];
         return { format: "choice", prompt: `${a1}/${s} + ${a2}/${b} = ?`,
           say: `${a1} over ${s} plus ${a2} over ${b} equals what?`,
           visual: null,
-          choices: shuffle([{ label: right, correct: true }, ...[...new Set(wrongs)].slice(0, 2).map(w => ({ label: w, correct: false }))]),
+          choices: fourChoices(right, wrongs),
           hint: `Turn ${a1}/${s} into ${b}ths first.`,
           steps: [`${a1}/${s} = ${m}/${b} (multiply top and bottom by ${m}).`, `Now the bottoms match: ${m}/${b} + ${a2}/${b}.`, `Add the tops: ${right}!`] };
       },
@@ -821,12 +829,12 @@ const BT = (() => {
         const [p, q] = pick(BASE);
         const m = ri(2, Math.max(2, Math.min(4, Math.floor(12 / q))));   // pie stays ≤12 slices — drawable
         const right = `${p}/${q}`;
-        const wrongs = [`${p * m}/${q}`, `${p}/${q * m}`, `${p + 1}/${q + 1}`].filter(w => w !== right);
+        const wrongs = [`${p * m}/${q}`, `${p}/${q * m}`, `${p + 1}/${q + 1}`, `${p}/${q + 1}`, `${p + 1}/${q}`];
         return { format: "choice", prompt: `Simplify ${p * m}/${q * m}`,
           say: `Make ${p * m} over ${q * m} as simple as possible.`,
           visual: null,
           pic: { kind: "pie", n: q * m, k: p * m },
-          choices: shuffle([{ label: right, correct: true }, ...[...new Set(wrongs)].slice(0, 2).map(w => ({ label: w, correct: false }))]),
+          choices: fourChoices(right, wrongs),
           hint: `Divide top and bottom by the same number.`,
           steps: [`Both ${p * m} and ${q * m} can be divided by ${m}.`, `Top: ${p * m} ÷ ${m} = ${p}. Bottom: ${q * m} ÷ ${m} = ${q}.`, `Shrunk to ${right}!`] };
       },

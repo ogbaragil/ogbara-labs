@@ -50,4 +50,11 @@ module.exports = async function (t) {
   t("every skill is reachable", reach.size === ids.length);
   const withPics = ids.filter(id => { try { return !!BT.SKILLS[id].gen(0.6).pic || !!BT.SKILLS[id].gen(0.3).pic; } catch { return false; } });
   t("14 skills carry maths pictures", withPics.length >= 14, "got " + withPics.length + ": " + withPics.join(","));
+  const choiceCounts = {};
+  for (const id of ids) for (const d of [0, 0.3, 0.6, 1]) for (let i = 0; i < 60; i++) {
+    let q; try { q = BT.SKILLS[id].gen(d); } catch { continue; }
+    if (q.format === "choice") (choiceCounts[id] = choiceCounts[id] || new Set()).add(q.choices.length);
+  }
+  const odd = Object.entries(choiceCounts).filter(([, s]) => [...s].some(n => n !== 2 && n !== 4)).map(([id]) => id);
+  t("multiple-choice is uniform (4 pills, or 2 for binary)", odd.length === 0, odd.join(","));
 };

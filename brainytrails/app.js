@@ -23,6 +23,7 @@ const Store = (() => {
 
 const FRESH_PROFILE = () => ({
   skills: {},                 // id → {m,attempts,correct,stars,nextReview}
+  taught: {},                 // id → date first taught (Learn-it-first screen seen)
   xp: 0,
   streak: { count: 0, last: null },
   settings: { speech: true },
@@ -35,12 +36,14 @@ if (!state.deletedProfiles) state.deletedProfiles = {};
 function migrateProfile(p) {
   if (!p.settings) p.settings = { speech: true };
   if (!p.badges) p.badges = {};
+  if (!p.taught) p.taught = {};
   if (!p.timeByDay) p.timeByDay = {};
   if (!p.bosses) p.bosses = {};
   if (!p.name) p.name = "Explorer";
   if (!p.avatar) p.avatar = "🦊";
   if (!p.streak) p.streak = { count: 0, last: null };
   if (p.settings.sound === undefined) p.settings.sound = true;
+  if (p.settings.music === undefined) p.settings.music = true;
   if (p.settings.kokoroVoice !== undefined) {
     if (p.settings.premiumVoice === undefined) p.settings.premiumVoice = p.settings.kokoroVoice;
     delete p.settings.kokoroVoice;
@@ -57,7 +60,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "13";
+const APP_V = "15";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -110,6 +113,7 @@ function mergeRemote(remote) {
     if (rp.settings) lp.settings = { ...lp.settings, ...rp.settings };
     /* earned things are permanent — union them */
     for (const [bid, when] of Object.entries(rp.badges || {})) if (!lp.badges[bid]) lp.badges[bid] = when;
+    for (const [sid, when] of Object.entries(rp.taught || {})) if (!lp.taught[sid]) lp.taught[sid] = when;
     for (const [iid, bs] of Object.entries(rp.bosses || {})) {
       const rb = bs === true ? { won: true, best: 0 } : bs;
       const cur = lp.bosses[iid];
@@ -185,14 +189,15 @@ function pic(p) {
       return wrap(`0 0 ${Math.max(w, 60)} 100`, body, 110);
     }
     if (p.kind === "rect") {
-      const W = 200, H = Math.max(50, Math.round(200 * (p.w / p.l) * 0.7));
-      return wrap(`0 0 ${W + 50} ${H + 40}`,
+      const unit = Math.min(24, 180 / Math.max(p.l, p.w, 1));   // to scale: longer side ≤180px
+      const W = Math.max(28, Math.round(p.l * unit)), H = Math.max(20, Math.round(p.w * unit));
+      return wrap(`0 0 ${W + 60} ${H + 44}`,
         `<rect x="25" y="10" width="${W}" height="${H}" rx="6" fill="${FILL}" stroke="${INK}" stroke-width="3"/>
-         <text x="${25 + W / 2}" y="${H + 34}" text-anchor="middle" font-size="17" font-weight="900" fill="${INK}">${p.l}</text>
-         <text x="${W + 42}" y="${10 + H / 2 + 6}" text-anchor="middle" font-size="17" font-weight="900" fill="${INK}">${p.w}</text>`, 130);
+         <text x="${25 + W / 2}" y="${H + 34}" text-anchor="middle" font-size="16" font-weight="900" fill="${INK}">${p.l}</text>
+         <text x="${W + 42}" y="${10 + H / 2 + 6}" text-anchor="middle" font-size="16" font-weight="900" fill="${INK}">${p.w}</text>`, 132);
     }
     if (p.kind === "angle") {
-      const cx = 26, cy = 104, L = 96, rad = (p.deg * Math.PI) / 180;
+      const cx = 75, cy = 100, L = 66, rad = (p.deg * Math.PI) / 180;   // centred so obtuse & straight angles stay on-canvas
       const x2 = cx + L * Math.cos(rad), y2 = cy - L * Math.sin(rad);
       let body = `<line x1="${cx}" y1="${cy}" x2="${cx + L}" y2="${cy}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>
         <line x1="${cx}" y1="${cy}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`;
@@ -201,7 +206,7 @@ function pic(p) {
         const r = 22, ex = cx + r * Math.cos(rad), ey = cy - r * Math.sin(rad);
         body += `<path d="M${cx + r},${cy} A${r},${r} 0 ${p.deg > 180 ? 1 : 0} 0 ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="${VIO}" stroke-width="2.5"/>`;
       }
-      return wrap("0 0 150 116", body, 108);
+      return wrap("0 0 150 120", body, 110);
     }
     if (p.kind === "suppl") {
       const cx = 110, cy = 78, rad = (p.a * Math.PI) / 180;
@@ -223,15 +228,18 @@ function pic(p) {
       return wrap(`0 0 210 ${8 + p.items.length * 30}`, body, 26 + p.items.length * 30);
     }
     if (p.kind === "coins") {
-      const COL = { 5: "#cfd6dd", 10: "#cfd6dd", 20: "#cfd6dd", 50: "#cfd6dd", 100: "#f4cf6b", 200: "#f4cf6b" };
-      let body = "";
-      p.values.forEach((v, i) => {
-        const x = 36 + i * 70;
-        body += `<circle cx="${x}" cy="36" r="30" fill="${COL[v] || "#f4cf6b"}" stroke="${INK}" stroke-width="2.5"/>
-          <circle cx="${x}" cy="36" r="24" fill="none" stroke="${INK}" stroke-width="1" opacity=".35"/>
-          <text x="${x}" y="42" text-anchor="middle" font-size="15" font-weight="900" fill="${INK}">${v}c</text>`;
+      const R = { 5: 17, 10: 20, 20: 23, 50: 27, 100: 22, 200: 25 };
+      const COL = { 5: "#cdd3da", 10: "#cdd3da", 20: "#cdd3da", 50: "#c7ccd3", 100: "#f1c75a", 200: "#e9b949" };
+      const maxR = 27, baseY = maxR + 5, gap = 11;
+      let x = 6, body = "";
+      p.values.forEach(v => {
+        const r = R[v] || 22, cx = x + r;
+        body += `<circle cx="${cx}" cy="${baseY}" r="${r}" fill="${COL[v] || "#f1c75a"}" stroke="${INK}" stroke-width="2.5"/>
+          <circle cx="${cx}" cy="${baseY}" r="${r - 4.5}" fill="none" stroke="${INK}" stroke-width="1" opacity=".3"/>
+          <text x="${cx}" y="${baseY + r * 0.22}" text-anchor="middle" font-size="${Math.max(11, Math.round(r * 0.62))}" font-weight="900" fill="${INK}">${v >= 100 ? "$" + v / 100 : v + "c"}</text>`;
+        x += 2 * r + gap;
       });
-      return wrap(`0 0 ${p.values.length * 70 + 4} 72`, body, 76);
+      return wrap(`0 0 ${x} ${baseY + maxR + 4}`, body, baseY + maxR + 8);
     }
     if (p.kind === "compare") {
       const max = Math.max(p.a.len, p.b.len);
@@ -424,6 +432,22 @@ const TTS = {
     } catch (e) { this.lastErr = String(e && e.message || e); webSay(text); }
   },
   prefetch(arr) { if (this.enabled() && this.unlocked()) arr.forEach(t => this.fetchClip(t).catch(() => { })); },
+  async sayQueue(lines) {   // play clips back-to-back; a newer call supersedes us
+    const seq = (this._seq = (this._seq || 0) + 1);
+    try {
+      for (const t of lines) {
+        if (seq !== this._seq) return;
+        const url = await this.fetchClip(t);
+        if (seq !== this._seq) return;
+        if (!this.el) this.el = new Audio();
+        await new Promise(res => {
+          this.el.onended = res; this.el.onerror = res;
+          try { this.el.pause(); } catch { }
+          this.el.src = url; this.el.play().catch(() => res());
+        });
+      }
+    } catch (e) { this.lastErr = String(e && e.message || e); }
+  },
 };
 
 /* Sprout & Bridge are for 4–7 year olds: typing multi-digit answers is a motor
@@ -454,11 +478,62 @@ function say(text) {
   if (TTS.enabled() && TTS.unlocked()) { TTS.say(text); return; }
   webSay(text);
 }
+/* read several lines in order (used by the Learn screen to read every step) */
+function sayLines(lines) {
+  const list = (lines || []).map(t => String(t).trim()).filter(Boolean);
+  if (!list.length || !P().settings.speech) return;
+  if (TTS.enabled() && TTS.unlocked()) { TTS.sayQueue(list); return; }
+  if (!("speechSynthesis" in window)) return;
+  try {
+    if (!_wv) _wv = pickWebVoice();
+    speechSynthesis.cancel();
+    list.forEach(t => {
+      const u = new SpeechSynthesisUtterance(t);
+      if (_wv) { u.voice = _wv; u.lang = _wv.lang; }
+      u.rate = 0.95; u.pitch = 1.05;
+      speechSynthesis.speak(u);   // queued, not cancelled between lines
+    });
+  } catch { }
+}
 addEventListener("pointerdown", function prime() {
   if (!speechPrimed && "speechSynthesis" in window) { try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch { } speechPrimed = true; }
   TTS.prime();
+  Music.start();   // browsers only let audio start inside a user gesture
   removeEventListener("pointerdown", prime);
 });
+
+/* ---------------- map theme music (same loop as How Many?) ---------------- */
+const Music = (() => {
+  let el = null;
+  const wanted = () => P().settings.music !== false;            // default on
+  const onMap = () => { try { return !document.body.classList.contains("in-play"); } catch { return true; } };
+  const visible = () => { try { return document.visibilityState !== "hidden"; } catch { return true; } };
+  const ensure = () => {
+    if (el || typeof Audio === "undefined") return el;
+    try { el = new Audio("kids-happy-music.mp3"); el.loop = true; el.preload = "auto"; el.volume = 0.3; }
+    catch { el = null; }
+    return el;
+  };
+  function sync() {
+    const e = ensure(); if (!e) return;
+    if (wanted() && onMap() && visible()) { const p = e.play && e.play(); if (p && p.catch) p.catch(() => { }); }
+    else { try { e.pause(); } catch { } }
+  }
+  return {
+    start() { sync(); },
+    sync,
+    on: () => wanted(),
+    toggle() { P().settings.music = !wanted(); save(); sync(); paintMusicBtn(); },
+  };
+})();
+function paintMusicBtn() {
+  const b = $("musicBtn"); if (!b) return;
+  const on = Music.on();
+  b.textContent = on ? "🎶" : "🔇";
+  b.classList.toggle("off", !on);
+  b.setAttribute("aria-label", on ? "Music on — tap to mute" : "Music off — tap to play");
+}
+try { document.addEventListener("visibilitychange", () => Music.sync()); } catch { }
 
 /* keyboard play: each question installs Sess.onKey; we only forward keys while a
    question is live (no modal open, not mid-feedback, focus not in a text field) */
@@ -577,6 +652,8 @@ function renderMap(scrollToHere) {
     } else lc.hidden = true;
   }
   maybeSyncNudge();
+  paintMusicBtn();
+  Music.sync();
 }
 function maybeSyncNudge() {
   if (state.syncNudged || inTest()) return;
@@ -597,16 +674,19 @@ function maybeSyncNudge() {
 /* ---------------- daily campfire ---------------- */
 const yesterIso = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); };
 function paintDaily() {
-  const card = $("dailyCard");
-  if (!card) return;
+  const card = $("dailyCard"); if (card) card.hidden = true;   // replaced by the campfire under the rewards button
+  const fire = $("campfire"); if (!fire) return;
   const st = P().streak;
   const doneToday = st.last === today();
-  const flame = st.count >= 7 ? "🎆" : st.count >= 3 ? "🔥🔥" : st.count >= 1 ? "🔥" : "✨";
-  card.hidden = false;
-  card.innerHTML = doneToday
-    ? `${flame} <b>Campfire glowing!</b> ${st.count}-day streak — come back tomorrow to keep it warm.`
-    : `${flame} <b>Daily Campfire</b> — 5 quick questions to ${st.count && st.last === yesterIso() ? `keep your ${st.count}-day streak burning!` : "light today's fire!"}`;
-  card.onclick = () => doneToday
+  const flame = st.count >= 7 ? "🎆" : "🔥";
+  fire.hidden = false;
+  fire.className = doneToday ? "lit" : "pending";
+  if (st.count > 0) fire.classList.add("has-streak");
+  fire.innerHTML = `<span class="flame">${flame}</span><span class="streak">${st.count || ""}</span>`;
+  fire.setAttribute("aria-label", doneToday
+    ? `Campfire glowing — ${st.count}-day streak`
+    : "Daily Campfire — tap to light today's fire");
+  fire.onclick = () => doneToday
     ? toast(flame, "Glowing bright!", `${st.count}-day streak. The fire is happy until tomorrow!`)
     : startDaily();
 }
@@ -692,8 +772,49 @@ function finishDaily() {
 }
 
 /* ---------------- skill sheet ---------------- */
+/* ---------------- learn-it-first: teach the concept before the first practice ---------------- */
+function answerText(q) {
+  if (q.format === "choice") return q.choices.find(c => c.correct).label;
+  if (q.format === "tf") return q.answer ? "TRUE" : "FALSE";
+  if (q.format === "keypad") return q.decimal ? q.answer.toFixed(1) : String(q.answer);
+  if (q.format === "order") return q.correct.join(" → ");
+  if (q.format === "tap") return (q.items.find(i => i.correct) || {}).label || "";
+  return "";
+}
+function learnSkill(id) {
+  const s = BT.SKILLS[id];
+  let q = null; try { q = s.gen(0.4); } catch { }
+  const back = el("div", "modal-back"), box = el("div", "modal teach learn");
+  const eg = q ? `<div class="learn-eg">
+      <p class="eg-prompt">${esc(q.prompt)}</p>
+      ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
+      ${q.visual ? `<p class="eg-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
+      <p class="eg-ans">Answer: <b>${esc(answerText(q))}</b></p>
+    </div>` : "";
+  box.innerHTML = `<p class="sheet-icon">${s.icon}</p><h2>Let's learn: ${esc(s.name)}</h2>
+    <p class="sheet-acc">Here's how it works — then you'll try it yourself.</p>${eg}`;
+  const list = el("div", "teach-steps");
+  const steps = (q && q.steps) || [];
+  steps.forEach(stp => list.appendChild(el("p", "step", esc(stp))));
+  box.appendChild(list);
+  const go = el("button", "primary-btn", "I'm ready — let's practice! 🚀");
+  go.onclick = () => { P().taught[id] = today(); save(); back.remove(); startSet(id, "practice"); };
+  const hear = el("button", "soft-btn", "🔊 Read it to me again");
+  const readAll = () => sayLines([s.name, ...steps]);
+  hear.onclick = readAll;
+  const later = el("button", "soft-btn", "Back to map");
+  later.onclick = () => back.remove();
+  box.append(go, hear, later);
+  back.appendChild(box);
+  back.onclick = (e) => { if (e.target === back) back.remove(); };
+  $("overlay").appendChild(back);
+  readAll();
+}
+
 function openSkill(id) {
   const s = BT.SKILLS[id], st = sk(id);
+  /* first ever encounter → teach the concept before any practice (Khan-style) */
+  if (!inTest() && st.attempts === 0 && !P().taught[id]) return learnSkill(id);
   const back = el("div", "modal-back"), box = el("div", "modal sheet");
   const acc = st.attempts ? Math.round(100 * st.correct / st.attempts) : null;
   box.innerHTML = `<p class="sheet-icon">${s.icon}</p><h2>${esc(s.name)}</h2>
@@ -708,6 +829,9 @@ function openSkill(id) {
     lvl.onclick = () => { back.remove(); startSet(id, "levelup"); };
     box.appendChild(lvl);
   }
+  const learn = el("button", "soft-btn", "📘 Learn it again");
+  learn.onclick = () => { back.remove(); learnSkill(id); };
+  box.appendChild(learn);
   const close = el("button", "soft-btn", "Back to map");
   close.onclick = () => back.remove();
   box.appendChild(close);
@@ -744,6 +868,7 @@ function beginSession(cfg) {
   }, cfg);
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
   document.body.classList.add("in-play");
+  Music.sync();
   $("playTitle").textContent = cfg.title;
   $("reviewBanner").hidden = true;
   $("continueBtn").hidden = true;
@@ -852,10 +977,10 @@ function nextQ() {
 function renderQuestion(q) {
   $("hintSlot").innerHTML = "";
   const card = $("promptCard");
-  card.innerHTML = `<button class="say-btn" aria-label="Hear it again">🔊</button>
-    <p class="q-prompt">${esc(q.prompt)}</p>` +
+  card.innerHTML = `<p class="q-prompt">${esc(q.prompt)}</p>` +
     (q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : "") +
-    (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "");
+    (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "") +
+    `<button class="say-btn" aria-label="Hear it again">🔊 Hear it</button>`;
   const dock = $("answerArea");
   dock.innerHTML = "";
   Sess.onKey = null;   // each format installs its own keyboard shortcuts below
@@ -1478,7 +1603,10 @@ function openParents() {
     b.onclick = () => { p.settings[key] = !p.settings[key]; b.className = "tgl" + (p.settings[key] ? " on" : ""); b.textContent = `${label}: ${p.settings[key] ? "On" : "Off"}`; save(); };
     return b;
   };
-  tgls.append(mk("speech", "🔊 Speech"), mk("sound", "🎵 Sounds"));
+  const musicTgl = mk("music", "🎶 Music");
+  const flipMusic = musicTgl.onclick;
+  musicTgl.onclick = () => { flipMusic(); Music.sync(); paintMusicBtn(); };
+  tgls.append(mk("speech", "🔊 Speech"), mk("sound", "🎵 Sounds"), musicTgl);
   gVoice.appendChild(tgls);
 
   /* ── ⚙️ Limits, account & data ── */
@@ -1585,9 +1713,10 @@ function openParentGate() {
 function openHelp() {
   const back = el("div", "modal-back"), box = el("div", "modal help-modal");
   box.innerHTML = `<h2>How Brainy Trails works 🧭</h2><ul class="help-list">
-    <li>🗺 Tap a glowing skill on the map to start a 7-question practice.</li>
+    <li>🗺 Tap a glowing skill on the map — a new one teaches you first, then you practise.</li>
     <li>⭐ Get 5 or more right to become <b>Familiar</b> and earn stars.</li>
     <li>⚡ Then take the Level Up to become <b>Proficient</b>.</li>
+    <li>📘 Want a reminder? Open any skill and tap <b>Learn it again</b>.</li>
     <li>🤝 Stuck twice? A friendly helper shows you step by step.</li>
     <li>🔊 Every question is read aloud — tap the speaker to hear it again.</li>
     <li>⌨️ On a keyboard: press <b>1–4</b> to pick an answer, or type a number and <b>Enter</b>.</li>
@@ -1600,6 +1729,7 @@ function openHelp() {
   $("overlay").appendChild(back);
 }
 $("helpBtn").onclick = openHelp;
+$("musicBtn") && ($("musicBtn").onclick = () => Music.toggle());
 $("promptCard").onclick = () => { if (Sess && Sess.q) say(Sess.q.say); };
 
 /* ---------------- cloud (basic wiring; per-skill best-wins merge) ---------------- */
@@ -1630,7 +1760,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
