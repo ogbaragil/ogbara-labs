@@ -93,3 +93,37 @@ node tests/run-all.js
 ## Recommended next phase
 
 This implementation establishes the learning engine foundation. The next phase should deepen individual skill content with bespoke lesson scripts, interactive manipulatives, and richer question generators per skill.
+
+## Phase 2 continuation wired in this package
+
+This pass strengthens the adaptive learning layer beyond the initial Khan-style scaffolding.
+
+### Added adaptive prerequisite routing
+- `BTLearning.buildAdaptivePlan(profile, BT, skillId)` now checks whether a child has a prerequisite gap before starting a target skill.
+- Practice sessions can redirect to the prerequisite skill with a child-friendly “Smart trail detour” prompt.
+- Children can still choose to stay on the original skill, preserving autonomy.
+
+### Added micro-remediation inside practice
+- When a child misses a question twice and the misconception engine identifies a prerequisite, the app inserts a helper question immediately after the failed item.
+- The set length grows dynamically so remediation does not silently replace the target practice.
+- The result screen reports how many smart helper questions were added.
+
+### Added adaptive analytics helpers
+- `recentAccuracy()` for short-window performance tracking.
+- `prerequisiteGap()` for prerequisite health checks.
+- `strongestMisconception()` internally identifies repeated error patterns.
+- `weeklySummary()` powers parent-facing strengths, learning gaps, review risk, and recommended next activity.
+
+### Parent dashboard improvement
+Parents now see:
+- current fluent-skill count,
+- retention-risk count,
+- weekly strengths,
+- learning gaps,
+- repeated misconceptions,
+- recommended next practice.
+
+### Validation
+The complete existing regression suite passes after this phase:
+
+`70 passed, 0 failed`

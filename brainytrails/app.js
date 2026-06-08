@@ -724,6 +724,7 @@ function beginSession(cfg) {
     i: 0, correct: 0, misses: 0, xpGain: 0,
     taught: false, q: null, lock: false, orderPicked: [],
     results: [],            // review: per-skill outcomes
+    adaptiveEvents: [],      // phase 2: prerequisite redirects and challenge nudges
     lvFrom: levelOf(P().xp), t0: Date.now(),
   }, cfg);
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
@@ -742,6 +743,13 @@ function beginSession(cfg) {
 }
 
 function startSet(id, kind) {
+  if (kind === "practice" && window.BTLearning) {
+    const plan = BTLearning.buildAdaptivePlan(P(), BT, id);
+    if (plan.action === "remediate-prerequisite" && plan.skillId !== id && BT.SKILLS[plan.skillId] && !inTest()) {
+      showAdaptiveNudge(id, plan.skillId, () => startSet(plan.skillId, "practice"));
+      return;
+    }
+  }
   if (kind === "practice" && !inTest() && !FAST && window.BTLearning && !P().lessonsSeen[id]) {
     showMiniLesson(id, () => startSet(id, kind));
     return;
@@ -759,6 +767,19 @@ function startSet(id, kind) {
     d: kind === "levelup" ? 0.85 : Math.min(0.9, (st.lastD || (0.35 + 0.15 * st.m))),
     adaptive: kind === "practice", title: BT.SKILLS[id].name,
   });
+}
+
+function showAdaptiveNudge(fromId, toId, done) {
+  const from = BT.SKILLS[fromId], to = BT.SKILLS[toId];
+  const back = el("div", "modal-back"), box = el("div", "modal lesson-card");
+  box.innerHTML = `<p class="sheet-icon">🧭</p><h2>Smart trail detour</h2>
+    <p class="sheet-acc">Before <b>${esc(from.name)}</b>, let’s strengthen <b>${esc(to.name)}</b>. This makes the next quest easier and keeps confidence high.</p>
+    <p class="sheet-acc"><b>Why:</b> Brainy Trails now checks prerequisite gaps instead of drilling the same mistake.</p>`;
+  const go = el("button", "primary-btn", `Practise ${esc(to.name)} ▶`);
+  go.onclick = () => { back.remove(); done(); };
+  const stay = el("button", "soft-btn", `Stay on ${esc(from.name)}`);
+  stay.onclick = () => { back.remove(); beginSession({ kind: "practice", queue: Array(7).fill(fromId), focusSkill: fromId, total: 7, d: 0.35, adaptive: true, title: from.name }); };
+  box.append(go, stay); back.appendChild(box); $("overlay").appendChild(back);
 }
 
 function showMiniLesson(id, done) {
@@ -1096,11 +1117,11 @@ function finishSet() {
   const st = sk(id);
   let headline, sub, levelled = false;
   if (kind === "practice") {
-    const stars = Math.max(0, correct - (total - 3));     // 5/7→1★ 6/7→2★ 7/7→3★
+    const stars = Math.max(0, correct - (total - 3));     // adaptive sets can grow; still rewards strong finish
     if (stars > st.stars) st.stars = stars;
     if (correct >= 5 && st.m < 1) { st.m = 1; levelled = true; }
     headline = stars ? "⭐".repeat(stars) : "Good try!";
-    sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "");
+    sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "") + (Sess.adaptiveEvents && Sess.adaptiveEvents.length ? ` · Smart detours added ${Sess.adaptiveEvents.length} helper question${Sess.adaptiveEvents.length === 1 ? "" : "s"}.` : "");
   } else {
     if (correct >= 5) {
       if (st.m < 2) { st.m = 2; levelled = true; }
@@ -1311,10 +1332,13 @@ function parentInsights(p) {
   const misconceptions = [];
   rows.forEach(([id, st]) => Object.entries((st.evidence && st.evidence.misconceptions) || {}).forEach(([type, n]) => misconceptions.push({ id, type, n })));
   misconceptions.sort((a,b)=>b.n-a.n);
-  const rec = window.BTLearning ? BTLearning.recommendNextSkill(p, BT, rows[0] && rows[0][0]) : null;
+  const summary = window.BTLearning ? BTLearning.weeklySummary(p, BT) : null;
+  const rec = summary && summary.next ? summary.next : (window.BTLearning ? BTLearning.recommendNextSkill(p, BT, rows[0] && rows[0][0]) : null);
   const out = [];
   out.push(`🧠 Fluent skills: <b>${mastered}</b>. Mastered skills become Fluent after strong retained reviews.`);
   out.push(`🛡 Retention risk: <b>${due}</b> skill${due === 1 ? "" : "s"} due for spaced review.`);
+  if (summary && summary.strengths.length) out.push(`💪 Strengths this week: <b>${summary.strengths.map(id => esc(BT.SKILLS[id].name)).join(", ")}</b>.`);
+  if (summary && summary.gaps.length) out.push(`🧩 Learning gaps to revisit: <b>${summary.gaps.map(id => esc(BT.SKILLS[id].name)).join(", ")}</b>.`);
   if (misconceptions[0]) out.push(`🔎 Common misconception: <b>${esc(misconceptions[0].type.replace(/-/g, " "))}</b> in ${esc(BT.SKILLS[misconceptions[0].id].name)}.`);
   if (rec && BT.SKILLS[rec]) out.push(`▶ Recommended next activity: practise <b>${esc(BT.SKILLS[rec].name)}</b>.`);
   return out;
@@ -1624,7 +1648,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, parentInsights, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, parentInsights, deleteChild, pickWebVoice, showAdaptiveNudge, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));

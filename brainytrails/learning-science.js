@@ -116,18 +116,76 @@ const BTLearning = (() => {
     return weak ? weak[0] : currentId || Object.keys(BT.SKILLS)[0];
   }
 
+  function recentWindow(st, n = 6) {
+    return ((st && st.evidence && st.evidence.history) || []).slice(-n);
+  }
+
+  function recentAccuracy(st, n = 6) {
+    const h = recentWindow(st, n);
+    if (!h.length) return null;
+    return h.filter(x => x.ok).length / h.length;
+  }
+
+  function strongestMisconception(st) {
+    const m = (st && st.evidence && st.evidence.misconceptions) || {};
+    return Object.entries(m).sort((a, b) => b[1] - a[1])[0] || null;
+  }
+
+  function prerequisiteGap(profile, BT, skillId) {
+    const skill = BT && BT.SKILLS && BT.SKILLS[skillId];
+    if (!skill) return null;
+    const prereqs = Array.from(new Set([...(skill.prereqs || []), skill.lesson && skill.lesson.prereq].filter(Boolean)));
+    for (const pid of prereqs) {
+      if (!BT.SKILLS[pid]) continue;
+      const pst = profile && profile.skills && profile.skills[pid];
+      const acc = recentAccuracy(pst, 6);
+      if (!pst || pst.m < 1 || (acc !== null && acc < 0.7) || (pst.attempts >= 4 && pst.correct / pst.attempts < 0.7)) return pid;
+    }
+    return null;
+  }
+
+  function buildAdaptivePlan(profile, BT, skillId) {
+    const st = profile && profile.skills && profile.skills[skillId];
+    const gap = prerequisiteGap(profile, BT, skillId);
+    if (gap) return { action: "remediate-prerequisite", skillId: gap, reason: "prerequisite-gap" };
+    const acc = recentAccuracy(st, 6);
+    const miss = strongestMisconception(st);
+    if (miss && miss[1] >= 2) {
+      const fallback = st && st.evidence && st.evidence.history && st.evidence.history.slice(-1)[0]?.misconception?.prerequisite;
+      return { action: "target-misconception", skillId: (fallback && BT.SKILLS[fallback]) ? fallback : skillId, reason: miss[0] };
+    }
+    if (acc !== null && acc < 0.55) return { action: "lower-difficulty", skillId, reason: "recent-low-accuracy" };
+    if (acc !== null && acc >= 0.9) return { action: "increase-transfer", skillId, reason: "ready-for-challenge" };
+    return { action: "continue", skillId, reason: "on-track" };
+  }
+
   function generateMixedReviewSet(profile, BT, seedId, count = 7) {
     const out = [];
     const add = id => { if (id && BT.SKILLS[id] && !out.includes(id)) out.push(id); };
+    const plan = buildAdaptivePlan(profile, BT, seedId);
+    add(plan.skillId || seedId);
     add(seedId);
     const seed = BT.SKILLS[seedId];
     (seed?.prereqs || []).forEach(add);
-    Object.entries(profile?.skills || {}).filter(([id, st]) => BT.SKILLS[id] && st.m >= 1).sort((a,b)=>(a[1].nextReview || "9999") > (b[1].nextReview || "9999") ? 1 : -1).forEach(([id]) => add(id));
+    Object.entries(profile?.skills || {}).filter(([id, st]) => BT.SKILLS[id] && st.m >= 1).sort((a,b)=>{
+      const da = a[1].nextReview || "9999", db = b[1].nextReview || "9999";
+      if (da !== db) return da > db ? 1 : -1;
+      return (recentAccuracy(a[1], 6) ?? 1) - (recentAccuracy(b[1], 6) ?? 1);
+    }).forEach(([id]) => add(id));
     while (out.length < count) add(Object.keys(BT.SKILLS)[out.length % Object.keys(BT.SKILLS).length]);
     return out.slice(0, count);
   }
 
-  return { augment, lessonFor, detectMisconception, recordAttempt, masteryStatus, recommendNextSkill, generateMixedReviewSet };
+  function weeklySummary(profile, BT) {
+    const rows = Object.entries((profile && profile.skills) || {}).filter(([id, st]) => BT.SKILLS[id] && st.attempts);
+    const strengths = rows.filter(([id, st]) => (recentAccuracy(st, 8) ?? st.correct / st.attempts) >= 0.85).slice(0, 3).map(([id]) => id);
+    const gaps = rows.filter(([id, st]) => (recentAccuracy(st, 8) ?? st.correct / st.attempts) < 0.7).slice(0, 3).map(([id]) => id);
+    const due = rows.filter(([id, st]) => st.nextReview && st.nextReview <= new Date().toISOString().slice(0,10)).map(([id]) => id);
+    const next = recommendNextSkill(profile, BT, gaps[0] || strengths[0]);
+    return { strengths, gaps, due, next };
+  }
+
+  return { augment, lessonFor, detectMisconception, recordAttempt, masteryStatus, recommendNextSkill, generateMixedReviewSet, recentAccuracy, prerequisiteGap, buildAdaptivePlan, weeklySummary };
 })();
 
 if (typeof window !== "undefined") window.BTLearning = BTLearning;
