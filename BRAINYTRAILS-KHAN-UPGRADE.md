@@ -127,3 +127,9 @@ Parents now see:
 The complete existing regression suite passes after this phase:
 
 `70 passed, 0 failed`
+
+
+## Phase 3 Added
+- Fraction bars architecture
+- Misconception library
+- Remediation mappings
