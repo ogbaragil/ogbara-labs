@@ -1,5 +1,5 @@
 /* Mastery engine: practice, level-up redemption, review decay, boss, daily, limits. */
-const { makeHarness, boot, sleep, walk } = require("./harness");
+const { makeHarness, boot, sleep, walk, failQuestion } = require("./harness");
 module.exports = async function (t) {
   const h = makeHarness();
   boot(require("path").join(__dirname, ".."));
@@ -16,8 +16,8 @@ module.exports = async function (t) {
 
   BTApp.startSet("count.to10", "levelup");
   t("level-up starts kinder (d=0.85)", BTApp.sess().d === 0.85);
-  BTApp.submit(false, ""); await sleep(90);
-  t("one slip earns a redemption question", BTApp.sess().total === 6);
+  await failQuestion(BTApp, h);
+  t("one failed question earns a redemption question", BTApp.sess().total === 6);
   for (let i = 0; i < 5; i++) { BTApp.submit(true, ""); await sleep(70); }
   await sleep(80);
   t("5 correct after a slip still reaches Proficient", S().skills["count.to10"].m === 2);
@@ -35,8 +35,8 @@ module.exports = async function (t) {
   BTApp.submit(true, ""); await sleep(70);
   t("defended skill → Mastered", S().skills[first].m === 3);
   const second = BTApp.sess().curSkill;
-  BTApp.submit(false, ""); await sleep(90);
-  t("failed review drops a level", S().skills[second].m === 1);
+  await failQuestion(BTApp, h);
+  t("failed review (after retry + walkthrough) drops a level", S().skills[second].m === 1);
   for (let i = 2; i < 8; i++) { BTApp.submit(true, ""); await sleep(70); }
   await sleep(80);
   const modal = h.ids["overlay"].children[h.ids["overlay"].children.length - 1];

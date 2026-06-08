@@ -1,5 +1,5 @@
 /* Cloud merge completeness, multi-child isolation, lightning round, boss bests. */
-const { makeHarness, boot, sleep, walk } = require("./harness");
+const { makeHarness, boot, sleep, walk, failQuestion } = require("./harness");
 module.exports = async function (t) {
   const h = makeHarness();
   delete global.Cloud; delete global.__KOKORO_TEST;   // suites share a process — scrub leaks
@@ -75,7 +75,9 @@ module.exports = async function (t) {
   // ── boss best on rematch ──
   BT.ISLANDS[0].units.flatMap(u => u.skills).forEach(id => { if (!S().profiles.default.skills[id] || S().profiles.default.skills[id].m < 1) S().profiles.default.skills[id] = { m: 1, attempts: 7, correct: 6, stars: 1, nextReview: null, reviewStep: 0 }; });
   BTApp.startBoss("sprout");
-  for (let i = 0; i < 10; i++) { BTApp.submit(i < 8, ""); await sleep(70); }
+  for (let i = 0; i < 8; i++) { BTApp.submit(true, ""); await sleep(70); }
+  await failQuestion(BTApp, h);
+  await failQuestion(BTApp, h);
   await sleep(80);
   t("rematch below best keeps the record (9)", S().profiles.default.bosses.sprout.best === 9 && S().profiles.default.bosses.sprout.won === true);
   h.ids["overlay"].children.length = 0;

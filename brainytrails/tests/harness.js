@@ -62,4 +62,27 @@ function boot(dir) {
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function walk(root, fn) { (function w(e) { fn(e); (e.children || []).forEach(w); })(root); }
-module.exports = { makeHarness, boot, sleep, walk };
+/* failed-twice questions open the worked-steps modal; click through it */
+async function clickThroughTeach(h) {
+  for (let guard = 0; guard < 10; guard++) {
+    let btn = null, found = false;
+    for (const back of h.ids["overlay"].children) {
+      if (back._removed) continue;
+      walk(back, e => { if (String(e._inner || "").includes("Let me show you")) found = true; });
+      if (found) { walk(back, e => { if (e.tag === "button" && String(e.className).includes("primary-btn")) btn = e; }); break; }
+    }
+    if (!found || !btn) return;
+    btn.onclick();
+    await sleep(20);
+  }
+}
+/* fail a question fully: retry slip, then final fail, then walk the teach modal */
+async function failQuestion(BTApp, h) {
+  BTApp.submit(false, "");
+  await sleep(80);          // retry unlock window (FAST 60ms)
+  BTApp.submit(false, "");
+  await sleep(90);          // MS_BAD before the teach modal opens
+  await clickThroughTeach(h);
+  await sleep(30);
+}
+module.exports = { makeHarness, boot, sleep, walk, clickThroughTeach, failQuestion };

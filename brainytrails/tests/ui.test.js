@@ -12,15 +12,25 @@ module.exports = async function (t) {
   t("HUD ring paints", String(h.ids["hudLv"].textContent) === "1" && String(h.ids["hud"].style.background).includes("conic"));
 
   BTApp.startSet("count.to10", "practice");
+  const i0 = BTApp.sess().i;
   BTApp.submit(false, "");
-  t("miss reveals the 🎓 show-me-how button", h.ids["teachBtn"].hidden === false);
-  BTApp.showMeHow();
-  const teach = h.ids["overlay"].children[h.ids["overlay"].children.length - 1];
-  let isTeach = false;
-  walk(teach, e => { if (String(e._inner || "").includes("Let me show you")) isTeach = true; });
-  t("on-demand stepper opens for the missed question", isTeach);
-  h.ids["overlay"].children.length = 0;
+  t("first slip stays on the same question (free retry)", BTApp.sess().i === i0 && BTApp.sess().outcomes[i0] === undefined);
+  t("retry keeps the answer secret (🎓 not yet shown)", h.ids["teachBtn"].hidden === true);
+  let tryMsg = false;
+  walk(h.ids["hintSlot"], e => { if (/try|another go|once more|one more/i.test(String(e._inner || ""))) tryMsg = true; });
+  t("try-again encouragement shows with the hint", tryMsg);
+  await sleep(80);
+  BTApp.submit(false, "");
   await sleep(90);
+  t("second fail surfaces the 🎓 button", h.ids["teachBtn"].hidden === false);
+  let isTeach = false;
+  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("Let me show you")) isTeach = true; });
+  t("failed-twice auto-opens the worked-steps walkthrough", isTeach);
+  const { clickThroughTeach } = require("./harness");
+  await clickThroughTeach(h);
+  await sleep(30);
+  t("walkthrough done → moves to the next question", BTApp.sess().i === i0 + 1);
+  h.ids["overlay"].children.length = 0;
   BTApp.exitPlay();
 
   // year-of-birth gate
@@ -45,6 +55,13 @@ module.exports = async function (t) {
   h.ids["overlay"].children.length = 0;
 
   BTApp.enterTestMode();
+  BTApp.startSet("count.to20", "practice");
+  const yq = BTApp.sess().q;
+  t("young island keypad becomes 4 choices", yq.format === "choice" && yq.choices.length === 4 && yq.choices.filter(c => c.correct).length === 1);
+  BTApp.exitPlay();
+  BTApp.startSet("add.to100", "practice");
+  t("older island keeps the keypad", BTApp.sess().q.format === "keypad");
+  BTApp.exitPlay();
   BTApp.startSet("time.oclock", "practice");
   const svgDrawn = String(h.ids["promptCard"]._inner).includes("<svg") && String(h.ids["promptCard"]._inner).includes("circle");
   t("clock question renders a drawn SVG clock", svgDrawn);

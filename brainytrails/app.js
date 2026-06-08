@@ -403,6 +403,25 @@ const TTS = {
   prefetch(arr) { if (this.enabled() && this.unlocked()) arr.forEach(t => this.fetchClip(t).catch(() => { })); },
 };
 
+/* Sprout & Bridge are for 4–7 year olds: typing multi-digit answers is a motor
+   tax, so any keypad question on those islands becomes four tappable choices. */
+const YOUNG_ISLANDS = new Set(["sprout", "bridge"]);
+function youngify(q) {
+  const a = q.answer;
+  const set = new Set([a]);
+  for (const x of shuffleArr([a - 1, a + 1, a - 2, a + 2, a + 10, a - 10, a + 3, a + 5])) {
+    if (set.size >= 4) break;
+    if (x >= 0 && x <= 999 && x !== a) set.add(x);
+  }
+  let bump = 4;
+  while (set.size < 4) { set.add(a + bump); bump += 3; }
+  return Object.assign({}, q, {
+    format: "choice",
+    choices: shuffleArr([...set]).map(x => ({ label: String(x), correct: x === a })),
+  });
+}
+
+const TRY_AGAIN = ["Try again! 💪", "Have another go!", "Almost — try once more!", "Hmm — one more try!"];
 const PRAISE = ["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Yes! Exactly right!", "Wonderful!", "Sharp work!", "That's the one!", "Champion!", "Beautiful maths!", "Too easy for you!", "Spot on!", "Cracked it!", "Legend!"];
 const NOT_QUITE = ["Not quite!", "So close!", "Good try!", "Almost!"];
 function say(text) {
@@ -776,7 +795,9 @@ function nextQ() {
     ? Math.min(0.95, Math.max(0.5, (skv(Sess.curSkill).lastD || 0.6) + 0.1))
     : Sess.d;
   Sess.q = BT.SKILLS[Sess.curSkill].gen(dEff);
+  if (Sess.q.format === "keypad" && !Sess.q.decimal && YOUNG_ISLANDS.has(BT.SKILLS[Sess.curSkill].island)) Sess.q = youngify(Sess.q);
   Sess.lock = false; Sess.orderPicked = [];
+  Sess.qTries = 0; Sess.resetEntry = null;
   if (Sess.kind === "review" || Sess.kind === "boss") $("playTitle").textContent =
     (Sess.kind === "review" ? "🛡 " : "") + BT.SKILLS[Sess.curSkill].name;
   paintPips();
@@ -830,6 +851,7 @@ function renderQuestion(q) {
       };
       grid.appendChild(b);
     });
+    Sess.resetEntry = () => { entry = ""; paint(); };
     dock.append(disp, grid);
   } else if (q.format === "order") {
     const slots = el("div", "order-slots");
@@ -848,6 +870,11 @@ function renderQuestion(q) {
       };
       chips.appendChild(b);
     });
+    Sess.resetEntry = () => {
+      Sess.orderPicked = [];
+      paintSlots();
+      Array.from(chips.children).forEach(c => { c.disabled = false; if (c.classList) c.classList.remove("used"); });
+    };
     dock.append(slots, chips);
   } else if (q.format === "tap") {
     const grid = el("div", q.numberline ? "line-grid" : "tap-grid");
@@ -870,11 +897,30 @@ function correctLabel(q) {
 /* central answer path — every format funnels here */
 function submit(ok, correctShown, btn) {
   if (!Sess || Sess.lock) return;
+  /* first slip = a free retry on the SAME question, answer kept secret
+     (Lightning stays single-try — it's the timed endgame for older kids) */
+  if (!ok && !Sess.qTries && Sess.kind !== "lightning") {
+    Sess.qTries = 1;
+    Sess.lock = true;
+    if (btn && btn.classList) btn.classList.add("shake");
+    SFX.no();
+    feedback(false, pick(TRY_AGAIN), esc(Sess.q.hint));
+    say("Try again!");
+    setTimeout(() => {
+      if (!Sess) return;
+      if (btn && btn.classList) btn.classList.remove("shake");
+      if (Sess.resetEntry) Sess.resetEntry();
+      Sess.lock = false;
+    }, FAST ? 60 : 1100);
+    return;
+  }
   Sess.lock = true;
+  const firstTry = !Sess.qTries;
+  const finalFail = !ok;
   Sess.outcomes[Sess.i] = !!ok;
   paintPips();
   if (btn && btn.classList) btn.classList.add(ok ? "hit" : "shake");
-  if (!ok) {
+  if (finalFail) {
     try {
       const right = $("answerArea").querySelector('[data-correct="1"]');
       if (right) right.classList.add("reveal");
@@ -884,9 +930,9 @@ function submit(ok, correctShown, btn) {
   st.attempts++;
   if (ok) {
     st.correct++; Sess.correct++;
-    const gain = Math.round(6 + 8 * Sess.d);
+    const gain = Math.round(firstTry ? 6 + 8 * Sess.d : 3 + 4 * Sess.d);   // retry success = half XP
     Sess.xpGain += gain; P().xp += gain;
-    if (Sess.adaptive) Sess.d = Math.min(1, Sess.d + 0.12);
+    if (Sess.adaptive && firstTry) Sess.d = Math.min(1, Sess.d + 0.12);
     SFX.ok();
     let praise = pick(PRAISE);
     if (Math.random() < 0.22 && P().name && P().name !== "Explorer") praise = praise.replace("!", `, ${P().name}!`);
@@ -899,12 +945,12 @@ function submit(ok, correctShown, btn) {
     SFX.no();
     feedback(false, pick(NOT_QUITE), (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(Sess.q.hint));
   }
-  /* level-up kindness: one slip earns a redemption question instead of instant failure */
-  if (!ok && Sess.kind === "levelup" && Sess.misses === 1 && Sess.total === 5) {
+  /* level-up kindness: one failed question earns a redemption question */
+  if (finalFail && Sess.kind === "levelup" && Sess.misses === 1 && Sess.total === 5) {
     Sess.total = 6;
     Sess.queue.push(Sess.curSkill);
   }
-  /* spaced-review transitions happen immediately, per question */
+  /* spaced-review transitions happen on the question's final outcome */
   if (Sess.kind === "review") {
     if (ok) {
       const mastered = st.m === 2;
@@ -920,11 +966,12 @@ function submit(ok, correctShown, btn) {
     }
   }
   paintHeader(); save();
-  const needTeach = !ok && Sess.misses >= 2 && !Sess.taught && Sess.kind === "practice";
+  const failedQ = Sess.q;
   setTimeout(() => {
     if (!Sess) return;
     Sess.i++;
-    if (needTeach) { Sess.taught = true; Sess.d = Math.max(0.15, Sess.d * 0.6); teach(); }
+    /* failed twice → walk through the worked answer before moving on */
+    if (finalFail && Sess.kind !== "lightning") teachSteps(failedQ, "Let's keep going! 💪", () => { if (Sess) nextQ(); });
     else nextQ();
   }, ok ? (Sess.msOk || MS_OK) : (Sess.msBad || MS_BAD));
 }
@@ -973,7 +1020,6 @@ function teachSteps(q, doneLabel, onDone) {
   $("overlay").appendChild(back);
   reveal();
 }
-function teach() { teachSteps(Sess.q, "Let's try again! 💪", () => nextQ()); }
 function showMeHow() {
   if (!Sess || !Sess.lastMissQ) return;
   teachSteps(Sess.lastMissQ, "Got it! 💪", () => { });
