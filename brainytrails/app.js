@@ -57,10 +57,18 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "11";
-window.onerror = (m, src, line) => {
-  try { localStorage.setItem("bt_lasterr", JSON.stringify({ m: String(m).slice(0, 160), f: String(src || "").split("/").pop(), l: line || 0, at: new Date().toISOString().slice(0, 16), v: APP_V })); } catch { }
-};
+const APP_V = "13";
+/* keep the last few errors (not just the latest) so a parent can copy a report */
+function logErr(rec) {
+  try {
+    let log = [];
+    try { log = JSON.parse(localStorage.getItem("bt_errlog") || "[]"); } catch { }
+    log.unshift(rec);
+    localStorage.setItem("bt_errlog", JSON.stringify(log.slice(0, 5)));
+  } catch { }
+}
+window.onerror = (m, src, line) => logErr({ m: String(m).slice(0, 160), f: String(src || "").split("/").pop(), l: line || 0, at: new Date().toISOString().slice(0, 16), v: APP_V });
+try { window.addEventListener("unhandledrejection", (e) => logErr({ m: "promise: " + String((e.reason && e.reason.message) || e.reason || "?").slice(0, 150), f: "promise", l: 0, at: new Date().toISOString().slice(0, 16), v: APP_V })); } catch { }
 const TESTP = "_test";
 const inTest = () => state.profile === TESTP;
 const skv = (id) => P().skills[id] || SK0;   // read-only view: never creates records
@@ -452,6 +460,16 @@ addEventListener("pointerdown", function prime() {
   removeEventListener("pointerdown", prime);
 });
 
+/* keyboard play: each question installs Sess.onKey; we only forward keys while a
+   question is live (no modal open, not mid-feedback, focus not in a text field) */
+addEventListener("keydown", (e) => {
+  if (!Sess || Sess.lock || !Sess.onKey) return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+  if (document.querySelector(".modal-back")) return;   // a dialog owns the keyboard
+  Sess.onKey(e);
+});
+
 /* ---------------- HUD ring (level inside an XP-progress ring) ---------------- */
 function paintHeader() {
   const xp = P().xp, lv = levelOf(xp);
@@ -514,15 +532,16 @@ function renderMap(scrollToHere) {
       }
       card.appendChild(row);
     }
-    /* island boss gate: opens when every skill here is at least Familiar */
-    const bossReady = inTest() || skillsHere.every(id => skv(id).m >= 1);
+    /* island boss gate: opens once every skill here is Proficient — the same
+       bar the n/n island counter shows, so "boss beaten" means "island full" */
+    const bossReady = inTest() || skillsHere.every(id => skv(id).m >= 2);
     const beaten = !!bosses()[isl.id];
     const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
     bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
       <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}</b>
-      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(reach Familiar on every skill first)</i>`}</small></span>`;
+      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(level up every skill to Proficient first)</i>`}</small></span>`;
     bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
-      : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Familiar.`);
+      : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Proficient.`);
     card.appendChild(bossBtn);
     root.appendChild(card);
     if (rail) {
@@ -685,7 +704,7 @@ function openSkill(id) {
   practice.onclick = () => { back.remove(); startSet(id, "practice"); };
   box.appendChild(practice);
   if (st.m >= 1 && st.m < 2) {
-    const lvl = el("button", "gold-btn", "⚡ Level Up · 5 perfect questions");
+    const lvl = el("button", "gold-btn", `⚡ Level Up · ${levelupNeed(id)} of 5 to pass`);
     lvl.onclick = () => { back.remove(); startSet(id, "levelup"); };
     box.appendChild(lvl);
   }
@@ -738,11 +757,15 @@ function beginSession(cfg) {
   nextQ();
 }
 
+/* younger islands pass Level Up at 4/5; older ones keep 5/5 (with the
+   one-slip redemption question that follows, that's an effective 5/6) */
+const levelupNeed = (id) => YOUNG_ISLANDS.has(BT.SKILLS[id].island) ? 4 : 5;
 function startSet(id, kind) {
   const st = sk(id);
   beginSession({
     kind, queue: Array(kind === "levelup" ? 5 : 7).fill(id),
     total: kind === "levelup" ? 5 : 7,
+    need: kind === "levelup" ? levelupNeed(id) : 5,
     d: kind === "levelup" ? 0.85 : Math.min(0.9, (st.lastD || (0.35 + 0.15 * st.m))),
     adaptive: kind === "practice", title: BT.SKILLS[id].name,
   });
@@ -835,24 +858,32 @@ function renderQuestion(q) {
     (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "");
   const dock = $("answerArea");
   dock.innerHTML = "";
+  Sess.onKey = null;   // each format installs its own keyboard shortcuts below
   if (q.format === "choice" || q.format === "tf") {
     const choices = q.format === "tf"
       ? [{ label: "✔ TRUE", correct: q.answer === true }, { label: "✘ FALSE", correct: q.answer === false }]
       : q.choices;
     const grid = el("div", q.format === "tf" ? "tf-grid" : "choice-grid");
+    const btns = [];
     choices.forEach(c => {
       const b = el("button", "choice-btn" + (q.format === "tf" ? (c.label.includes("TRUE") ? " true" : " false") : ""), esc(c.label));
       if (c.correct) b.dataset.correct = "1";
       b.onclick = () => submit(c.correct, correctLabel(q), b);
-      grid.appendChild(b);
+      grid.appendChild(b); btns.push(b);
     });
     dock.appendChild(grid);
+    Sess.onKey = (e) => {
+      if (q.format === "tf" && /^[tf]$/i.test(e.key)) { e.preventDefault(); btns[/t/i.test(e.key) ? 0 : 1].click(); return; }
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= btns.length) { e.preventDefault(); btns[n - 1].click(); }
+    };
   } else if (q.format === "keypad") {
     const disp = el("div", "pad-display", "&nbsp;");
     const grid = el("div", "keypad");
     let entry = "";
     const paint = () => disp.textContent = entry || " ";
     const keys = q.decimal ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫", "OK"] : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"];
+    const keyBtns = {};
     keys.forEach(kk => {
       const b = el("button", "key" + (kk === "OK" ? " ok" : kk === "⌫" ? " back" : ""), kk);
       if (kk === "OK" && q.decimal) b.style.gridColumn = "span 3";
@@ -870,15 +901,24 @@ function renderQuestion(q) {
         else if (entry.length < (q.decimal ? 5 : 3)) entry += kk;
         paint();
       };
-      grid.appendChild(b);
+      grid.appendChild(b); keyBtns[kk] = b;
     });
     Sess.resetEntry = () => { entry = ""; paint(); };
     dock.append(disp, grid);
+    Sess.onKey = (e) => {
+      let label = null;
+      if (/^[0-9]$/.test(e.key)) label = e.key;
+      else if (e.key === "Backspace") label = "⌫";
+      else if (e.key === "Enter") label = "OK";
+      else if (e.key === "." && q.decimal) label = ".";
+      if (label && keyBtns[label]) { e.preventDefault(); keyBtns[label].click(); }
+    };
   } else if (q.format === "order") {
     const slots = el("div", "order-slots");
     const chips = el("div", "order-chips");
     const paintSlots = () => { slots.innerHTML = ""; for (let k = 0; k < q.items.length; k++) slots.appendChild(el("span", "slot" + (Sess.orderPicked[k] !== undefined ? " filled" : ""), Sess.orderPicked[k] !== undefined ? String(Sess.orderPicked[k]) : "")); };
     paintSlots();
+    const chipBtns = [];
     q.items.forEach(v => {
       const b = el("button", "chip", String(v));
       b.onclick = () => {
@@ -889,7 +929,7 @@ function renderQuestion(q) {
           submit(JSON.stringify(Sess.orderPicked) === JSON.stringify(q.correct), q.correct.join(" → "), slots);
         }
       };
-      chips.appendChild(b);
+      chips.appendChild(b); chipBtns.push({ b, v });
     });
     Sess.resetEntry = () => {
       Sess.orderPicked = [];
@@ -897,15 +937,26 @@ function renderQuestion(q) {
       Array.from(chips.children).forEach(c => { c.disabled = false; if (c.classList) c.classList.remove("used"); });
     };
     dock.append(slots, chips);
+    Sess.onKey = (e) => {
+      const n = parseInt(e.key, 10);
+      if (isNaN(n)) return;
+      const hit = chipBtns.find(x => x.v === n && !x.b.disabled);   // type the value you want next
+      if (hit) { e.preventDefault(); hit.b.click(); }
+    };
   } else if (q.format === "tap") {
     const grid = el("div", q.numberline ? "line-grid" : "tap-grid");
+    const tiles = [];
     q.items.forEach(c => {
       const b = el("button", q.numberline ? "line-tick" : "tap-tile", esc(c.label));
       if (c.correct) b.dataset.correct = "1";
       b.onclick = () => submit(c.correct, q.items.find(i => i.correct).label, b);
-      grid.appendChild(b);
+      grid.appendChild(b); tiles.push(b);
     });
     dock.appendChild(grid);
+    Sess.onKey = (e) => {
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= tiles.length) { e.preventDefault(); tiles[n - 1].click(); }
+    };
   }
 }
 
@@ -1050,7 +1101,7 @@ function inlineTeach(q) {
 
 /* ---------------- set completion & mastery ---------------- */
 function finishSet() {
-  const { kind, correct, total, xpGain } = Sess;
+  const { kind, correct, total, xpGain, need } = Sess;
   if (kind === "review") return finishReview();
   if (kind === "boss") return finishBoss();
   if (kind === "daily") return finishDaily();
@@ -1065,14 +1116,15 @@ function finishSet() {
     headline = stars ? "⭐".repeat(stars) : "Good try!";
     sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "");
   } else {
-    if (correct >= 5) {
+    const pass = need || 5;
+    if (correct >= pass) {
       if (st.m < 2) { st.m = 2; levelled = true; }
       st.nextReview = isoPlusDays(REVIEW_DAYS[0]);
       headline = "⚡ PROFICIENT! ⚡";
       sub = `${correct === total ? "Perfect" : "Strong"} ${correct}/${total}! This skill comes back for review in ${REVIEW_DAYS[0]} days — keep it strong to master it.`;
     } else {
       headline = "So close!";
-      sub = `Level Up needs 5 right — you got ${correct}/${total}. A little more practice and you'll smash it!`;
+      sub = `Level Up needs ${pass} right — you got ${correct}/${total}. A little more practice and you'll smash it!`;
     }
   }
   if (kind === "practice") st.lastD = Math.round(Sess.d * 100) / 100;   // remember the climb
@@ -1452,15 +1504,25 @@ function openParents() {
   gAdv.appendChild(acct);
 
   gAdv.appendChild(el("p", "p-section", "Diagnostics"));
-  let lastErr = null;
-  try { lastErr = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); } catch { }
-  gAdv.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (lastErr
-    ? `last error ${esc(lastErr.at)} — ${esc(lastErr.m)} (${esc(lastErr.f)}:${lastErr.l})`
+  let errLog = [];
+  try { errLog = JSON.parse(localStorage.getItem("bt_errlog") || "[]"); } catch { }
+  if (!errLog.length) {                                  // adopt a pre-v12 single error if present
+    try { const old = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); if (old) errLog = [old]; } catch { }
+  }
+  const newest = errLog[0];
+  gAdv.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (newest
+    ? `${errLog.length} recent error${errLog.length > 1 ? "s" : ""} — latest ${esc(newest.at)}: ${esc(newest.m)} (${esc(newest.f)}:${newest.l})`
     : "no recent errors 🎉")));
-  if (lastErr) {
+  if (errLog.length) {
+    const report = errLog.map(e => `${e.at} v${e.v || "?"} ${e.f}:${e.l} ${e.m}`).join("\n");
+    const copy = el("button", "soft-btn", "📋 Copy error report");
+    copy.onclick = () => {
+      try { navigator.clipboard.writeText(report).then(() => { copy.textContent = "Copied ✓"; }, () => { copy.textContent = report.slice(0, 64); }); }
+      catch { copy.textContent = report.slice(0, 64); }
+    };
     const ce = el("button", "soft-btn", "Clear error log");
-    ce.onclick = () => { try { localStorage.removeItem("bt_lasterr"); } catch { } ce.remove(); };
-    gAdv.appendChild(ce);
+    ce.onclick = () => { try { localStorage.removeItem("bt_errlog"); localStorage.removeItem("bt_lasterr"); } catch { } copy.remove(); ce.remove(); };
+    gAdv.append(copy, ce);
   }
 
   const danger = el("button", "danger-btn", `Erase ${esc(P().name)}'s progress`);
@@ -1525,9 +1587,10 @@ function openHelp() {
   box.innerHTML = `<h2>How Brainy Trails works 🧭</h2><ul class="help-list">
     <li>🗺 Tap a glowing skill on the map to start a 7-question practice.</li>
     <li>⭐ Get 5 or more right to become <b>Familiar</b> and earn stars.</li>
-    <li>⚡ Then take the Level Up — 5 perfect answers makes you <b>Proficient</b>.</li>
+    <li>⚡ Then take the Level Up to become <b>Proficient</b>.</li>
     <li>🤝 Stuck twice? A friendly helper shows you step by step.</li>
     <li>🔊 Every question is read aloud — tap the speaker to hear it again.</li>
+    <li>⌨️ On a keyboard: press <b>1–4</b> to pick an answer, or type a number and <b>Enter</b>.</li>
     <li>🔥 Light the Daily Campfire every day to grow your streak.</li>
     <li>🎒 Tap your level ring (top corner) to open your Backpack of crowns and badges.</li>
     <li>👨‍👩‍👧 Grown-ups: tap the 👨‍👩‍👧 button in the top corner and answer the grown-up question.</li></ul>`;
