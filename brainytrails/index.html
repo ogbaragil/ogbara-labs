@@ -18,6 +18,7 @@
   }
   *{margin:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   [hidden]{display:none !important;}
+  body:has(.modal-back){overflow:hidden;}   /* nothing behind a modal moves */
   html,body{height:100%;}
   body{background:var(--bg); color:var(--ink); letter-spacing:.2px;
        font-family:ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN","Arial Rounded MT Bold",system-ui,-apple-system,sans-serif;
@@ -132,6 +133,8 @@
     background:#e7f9f0; border-radius:999px; padding:5px 10px; flex:none;}
   .mini-btn{flex:none; font-size:12px; font-weight:900; color:var(--violet); background:#efe9ff;
     border-radius:999px; padding:8px 13px;}
+  .mini-btn.del{color:var(--coral); background:#fdeef1;}
+  .mini-btn.del.armed{background:var(--coral); color:#fff;}
   .who-card{width:100%; margin-top:10px; display:flex; align-items:center; gap:12px; text-align:left;
     background:var(--bg); border:2px solid var(--line); border-radius:18px; padding:13px 15px;}
   .who-card b{font-size:16px;}
@@ -156,9 +159,6 @@
   .rail-dot.here{border-color:var(--violet); opacity:1; box-shadow:0 0 0 4px rgba(124,77,255,.18);}
   body.in-play #islRail{display:none;}
   @media (max-width:430px){ #islRail{left:3px;} .rail-dot{width:31px; height:31px; font-size:14px;} }
-
-  #teachBtn{width:48px; height:48px; border-radius:15px; background:#fff3da; border:1.5px solid #f5c96b;
-    font-size:19px; animation:bob 1.8s ease-in-out infinite;}
 
   #testChip{position:fixed; top:calc(64px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:46;
     background:linear-gradient(160deg,#f59e0b,#fbbf24); color:#5b3104; font-weight:900; font-size:12px;
@@ -234,6 +234,14 @@
   .q-pic svg{width:auto; max-width:88%;}
   .say-btn{position:absolute; top:10px; right:10px; width:42px; height:42px; border-radius:50%;
     background:var(--bg); border:1.5px solid var(--line); font-size:17px;}
+  .coach{margin-top:10px; background:#fff7e2; border:2px solid #f5d98b; border-radius:18px;
+    padding:13px 15px; animation:popUp .25s ease;}
+  .coach-head{font-weight:900; font-size:14.5px; color:#8a5a06; margin-bottom:4px;}
+  .coach .teach-steps .step{background:#fff; border-color:#f5d98b;}
+  .coach-next{width:100%; min-height:64px; border-radius:18px; font-weight:900; font-size:17px;
+    background:linear-gradient(160deg,#f59e0b,#fbbf24); color:#5b3104; box-shadow:0 5px 0 #c47d08;}
+  .coach-next:active{transform:translateY(3px); box-shadow:none;}
+  .prompt-zone{overflow:auto;}
   .hintbar{margin-top:10px; background:#fff7e2; border:1.5px solid #f5d98b; color:#8a5a06;
     border-radius:16px; padding:12px 15px; font-size:14px; line-height:1.5; font-weight:700;
     animation:popUp .25s ease;}
@@ -243,11 +251,21 @@
     padding:14px 16px calc(30px + env(safe-area-inset-bottom));}
   .play-dock-inner{max-width:680px; margin:0 auto;}
 
-  .choice-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
-  .choice-btn{min-height:64px; border-radius:18px; background:var(--panel); border:2.5px solid var(--line);
-    font-size:clamp(18px,5vw,26px); font-weight:900; padding:10px; transition:transform .12s;
-    box-shadow:0 3px 0 var(--line);}
-  .choice-btn:active{transform:translateY(2px); box-shadow:none;}
+  .choice-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:11px;}
+  .choice-btn{position:relative; min-height:68px; border-radius:22px; border:2.5px solid;
+    font-size:clamp(19px,5.4vw,28px); font-weight:900; padding:10px; transition:transform .12s;
+    animation:btnFloat 2.6s ease-in-out infinite;}
+  .choice-grid .choice-btn:nth-child(4n+1){background:linear-gradient(160deg,#e7f9f0,#d2f3e3); border-color:#7fd9b3; box-shadow:0 5px 0 #7fd9b3; animation-delay:0s;}
+  .choice-grid .choice-btn:nth-child(4n+2){background:linear-gradient(160deg,#e6f4fc,#d0eafb); border-color:#86c8ef; box-shadow:0 5px 0 #86c8ef; animation-delay:.35s;}
+  .choice-grid .choice-btn:nth-child(4n+3){background:linear-gradient(160deg,#fdeee3,#fbdfca); border-color:#f3b285; box-shadow:0 5px 0 #f3b285; animation-delay:.7s;}
+  .choice-grid .choice-btn:nth-child(4n+4){background:linear-gradient(160deg,#efe9ff,#e1d5ff); border-color:#b79aff; box-shadow:0 5px 0 #b79aff; animation-delay:1.05s;}
+  @keyframes btnFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+  .choice-btn:active{transform:translateY(3px) scale(.97); box-shadow:none; animation:none;}
+  .choice-btn.hit{animation:hitPop .45s ease !important;}
+  .choice-btn.hit::after{content:"✨"; position:absolute; top:-12px; right:-4px; font-size:22px; animation:popUp .4s ease;}
+  .choice-btn.shake{animation:shakeNo .35s linear !important;}
+  .tap-tile{animation:btnFloat 2.8s ease-in-out infinite;}
+  .tap-grid .tap-tile:nth-child(odd){animation-delay:.4s;}
   .tf-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .tf-grid .choice-btn.true{border-color:#bbe7d4;} .tf-grid .choice-btn.false{border-color:#f7cdd6;}
 
@@ -295,10 +313,11 @@
 
   /* ---------- modals ---------- */
   .modal-back{position:fixed; inset:0; background:rgba(46,36,86,.45); backdrop-filter:blur(5px);
-    display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
+    display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;
+    overscroll-behavior:contain;}
   .modal{background:var(--panel); border:1.5px solid var(--line); border-radius:26px; padding:24px 22px;
     width:100%; max-width:390px; text-align:center; animation:popUp .3s cubic-bezier(.34,1.56,.64,1);
-    max-height:86dvh; overflow:auto; box-shadow:0 24px 60px rgba(46,36,86,.25);}
+    max-height:86dvh; overflow:auto; overscroll-behavior:contain; box-shadow:0 24px 60px rgba(46,36,86,.25);}
   @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
   .sheet-icon{font-size:46px;}
   .modal h2{font-size:21px; font-weight:900; margin-top:4px;}
@@ -364,7 +383,6 @@
       <div class="play-bar">
         <button id="exitBtn" aria-label="Back to map">🗺</button>
         <p id="playTitle"></p>
-        <button id="teachBtn" hidden aria-label="Show me how">🎓</button>
         <div id="pips"></div>
       </div>
       <div class="prompt-zone">
@@ -385,10 +403,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=18"></script>
+<script src="curriculum.js?v=19"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="cloud.js?v=19"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

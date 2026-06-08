@@ -15,22 +15,29 @@ module.exports = async function (t) {
   const i0 = BTApp.sess().i;
   BTApp.submit(false, "");
   t("first slip stays on the same question (free retry)", BTApp.sess().i === i0 && BTApp.sess().outcomes[i0] === undefined);
-  t("retry keeps the answer secret (🎓 not yet shown)", h.ids["teachBtn"].hidden === true);
+  let revealed = false;
+  walk(h.ids["answerArea"], e => { if (e.classList && e.classList.contains("reveal")) revealed = true; });
+  t("retry keeps the answer secret (nothing revealed)", !revealed);
   let tryMsg = false;
   walk(h.ids["hintSlot"], e => { if (/try|another go|once more|one more/i.test(String(e._inner || ""))) tryMsg = true; });
   t("try-again encouragement shows with the hint", tryMsg);
+  const promptBefore = String(h.ids["promptCard"]._inner);
   await sleep(80);
   BTApp.submit(false, "");
   await sleep(90);
-  t("second fail surfaces the 🎓 button", h.ids["teachBtn"].hidden === false);
-  let isTeach = false;
-  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("Let me show you")) isTeach = true; });
-  t("failed-twice auto-opens the worked-steps walkthrough", isTeach);
+  let coachInline = false;
+  walk(h.ids["hintSlot"], e => { if (String(e._inner || "").includes("Let me show you")) coachInline = true; });
+  const liveModals = h.ids["overlay"] ? h.ids["overlay"].children.filter(c => !c._removed).length : 0;
+  t("failed-twice coach appears UNDER the card (no modal)", coachInline && liveModals === 0);
+  t("the question card stays on screen for context", String(h.ids["promptCard"]._inner) === promptBefore);
+  let coachBtn = null;
+  walk(h.ids["answerArea"], e => { if (e.tag === "button" && String(e.className).includes("coach-next")) coachBtn = e; });
+  t("coach controls live in the answer dock", !!coachBtn);
   const { clickThroughTeach } = require("./harness");
   await clickThroughTeach(h);
   await sleep(30);
-  t("walkthrough done → moves to the next question", BTApp.sess().i === i0 + 1);
-  h.ids["overlay"].children.length = 0;
+  t("coach done → moves to the next question", BTApp.sess().i === i0 + 1);
+  if (h.ids["overlay"]) h.ids["overlay"].children.length = 0;
   BTApp.exitPlay();
 
   // year-of-birth gate

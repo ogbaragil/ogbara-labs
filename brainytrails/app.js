@@ -31,6 +31,7 @@ const FRESH_PROFILE = () => ({
 let state = Store.load();
 if (!state || state.v !== 1) state = { v: 1, profile: "default", profiles: { default: FRESH_PROFILE() } };
 if (!state.profiles[state.profile]) state.profiles[state.profile] = FRESH_PROFILE();
+if (!state.deletedProfiles) state.deletedProfiles = {};
 function migrateProfile(p) {
   if (!p.settings) p.settings = { speech: true };
   if (!p.badges) p.badges = {};
@@ -87,8 +88,11 @@ const unlocked = (id) => inTest() || BT.SKILLS[id].prereqs.every(p => (P().skill
 function mergeRemote(remote) {
   if (!remote || remote.v !== 1) return;
   if (remote.profiles) delete remote.profiles[TESTP];   // sandbox never syncs in
+  for (const [pid, when] of Object.entries(remote.deletedProfiles || {})) {
+    if (!state.deletedProfiles[pid]) state.deletedProfiles[pid] = when;
+  }
   for (const [pid, rp] of Object.entries(remote.profiles || {})) {
-    if (pid === TESTP) continue;
+    if (pid === TESTP || state.deletedProfiles[pid]) continue;
     const lp = migrateProfile(state.profiles[pid] || (state.profiles[pid] = FRESH_PROFILE()));
     for (const [sid, rs] of Object.entries(rp.skills || {})) {
       const ls = lp.skills[sid];
@@ -111,6 +115,17 @@ function mergeRemote(remote) {
     if (rp.avatar && rp.avatar !== "🦊" && lp.avatar === "🦊") lp.avatar = rp.avatar;
   }
   if (remote.syncNudged) state.syncNudged = true;
+  /* honour deletions arriving from other devices */
+  for (const pid of Object.keys(state.deletedProfiles)) {
+    if (pid !== TESTP && state.profiles[pid]) {
+      if (state.profile === pid) {
+        const alt = childIds().find(x => x !== pid);
+        if (alt) state.profile = alt; else continue;   // never delete the last child
+      }
+      delete state.profiles[pid];
+    }
+  }
+  if (!childIds().length) { state.profiles.default = migrateProfile(FRESH_PROFILE()); state.profile = "default"; delete state.deletedProfiles.default; }
 }
 
 /* ---------------- maths pictures (pic spec → inline SVG) ---------------- */
@@ -421,6 +436,8 @@ function youngify(q) {
   });
 }
 
+/* estimate how long a spoken line needs, so cards never cut praise short */
+const speechMs = (t) => Math.min(4500, Math.max(900, 350 + String(t).length * 65));
 const TRY_AGAIN = ["Try again! 💪", "Have another go!", "Almost — try once more!", "Hmm — one more try!"];
 const PRAISE = ["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Yes! Exactly right!", "Wonderful!", "Sharp work!", "That's the one!", "Champion!", "Beautiful maths!", "Too easy for you!", "Spot on!", "Cracked it!", "Legend!"];
 const NOT_QUITE = ["Not quite!", "So close!", "Good try!", "Almost!"];
@@ -711,8 +728,12 @@ function beginSession(cfg) {
   $("playTitle").textContent = cfg.title;
   $("reviewBanner").hidden = true;
   $("continueBtn").hidden = true;
-  const tb = $("teachBtn"); if (tb) { tb.hidden = true; tb.onclick = showMeHow; }
-  TTS.prefetch(["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Not quite!"]);
+  {
+    const nm = P().name && P().name !== "Explorer" ? P().name : null;
+    const lines = [...PRAISE, ...NOT_QUITE, ...TRY_AGAIN.map(t => t.replace(" 💪", ""))];
+    if (nm) PRAISE.forEach(t => lines.push(t.replace("!", `, ${nm}!`)));
+    TTS.prefetch(lines);
+  }
   Sess.outcomes = [];
   nextQ();
 }
@@ -895,6 +916,7 @@ function correctLabel(q) {
 }
 
 /* central answer path — every format funnels here */
+let spokenPraise = "";
 function submit(ok, correctShown, btn) {
   if (!Sess || Sess.lock) return;
   /* first slip = a free retry on the SAME question, answer kept secret
@@ -936,11 +958,10 @@ function submit(ok, correctShown, btn) {
     SFX.ok();
     let praise = pick(PRAISE);
     if (Math.random() < 0.22 && P().name && P().name !== "Explorer") praise = praise.replace("!", `, ${P().name}!`);
+    spokenPraise = praise;
     feedback(true, praise, "+" + gain + " XP");
   } else {
     Sess.misses++;
-    Sess.lastMissQ = Sess.q;
-    const tb = $("teachBtn"); if (tb) tb.hidden = false;
     if (Sess.adaptive) Sess.d = Math.max(0.15, Sess.d - 0.18);
     SFX.no();
     feedback(false, pick(NOT_QUITE), (correctShown ? `It was <b>${esc(correctShown)}</b>. ` : "") + esc(Sess.q.hint));
@@ -967,13 +988,16 @@ function submit(ok, correctShown, btn) {
   }
   paintHeader(); save();
   const failedQ = Sess.q;
+  /* give the spoken praise room to finish before the next card appears */
+  let delay = ok ? (Sess.msOk || MS_OK) : (Sess.msBad || MS_BAD);
+  if (ok && !FAST && Sess.kind !== "lightning" && P().settings.speech) delay = Math.max(delay, speechMs(spokenPraise) + 250);
   setTimeout(() => {
     if (!Sess) return;
     Sess.i++;
-    /* failed twice → walk through the worked answer before moving on */
-    if (finalFail && Sess.kind !== "lightning") teachSteps(failedQ, "Let's keep going! 💪", () => { if (Sess) nextQ(); });
+    /* failed twice → coach through the worked answer right under the card */
+    if (finalFail && Sess.kind !== "lightning") inlineTeach(failedQ);
     else nextQ();
-  }, ok ? (Sess.msOk || MS_OK) : (Sess.msBad || MS_BAD));
+  }, delay);
 }
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -1000,29 +1024,28 @@ function toast(emoji, title, sub) {
 }
 
 /* teaching moment: worked steps, one at a time, with speech */
-function teachSteps(q, doneLabel, onDone) {
-  const back = el("div", "modal-back"), box = el("div", "modal teach");
-  box.innerHTML = `<p class="sheet-icon">🤝</p><h2>Let me show you!</h2>
-    <p class="sheet-acc">${esc(q.prompt)}</p>`;
+function inlineTeach(q) {
+  /* the question card stays put — the coach appears right beneath it */
+  const slot = $("hintSlot");
+  slot.innerHTML = "";
+  const coach = el("div", "coach", `<p class="coach-head">🤝 Let me show you!</p>`);
   const list = el("div", "teach-steps");
-  box.appendChild(list);
-  const btn = el("button", "primary-btn", "Next step ▶");
+  coach.appendChild(list);
+  slot.appendChild(coach);
+  const dock = $("answerArea");
+  dock.innerHTML = "";
+  const btn = el("button", "coach-next", "Next step ▶");
   let i = 0;
   const reveal = () => {
     if (i < q.steps.length) {
       list.appendChild(el("p", "step", esc(q.steps[i])));
       say(q.steps[i]); i++;
-      if (i === q.steps.length) btn.textContent = doneLabel;
-    } else { back.remove(); onDone(); }
+      if (i === q.steps.length) btn.innerHTML = "Got it — next question 💪";
+    } else { if (Sess) nextQ(); }
   };
   btn.onclick = reveal;
-  box.appendChild(btn); back.appendChild(box);
-  $("overlay").appendChild(back);
+  dock.appendChild(btn);
   reveal();
-}
-function showMeHow() {
-  if (!Sess || !Sess.lastMissQ) return;
-  teachSteps(Sess.lastMissQ, "Got it! 💪", () => { });
 }
 
 /* ---------------- set completion & mastery ---------------- */
@@ -1177,6 +1200,14 @@ function switchProfile(id) {
   state.profile = id;
   save(); renderMap(true);
 }
+function deleteChild(id) {
+  if (!state.profiles[id] || childIds().length < 2) return false;
+  state.deletedProfiles[id] = today();          // tombstone: sync can't bring them back
+  if (state.profile === id) state.profile = childIds().find(x => x !== id);
+  delete state.profiles[id];
+  save();
+  return true;
+}
 function addChild(name, avatar) {
   if (childIds().length >= 4) return null;
   const id = "c" + Date.now();
@@ -1271,6 +1302,16 @@ function openParents() {
         const act = el("button", "mini-btn", "▶ play");
         act.onclick = () => { switchProfile(id); renderKids(); };
         row.appendChild(act);
+      }
+      if (childIds().length > 1) {
+        const del = el("button", "mini-btn del", "✕");
+        let armedDel = false;
+        del.onclick = () => {
+          if (!armedDel) { armedDel = true; del.textContent = "Remove forever?"; del.classList.add("armed"); return; }
+          deleteChild(id);
+          renderKids();
+        };
+        row.appendChild(del);
       }
       gKids.appendChild(row);
     }
@@ -1526,7 +1567,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, showMeHow, APP_V, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));

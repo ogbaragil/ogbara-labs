@@ -62,26 +62,24 @@ function boot(dir) {
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function walk(root, fn) { (function w(e) { fn(e); (e.children || []).forEach(w); })(root); }
-/* failed-twice questions open the worked-steps modal; click through it */
+/* failed-twice questions open the inline coach under the card; click through it */
 async function clickThroughTeach(h) {
   for (let guard = 0; guard < 10; guard++) {
-    let btn = null, found = false;
-    for (const back of h.ids["overlay"].children) {
-      if (back._removed) continue;
-      walk(back, e => { if (String(e._inner || "").includes("Let me show you")) found = true; });
-      if (found) { walk(back, e => { if (e.tag === "button" && String(e.className).includes("primary-btn")) btn = e; }); break; }
-    }
-    if (!found || !btn) return;
+    let btn = null;
+    walk(h.ids["answerArea"], e => { if (e.tag === "button" && String(e.className).includes("coach-next")) btn = e; });
+    let coaching = false;
+    walk(h.ids["hintSlot"], e => { if (String(e._inner || "").includes("Let me show you")) coaching = true; });
+    if (!btn || !coaching) return;
     btn.onclick();
     await sleep(20);
   }
 }
-/* fail a question fully: retry slip, then final fail, then walk the teach modal */
+/* fail a question fully: retry slip, then final fail, then walk the inline coach */
 async function failQuestion(BTApp, h) {
   BTApp.submit(false, "");
   await sleep(80);          // retry unlock window (FAST 60ms)
   BTApp.submit(false, "");
-  await sleep(90);          // MS_BAD before the teach modal opens
+  await sleep(90);          // MS_BAD before the coach appears
   await clickThroughTeach(h);
   await sleep(30);
 }

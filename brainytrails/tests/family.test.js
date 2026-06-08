@@ -54,6 +54,16 @@ module.exports = async function (t) {
   BTApp.switchProfile("default");
   t("switching back restores Maya intact", S().profile === "default" && S().profiles.default.name === "Maya" && S().profiles.default.xp === 500);
 
+  // ── delete child + tombstone ──
+  const id3 = BTApp.addChild("Zoe", "🐼");
+  t("third child added", BTApp.childIds().length === 3);
+  t("delete removes and tombstones", BTApp.deleteChild(id3) === true && !S().profiles[id3] && !!S().deletedProfiles[id3]);
+  BTApp.mergeRemote({ v: 1, profile: "default", profiles: { [id3]: { skills: {}, xp: 50, settings: { speech: true } } } });
+  t("cloud merge cannot resurrect a deleted child", !S().profiles[id3]);
+  t("the last child can never be deleted", (() => { const ids = BTApp.childIds(); let p = true; for (const x of ids.slice(1)) BTApp.deleteChild(x); p = BTApp.childIds().length === 1 && BTApp.deleteChild(BTApp.childIds()[0]) === false; return p; })());
+  // restore the second child for the isolation expectations below... (already consumed) re-add:
+  t("speech pacing estimator: longer praise → longer pause, capped", BTApp.speechMs("Hi!") >= 900 && BTApp.speechMs("Brilliant, Maya!") > BTApp.speechMs("Hi!") && BTApp.speechMs("x".repeat(500)) === 4500);
+
   // ── lightning round ──
   const realIds = BT.ISLANDS.flatMap(i => i.units.flatMap(u => u.skills)).slice(0, 6);
   realIds.forEach(id => S().profiles.default.skills[id] = { m: 2, attempts: 9, correct: 9, stars: 3, nextReview: null, reviewStep: 0, lastD: 0.7 });
