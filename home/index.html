@@ -165,9 +165,52 @@
   .group-label h3{font-weight:800; font-size:20px; margin:0; letter-spacing:-.3px;}
   .group-label small{color:var(--muted); font-family:var(--body); font-size:14px;}
 
-  .app-card.featured{grid-column:1/-1; display:grid; grid-template-columns:1.05fr .95fr; gap:26px; align-items:center;}
-  .featured .card-body{display:flex; flex-direction:column; gap:10px;}
-  .featured h3{font-size:28px;}
+  /* category cards */
+  .cat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+  .cat-card{display:flex; align-items:center; gap:14px; text-align:left; cursor:pointer;
+    background:var(--card); border:1px solid var(--line); border-radius:22px; padding:20px 22px; color:var(--ink);
+    transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(var(--ty,0));
+    transition:border-color .25s, box-shadow .25s, background .25s;}
+  .cat-card:hover{--ty:-4px; border-color:var(--ac); box-shadow:0 16px 40px rgba(0,0,0,.38);}
+  .cat-card.active{border-color:var(--ac); box-shadow:0 0 0 1px var(--ac), 0 16px 40px rgba(0,0,0,.4);
+    background:color-mix(in srgb, var(--ac) 8%, var(--card));}
+  .cat-emoji{font-size:34px; line-height:1; filter:drop-shadow(0 4px 10px rgba(0,0,0,.35));}
+  .cat-text{flex:1; min-width:0;}
+  .cat-title{display:block; font-family:var(--display); font-weight:800; font-size:21px; letter-spacing:-.3px;}
+  .cat-tag{display:block; color:var(--muted); font-size:12.5px; margin-top:1px;}
+  .cat-count{font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--ac);
+    background:color-mix(in srgb, var(--ac) 14%, transparent); border:1px solid color-mix(in srgb, var(--ac) 40%, transparent);
+    padding:5px 9px; border-radius:999px; white-space:nowrap;}
+  .chev{color:var(--muted); transition:transform .35s; font-size:14px;}
+  .cat-card.active .chev{transform:rotate(180deg); color:var(--ac);}
+
+  /* expanding stage */
+  .cat-stage{margin-top:16px; display:flex; flex-direction:column; gap:14px;}
+  .cat-panel{display:grid; grid-template-rows:0fr; opacity:0;
+    transition:grid-template-rows .45s cubic-bezier(.2,.7,.2,1), opacity .4s ease;}
+  .cat-panel.open{grid-template-rows:1fr; opacity:1;}
+  .cat-panel-clip{overflow:hidden;}
+  .cat-panel-inner{display:flex; flex-direction:column; gap:14px; padding:4px 2px;}
+
+  /* app rows inside a panel */
+  .app-row{position:relative; display:grid; grid-template-columns:188px 1fr; gap:22px; align-items:center;
+    background:var(--card); border:1px solid var(--line); border-radius:22px; padding:20px 24px;
+    text-decoration:none; color:var(--ink); overflow:hidden;
+    transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(var(--ty,0));
+    transition:border-color .25s, box-shadow .25s;}
+  .app-row::before{content:""; position:absolute; top:-46px; right:-46px; width:130px; height:130px; border-radius:50%;
+    background:var(--ac); opacity:.12; transition:opacity .25s, transform .35s;}
+  .app-row:hover{--ty:-4px; border-color:var(--ac); box-shadow:0 16px 40px rgba(0,0,0,.4), 0 0 0 1px var(--ac);}
+  .app-row:hover::before{opacity:.22; transform:scale(1.2);}
+  .row-body{position:relative; display:flex; flex-direction:column; gap:8px;}
+  .row-body h4{font-family:var(--display); font-weight:800; font-size:22px; margin:0; letter-spacing:-.3px;
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .row-body p{margin:0; color:var(--muted); font-size:14.5px;}
+  .row-body .go{font-family:var(--display); font-weight:600; font-size:14px; color:var(--ac); transition:transform .2s;}
+  .app-row:hover .go{transform:translateX(4px);}
+  @media (max-width:760px){
+    .app-row{grid-template-columns:1fr; gap:14px;}
+  }
   .card-visual{width:100%; height:auto; border-radius:18px;
     background:color-mix(in srgb, var(--ac) 7%, transparent);
     border:1px solid color-mix(in srgb, var(--ac) 28%, transparent);}
@@ -203,7 +246,7 @@
 
   @media (max-width:760px){
     .about{grid-template-columns:1fr; padding:30px 24px;}
-    .app-card.featured{grid-template-columns:1fr;}
+    .cat-grid{grid-template-columns:1fr;}
     nav a{margin-left:14px; font-size:14px;}
     .hero{padding:60px 0 30px;}
   }
@@ -252,163 +295,125 @@
     </div>
   </div>
 
-  <section class="apps" id="apps">
-    <h2 class="reveal">What we build</h2>
-    <p class="sub reveal">Three families of products. Open in any browser, install to your home screen, use offline.</p>
+  <section class="apps reveal" id="apps">
+    <h2>What we build</h2>
+    <p class="sub">Three families of products. Tap a category to explore — every app opens in the browser, installs to your home screen, and works offline.</p>
 
-    <div class="group-label reveal"><h3>🧒 For kids</h3><small>learning through play</small></div>
-    <div class="grid">
+    <div class="cat-grid">
+      <button class="cat-card active reveal" style="--ac:var(--violet)" aria-expanded="true" aria-controls="cat-kids">
+        <span class="cat-emoji">🧒</span>
+        <span class="cat-text"><span class="cat-title">Kids</span><span class="cat-tag">learning through play</span></span>
+        <span class="cat-count">2 apps</span><span class="chev">▾</span>
+      </button>
+      <button class="cat-card reveal" style="--ac:var(--sky)" aria-expanded="false" aria-controls="cat-life">
+        <span class="cat-emoji">🌱</span>
+        <span class="cat-text"><span class="cat-title">Life</span><span class="cat-tag">quiet tools for the long view</span></span>
+        <span class="cat-count">1 app</span><span class="chev">▾</span>
+      </button>
+      <button class="cat-card reveal" style="--ac:var(--rose)" aria-expanded="false" aria-controls="cat-games">
+        <span class="cat-emoji">🎲</span>
+        <span class="cat-text"><span class="cat-title">Games</span><span class="cat-tag">boards built for the couch</span></span>
+        <span class="cat-count">2 apps</span><span class="chev">▾</span>
+      </button>
+    </div>
 
-      <a class="app-card featured reveal" style="--ac:var(--violet)" href="https://brainytrails.ogbaralabs.xyz">
-        <div class="card-body">
-          <span class="app-emoji">🧠</span>
-          <h3>Brainy Trails</h3>
-          <p>A maths mastery adventure: six islands, 58 skills, spaced reviews that keep learning strong, and friendly bosses to conquer. A studio-quality Australian voice reads every question aloud, mistakes get a patient step-by-step coach — and up to four children each get their own trail, synced to every device, with a full Parents' Corner dashboard.</p>
-          <div class="app-meta">
-            <span class="meta-left"><span class="pill flag">Flagship</span><span class="pill age">Ages 4–11</span></span>
+    <div class="cat-stage">
+      <div class="cat-panel open" id="cat-kids"><div class="cat-panel-clip"><div class="cat-panel-inner">
+        <a class="app-row" style="--ac:var(--violet)" href="https://brainytrails.ogbaralabs.xyz">
+          <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <ellipse cx="70" cy="180" rx="58" ry="36" fill="rgba(143,227,176,.16)" stroke="rgba(143,227,176,.5)" stroke-width="1.5"/>
+            <ellipse cx="185" cy="105" rx="62" ry="38" fill="rgba(183,154,255,.16)" stroke="rgba(183,154,255,.55)" stroke-width="1.5"/>
+            <ellipse cx="300" cy="52" rx="50" ry="32" fill="rgba(255,179,138,.14)" stroke="rgba(255,179,138,.5)" stroke-width="1.5"/>
+            <path class="trail-dash" d="M40 192 C 90 200, 110 160, 150 130 S 220 95, 250 80 S 290 60, 315 48" fill="none" stroke="rgba(244,241,230,.45)" stroke-width="2.5" stroke-dasharray="1 8" stroke-linecap="round"/>
+            <g font-size="11" text-anchor="middle">
+              <circle cx="40" cy="192" r="8" fill="#fbbf24"/><text class="twinkle" x="40" y="172" font-size="12">⭐</text>
+              <circle cx="84" cy="182" r="8" fill="#fbbf24"/><text class="twinkle t2" x="84" y="162" font-size="12">⭐</text>
+              <circle cx="128" cy="148" r="8" fill="#fbbf24"/><text class="twinkle t3" x="128" y="128" font-size="12">⭐</text>
+              <circle cx="172" cy="118" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
+              <circle cx="216" cy="96" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
+              <text class="pin-bob" x="216" y="80" font-size="15">📍</text>
+              <text class="crown-pulse" x="315" y="54" font-size="17">👑</text>
+            </g>
+          </svg>
+          <div class="row-body">
+            <h4>Brainy Trails <span class="pill flag">Flagship</span><span class="pill age">Ages 4–11</span></h4>
+            <p>A maths mastery adventure: six islands, 58 skills, spaced reviews and friendly bosses. A studio-quality Australian voice reads every question aloud, mistakes get a patient step-by-step coach, and up to four children each get their own synced trail with a full Parents' Corner dashboard.</p>
             <span class="go">Start exploring →</span>
           </div>
-          <span class="domain">brainytrails.ogbaralabs.xyz</span>
-        </div>
-        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <ellipse cx="70" cy="180" rx="58" ry="36" fill="rgba(143,227,176,.16)" stroke="rgba(143,227,176,.5)" stroke-width="1.5"/>
-          <ellipse cx="185" cy="105" rx="62" ry="38" fill="rgba(183,154,255,.16)" stroke="rgba(183,154,255,.55)" stroke-width="1.5"/>
-          <ellipse cx="300" cy="52" rx="50" ry="32" fill="rgba(255,179,138,.14)" stroke="rgba(255,179,138,.5)" stroke-width="1.5"/>
-          <path class="trail-dash" d="M40 192 C 90 200, 110 160, 150 130 S 220 95, 250 80 S 290 60, 315 48"
-                fill="none" stroke="rgba(244,241,230,.45)" stroke-width="2.5" stroke-dasharray="1 8" stroke-linecap="round"/>
-          <g font-size="11" text-anchor="middle">
-            <circle cx="40" cy="192" r="8" fill="#fbbf24"/><text class="twinkle" x="40" y="172" font-size="12">⭐</text>
-            <circle cx="84" cy="182" r="8" fill="#fbbf24"/><text class="twinkle t2" x="84" y="162" font-size="12">⭐</text>
-            <circle cx="128" cy="148" r="8" fill="#fbbf24"/><text class="twinkle t3" x="128" y="128" font-size="12">⭐</text>
-            <circle cx="172" cy="118" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
-            <circle cx="216" cy="96" r="8" fill="none" stroke="#b79aff" stroke-width="2.5"/>
-            <circle cx="258" cy="78" r="8" fill="none" stroke="rgba(168,184,168,.6)" stroke-width="2"/>
-            <text class="pin-bob" x="216" y="80" font-size="15">📍</text>
-            <text class="crown-pulse" x="315" y="54" font-size="17">👑</text>
-            <text x="70" y="222" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Sprout Meadow</text>
-            <text x="185" y="152" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Number Bridge</text>
-            <text x="300" y="92" font-size="10" fill="rgba(168,184,168,.9)" font-family="sans-serif">Boss island</text>
-          </g>
-        </svg>
-      </a>
-
-      <a class="app-card featured reveal" style="--ac:var(--lime)" href="https://howmany.ogbaralabs.xyz">
-        <div class="card-body">
-          <span class="app-emoji">🦁</span>
-          <h3>How Many?</h3>
-          <p>A jungle of learning games for early years — counting, first words and memory. Stars, stickers and VIP levels reward every win, and short rounds suit short attention spans.</p>
-          <div class="app-meta">
-            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Ages 2–5</span></span>
-            <span class="go">Play now →</span>
-          </div>
-          <span class="domain">howmany.ogbaralabs.xyz</span>
-        </div>
-        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <text x="36" y="84" font-size="52">🦁</text>
-          <g>
+        </a>
+        <a class="app-row" style="--ac:var(--lime)" href="https://howmany.ogbaralabs.xyz">
+          <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <text x="36" y="84" font-size="52">🦁</text>
             <circle cx="170" cy="66" r="22" fill="rgba(255,179,138,.25)" stroke="#ffb38a" stroke-width="2"/><text x="170" y="74" font-size="22" text-anchor="middle">🥭</text>
             <circle cx="228" cy="66" r="22" fill="rgba(255,179,138,.25)" stroke="#ffb38a" stroke-width="2"/><text x="228" y="74" font-size="22" text-anchor="middle">🥭</text>
             <circle cx="286" cy="66" r="22" fill="rgba(255,179,138,.25)" stroke="#ffb38a" stroke-width="2"/><text x="286" y="74" font-size="22" text-anchor="middle">🥭</text>
-          </g>
-          <rect x="92" y="120" rx="16" width="200" height="44" fill="rgba(205,244,99,.12)" stroke="rgba(205,244,99,.5)" stroke-width="1.5"/>
-          <text x="192" y="148" font-size="16" font-weight="bold" text-anchor="middle" fill="#f4f1e6" font-family="sans-serif">How many? → 3</text>
-          <text class="twinkle" x="120" y="200" font-size="18">⭐</text>
-          <text class="twinkle t2" x="180" y="206" font-size="18">⭐</text>
-          <text class="twinkle t3" x="240" y="200" font-size="18">⭐</text>
-        </svg>
-      </a>
-    </div>
+            <rect x="92" y="120" rx="16" width="200" height="44" fill="rgba(205,244,99,.12)" stroke="rgba(205,244,99,.5)" stroke-width="1.5"/>
+            <text x="192" y="148" font-size="16" font-weight="bold" text-anchor="middle" fill="#f4f1e6" font-family="sans-serif">How many? → 3</text>
+            <text class="twinkle" x="120" y="200" font-size="18">⭐</text><text class="twinkle t2" x="180" y="206" font-size="18">⭐</text><text class="twinkle t3" x="240" y="200" font-size="18">⭐</text>
+          </svg>
+          <div class="row-body">
+            <h4>How Many? <span class="pill age">Ages 2–5</span></h4>
+            <p>A jungle of learning games for the early years — counting, first words and memory, with stars, stickers and VIP levels. Short rounds suit short attention spans.</p>
+            <span class="go">Play now →</span>
+          </div>
+        </a>
+      </div></div></div>
 
-    <div class="group-label reveal"><h3>🌱 For life</h3><small>quiet tools for the long view</small></div>
-    <div class="grid">
-      <a class="app-card featured reveal" style="--ac:var(--sky)" href="https://lifegrid.ogbaralabs.xyz">
-        <div class="card-body">
-          <span class="app-emoji">🗓️</span>
-          <h3>Life Grid</h3>
-          <p>Your whole life, one month per cell. Ninety years of memories — notes, tags, milestones and photos in one quiet map, backed up safely across your devices. A place to reflect, not to scroll.</p>
-          <div class="app-meta">
-            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
+      <div class="cat-panel" id="cat-life"><div class="cat-panel-clip"><div class="cat-panel-inner">
+        <a class="app-row" style="--ac:var(--sky)" href="https://lifegrid.ogbaralabs.xyz">
+          <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <pattern id="cells" width="24" height="24" patternUnits="userSpaceOnUse"><rect x="2" y="2" width="18" height="18" rx="4" fill="rgba(154,215,255,.10)" stroke="rgba(154,215,255,.30)" stroke-width="1"/></pattern>
+              <pattern id="cellsLived" width="24" height="24" patternUnits="userSpaceOnUse"><rect x="2" y="2" width="18" height="18" rx="4" fill="rgba(154,215,255,.45)"/></pattern>
+            </defs>
+            <rect x="36" y="30" width="288" height="144" fill="url(#cells)"/>
+            <rect x="36" y="30" width="288" height="48" fill="url(#cellsLived)"/>
+            <rect x="36" y="78" width="120" height="24" fill="url(#cellsLived)"/>
+            <text class="pin-bob" x="158" y="98" font-size="17">📷</text>
+            <text x="180" y="206" font-size="12" fill="rgba(168,184,168,.9)" font-family="sans-serif" text-anchor="middle">1,080 months · one quiet map</text>
+          </svg>
+          <div class="row-body">
+            <h4>Life Grid <span class="pill age">Grown-ups</span></h4>
+            <p>Your whole life, one month per cell. Ninety years of memories — notes, tags, milestones and photos in one quiet map, backed up safely across your devices. A place to reflect, not to scroll.</p>
             <span class="go">Open your grid →</span>
           </div>
-          <span class="domain">lifegrid.ogbaralabs.xyz</span>
-        </div>
-        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <defs>
-            <pattern id="cells" width="24" height="24" patternUnits="userSpaceOnUse">
-              <rect x="2" y="2" width="18" height="18" rx="4" fill="rgba(154,215,255,.10)" stroke="rgba(154,215,255,.30)" stroke-width="1"/>
-            </pattern>
-            <pattern id="cellsLived" width="24" height="24" patternUnits="userSpaceOnUse">
-              <rect x="2" y="2" width="18" height="18" rx="4" fill="rgba(154,215,255,.45)"/>
-            </pattern>
-          </defs>
-          <rect x="36" y="30" width="288" height="144" fill="url(#cells)"/>
-          <rect x="36" y="30" width="288" height="48" fill="url(#cellsLived)"/>
-          <rect x="36" y="78" width="120" height="24" fill="url(#cellsLived)"/>
-          <text class="pin-bob" x="158" y="98" font-size="17">📷</text>
-          <text x="180" y="206" font-size="12" fill="rgba(168,184,168,.9)" font-family="sans-serif" text-anchor="middle">1,080 months · one quiet map</text>
-        </svg>
-      </a>
-    </div>
+        </a>
+      </div></div></div>
 
-    <div class="group-label reveal"><h3>🎲 For game night</h3><small>boards built for the couch</small></div>
-    <div class="grid">
-      <a class="app-card featured reveal" style="--ac:var(--rose)" href="https://couples.ogbaralabs.xyz">
-        <div class="card-body">
-          <span class="app-emoji">💞</span>
-          <h3>Couples Snakes &amp; Ladders</h3>
-          <p>The classic board, remade for two. Avatars, conversation prompts along the way, and one final question waiting at square 100. Always tasteful.</p>
-          <div class="app-meta">
-            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Grown-ups</span></span>
+      <div class="cat-panel" id="cat-games"><div class="cat-panel-clip"><div class="cat-panel-inner">
+        <a class="app-row" style="--ac:var(--rose)" href="https://couples.ogbaralabs.xyz">
+          <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs><pattern id="board1" width="36" height="36" patternUnits="userSpaceOnUse"><rect x="2" y="2" width="32" height="32" rx="6" fill="rgba(255,163,194,.08)" stroke="rgba(255,163,194,.28)" stroke-width="1"/></pattern></defs>
+            <rect x="60" y="26" width="240" height="148" fill="url(#board1)"/>
+            <path d="M96 160 C 130 120, 160 150, 196 96 S 240 70, 262 48" fill="none" stroke="#8fe3b0" stroke-width="6" stroke-linecap="round" opacity=".8"/>
+            <g stroke="#ffb38a" stroke-width="4" stroke-linecap="round" opacity=".85"><line x1="118" y1="44" x2="118" y2="118"/><line x1="142" y1="44" x2="142" y2="118"/><line x1="118" y1="60" x2="142" y2="60"/><line x1="118" y1="84" x2="142" y2="84"/><line x1="118" y1="106" x2="142" y2="106"/></g>
+            <text class="heart-beat" x="252" y="60" font-size="22">💞</text>
+            <rect x="84" y="186" rx="14" width="192" height="34" fill="rgba(255,163,194,.12)" stroke="rgba(255,163,194,.45)" stroke-width="1.5"/>
+            <text x="180" y="208" font-size="12.5" text-anchor="middle" fill="#f4f1e6" font-family="sans-serif">A question waits at square 100…</text>
+          </svg>
+          <div class="row-body">
+            <h4>Couples Snakes &amp; Ladders <span class="pill age">Grown-ups</span></h4>
+            <p>The classic board, remade for two. Avatars, conversation prompts along the way, and one final question waiting at square 100. Always tasteful.</p>
             <span class="go">Play now →</span>
           </div>
-          <span class="domain">couples.ogbaralabs.xyz</span>
-        </div>
-        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <defs>
-            <pattern id="board1" width="36" height="36" patternUnits="userSpaceOnUse">
-              <rect x="2" y="2" width="32" height="32" rx="6" fill="rgba(255,163,194,.08)" stroke="rgba(255,163,194,.28)" stroke-width="1"/>
-            </pattern>
-          </defs>
-          <rect x="60" y="26" width="240" height="148" fill="url(#board1)"/>
-          <path d="M96 160 C 130 120, 160 150, 196 96 S 240 70, 262 48" fill="none" stroke="#8fe3b0" stroke-width="6" stroke-linecap="round" opacity=".8"/>
-          <g stroke="#ffb38a" stroke-width="4" stroke-linecap="round" opacity=".85">
-            <line x1="118" y1="44" x2="118" y2="118"/><line x1="142" y1="44" x2="142" y2="118"/>
-            <line x1="118" y1="60" x2="142" y2="60"/><line x1="118" y1="84" x2="142" y2="84"/><line x1="118" y1="106" x2="142" y2="106"/>
-          </g>
-          <text class="heart-beat" x="252" y="60" font-size="22">💞</text>
-          <rect x="84" y="186" rx="14" width="192" height="34" fill="rgba(255,163,194,.12)" stroke="rgba(255,163,194,.45)" stroke-width="1.5"/>
-          <text x="180" y="208" font-size="12.5" text-anchor="middle" fill="#f4f1e6" font-family="sans-serif">A question waits at square 100…</text>
-        </svg>
-      </a>
-
-      <a class="app-card featured reveal" style="--ac:var(--peach)" href="https://supersnakes.ogbaralabs.xyz">
-        <div class="card-body">
-          <span class="app-emoji">🐍</span>
-          <h3>Super Snakes</h3>
-          <p>Snakes &amp; ladders with the dial turned up — wild boards, bigger slides, faster climbs. Quick rounds for the whole household.</p>
-          <div class="app-meta">
-            <span class="meta-left"><span class="pill live">Live</span><span class="pill age">Everyone</span></span>
+        </a>
+        <a class="app-row" style="--ac:var(--peach)" href="https://supersnakes.ogbaralabs.xyz">
+          <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs><pattern id="board2" width="36" height="36" patternUnits="userSpaceOnUse"><rect x="2" y="2" width="32" height="32" rx="6" fill="rgba(255,179,138,.08)" stroke="rgba(255,179,138,.3)" stroke-width="1"/></pattern></defs>
+            <rect x="60" y="26" width="240" height="148" fill="url(#board2)"/>
+            <path d="M84 48 C 150 70, 130 120, 200 130 S 280 110, 286 156" fill="none" stroke="#ffa3c2" stroke-width="9" stroke-linecap="round" opacity=".85"/>
+            <circle cx="84" cy="48" r="9" fill="#ffa3c2"/>
+            <text class="dice-roll" x="300" y="62" font-size="26">🎲</text>
+            <g stroke="#9ad7ff" stroke-width="4" stroke-linecap="round" opacity=".85"><line x1="232" y1="52" x2="232" y2="110"/><line x1="254" y1="52" x2="254" y2="110"/><line x1="232" y1="68" x2="254" y2="68"/><line x1="232" y1="92" x2="254" y2="92"/></g>
+            <text x="180" y="208" font-size="12.5" text-anchor="middle" fill="rgba(168,184,168,.95)" font-family="sans-serif">Bigger slides. Faster climbs.</text>
+          </svg>
+          <div class="row-body">
+            <h4>Super Snakes <span class="pill age">Everyone</span></h4>
+            <p>Snakes &amp; ladders with the dial turned up — wild boards, bigger slides, faster climbs. Quick rounds for the whole household.</p>
             <span class="go">Play now →</span>
           </div>
-          <span class="domain">supersnakes.ogbaralabs.xyz</span>
-        </div>
-        <svg class="card-visual" viewBox="0 0 360 235" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <defs>
-            <pattern id="board2" width="36" height="36" patternUnits="userSpaceOnUse">
-              <rect x="2" y="2" width="32" height="32" rx="6" fill="rgba(255,179,138,.08)" stroke="rgba(255,179,138,.3)" stroke-width="1"/>
-            </pattern>
-          </defs>
-          <rect x="60" y="26" width="240" height="148" fill="url(#board2)"/>
-          <path d="M84 48 C 150 70, 130 120, 200 130 S 280 110, 286 156" fill="none" stroke="#ffa3c2" stroke-width="9" stroke-linecap="round" opacity=".85"/>
-          <circle cx="84" cy="48" r="9" fill="#ffa3c2"/>
-          <text class="dice-roll" x="300" y="62" font-size="26">🎲</text>
-          <g stroke="#9ad7ff" stroke-width="4" stroke-linecap="round" opacity=".85">
-            <line x1="232" y1="52" x2="232" y2="110"/><line x1="254" y1="52" x2="254" y2="110"/>
-            <line x1="232" y1="68" x2="254" y2="68"/><line x1="232" y1="92" x2="254" y2="92"/>
-          </g>
-          <text x="180" y="208" font-size="12.5" text-anchor="middle" fill="rgba(168,184,168,.95)" font-family="sans-serif">Bigger slides. Faster climbs.</text>
-        </svg>
-      </a>
+        </a>
+      </div></div></div>
     </div>
   </section>
 
@@ -440,18 +445,34 @@ document.getElementById("yr").textContent = new Date().getFullYear();
   const fancy = matchMedia("(prefers-reduced-motion: no-preference)").matches;
   /* scroll reveals, staggered within each grid */
   const els = document.querySelectorAll(".reveal");
-  if (!fancy || !("IntersectionObserver" in window)) { els.forEach(e => e.classList.add("in")); return tilt(); }
-  document.querySelectorAll(".grid").forEach(g =>
-    Array.from(g.children).forEach((c, i) => c.style.setProperty("--d", (i * 0.12) + "s")));
+  if (!fancy || !("IntersectionObserver" in window)) {
+    els.forEach(e => e.classList.add("in"));
+    document.querySelectorAll(".cat-panel").forEach(p => p.classList.add("open"));
+    document.querySelectorAll(".cat-card").forEach(c => c.classList.add("active"));
+    accordion(); return tilt();
+  }
+  document.querySelectorAll(".cat-grid").forEach(g =>
+    Array.from(g.children).forEach((c, i) => c.style.setProperty("--d", (i * 0.1) + "s")));
   const io = new IntersectionObserver(entries => entries.forEach(en => {
     if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
   }), { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
   els.forEach(e => io.observe(e));
+  accordion();
   tilt();
+  /* tap a category to expand its apps (one open at a time) */
+  function accordion() {
+    const cards = Array.from(document.querySelectorAll(".cat-card"));
+    const panel = (c) => document.getElementById(c.getAttribute("aria-controls"));
+    cards.forEach(card => card.addEventListener("click", () => {
+      const isOpen = card.classList.contains("active");
+      cards.forEach(c => { c.classList.remove("active"); c.setAttribute("aria-expanded", "false"); panel(c).classList.remove("open"); });
+      if (!isOpen) { card.classList.add("active"); card.setAttribute("aria-expanded", "true"); panel(card).classList.add("open"); }
+    }));
+  }
   /* pointer tilt on cards (fine pointers only) */
   function tilt() {
     if (!fancy || !matchMedia("(pointer: fine)").matches) return;
-    document.querySelectorAll(".app-card").forEach(card => {
+    document.querySelectorAll(".cat-card, .app-row").forEach(card => {
       card.addEventListener("pointermove", (e) => {
         const r = card.getBoundingClientRect();
         const px = (e.clientX - r.left) / r.width - 0.5;
