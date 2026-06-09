@@ -1,13 +1,13 @@
 {
-  "name": "Ogbara Labs",
-  "short_name": "Ogbara Labs",
-  "description": "A tiny studio of joyful web apps.",
+  "name": "Ogbara",
+  "short_name": "Ogbara",
+  "description": "Independent, privacy-first software, thoughtfully made.",
   "id": "/",
   "start_url": "./",
   "scope": "./",
   "display": "browser",
-  "background_color": "#101c16",
-  "theme_color": "#101c16",
+  "background_color": "#0f1713",
+  "theme_color": "#0f1713",
   "icons": [
     {
       "src": "icons/icon-192.png",
