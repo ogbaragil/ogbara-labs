@@ -3,179 +3,249 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
-<meta name="theme-color" content="#0f4c3a">
+<meta name="theme-color" content="#0c3d28">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Super Snakes">
-<title>Super Snakes — family adventure</title>
+<title>Super Snakes &amp; Ladders — family adventure</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0f4c3a; --bg2:#0b3c2e; --panel:#14573f; --panel2:#1a6a4e;
-    --ink:#f2fbf4; --muted:#a9d6bd; --line:rgba(242,251,244,.14);
-    --sun:#ffd35c; --coral:#ff8e72; --mint:#8debb1; --sky:#7fd1f7; --berry:#e789d3;
-    --board-a:#fff8e8; --board-b:#ffeec9; --num:#8a6b3a;
+    --bg:#0c3d28; --bg2:#072c1c;
+    --leaf:#1f6e44; --leaf2:#2e8b57;
+    --panel:#10593a; --panel2:#0c4b30; --line:rgba(255,255,255,.13);
+    --ink:#f3fbf4; --muted:#a9d6bd;
+    --gold:#ffc62b; --gold-deep:#f4a623; --gold-soft:#ffe39a;
+    --cream-a:#fdf6e1; --cream-b:#f7e8c4; --cream-g:#edf4dc;
+    --num:#3a6b46;
+    --snake:#e8554a; --snake-dark:#c2433a; --snake-spot:#f5923e;
+    --ladder:#46a84e; --ladder-light:#a7dba8;
+    --p1:#34b27c; --p2:#ec4899; --p3:#3b82f6; --p4:#f5b400;
+    --white-card:#fffdf6;
     --display:"Baloo 2", system-ui, sans-serif; --body:"Nunito", system-ui, sans-serif;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{height:100%;}
   body{margin:0; font-family:var(--body); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column; user-select:none;
-       background:radial-gradient(800px 460px at 85% -8%, rgba(255,211,92,.12), transparent 55%),
-                  radial-gradient(720px 520px at -8% 60%, rgba(127,209,247,.1), transparent 55%), var(--bg);
-       padding-top:env(safe-area-inset-top); padding-bottom:calc(168px + env(safe-area-inset-bottom));}
-  button,input{font-family:inherit;} button{cursor:pointer; border:none;}
-  .wrap{flex:1; width:100%; max-width:1000px; margin:0 auto; padding:14px 14px 18px; display:flex; flex-direction:column; gap:12px;}
+       background:
+         radial-gradient(900px 520px at 50% 16%, rgba(46,139,87,.28), transparent 60%),
+         radial-gradient(700px 480px at 88% 96%, rgba(31,110,68,.30), transparent 60%),
+         linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+       padding-top:env(safe-area-inset-top);
+       padding-bottom:calc(132px + env(safe-area-inset-bottom));}
+  button,input{font-family:inherit;} button{cursor:pointer; border:none; background:none; color:inherit;}
+  .wrap{flex:1; width:100%; max-width:600px; margin:0 auto; padding:14px 16px 8px; display:flex; flex-direction:column; gap:14px; position:relative; z-index:1;}
 
-  header{display:flex; justify-content:space-between; align-items:center;}
-  h1{font-family:var(--display); font-weight:800; font-size:clamp(22px,5.5vw,30px); margin:0; letter-spacing:-.3px;}
-  h1 span{color:var(--sun);}
-  .icon-btns{display:flex; gap:8px;}
-  .icon-btn{width:40px; height:40px; border-radius:13px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:17px; display:grid; place-items:center;}
+  /* Ambient leaves */
+  .leaf{position:fixed; z-index:0; pointer-events:none; opacity:.5; filter:drop-shadow(0 4px 6px rgba(0,0,0,.25));}
+  .leaf.tl{top:-10px; left:-14px; width:120px; transform:rotate(8deg);}
+  .leaf.tr{top:-6px; right:-16px; width:120px; transform:scaleX(-1) rotate(8deg);}
+  .leaf.bl{bottom:120px; left:-18px; width:110px; transform:rotate(-18deg);}
+  .leaf.br{bottom:122px; right:-18px; width:110px; transform:scaleX(-1) rotate(-18deg);}
 
-  .layout{flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0;}
+  /* Header */
+  header{display:flex; align-items:center; gap:10px;}
+  .titlewrap{flex:1; text-align:center; min-width:0;}
+  h1{font-family:var(--display); font-weight:800; font-size:clamp(21px,6.2vw,30px); margin:0; letter-spacing:-.3px; line-height:1.05;
+     text-shadow:0 2px 0 rgba(0,0,0,.18);}
+  h1 .snakes{color:var(--gold);}
+  .subtitle{margin:4px 0 0; color:var(--gold-soft); font-weight:700; font-size:clamp(11px,3.2vw,14px); letter-spacing:.2px;}
+  .subtitle .s{color:var(--gold); margin:0 6px; font-size:.85em;}
+  .icon-btn{flex:none; width:44px; height:44px; border-radius:14px; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+            font-size:19px; display:grid; place-items:center; box-shadow:0 4px 0 rgba(0,0,0,.28); transition:transform .1s, opacity .2s;}
+  .icon-btn:active{transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.28);}
+  .icon-stack{display:flex; gap:8px;}
 
-  /* Board — the hero. */
-  .board{position:relative; width:100%; max-width:min(94vw, calc(100dvh - 290px)); margin:0 auto; aspect-ratio:1; border-radius:18px; overflow:hidden;
-         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
-         box-shadow:0 18px 44px rgba(5,25,18,.55), inset 0 0 0 1px rgba(10,53,40,.4);}
+  /* Board */
+  .board-frame{background:linear-gradient(180deg,#fffefa,#f3e9cf); border-radius:22px; padding:8px;
+               box-shadow:0 16px 40px rgba(4,24,16,.5), inset 0 0 0 2px rgba(255,255,255,.6); align-self:center;
+               width:100%; max-width:min(94vw, calc(100dvh - 430px), 520px);}
+  .board{position:relative; width:100%; aspect-ratio:1; border-radius:14px; overflow:hidden;
+         display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);}
   .tile{position:relative;}
-  .tile:nth-child(odd){background:var(--board-a);} .tile:nth-child(even){background:var(--board-b);}
-  .tile .num{position:absolute; top:2px; left:3px; font-size:clamp(7px,1.6vw,10px); font-weight:800; color:var(--num); line-height:1;}
-  .tile .mark{position:absolute; bottom:1px; right:2px; font-size:clamp(10px,2.4vw,14px); line-height:1;}
-  .tile .dest{position:absolute; bottom:2px; left:2px; font-size:clamp(6px,1.3vw,8.5px); font-weight:800; line-height:1;
-              background:rgba(255,255,255,.88); border-radius:6px; padding:1px 3px;}
-  .tile.ladder{background:#eefaf0;} .tile .dest.up{color:#15803d;}
-  .tile.snake{background:#fdf0ec;} .tile .dest.down{color:#c2410c;}
-  .tile.quest{background:#fff8e0;}
-  .tile.quest .mark{animation:twinkle 2.4s ease-in-out infinite;}
-  @keyframes twinkle{0%,100%{transform:scale(1) rotate(0deg); opacity:.85;}50%{transform:scale(1.3) rotate(12deg); opacity:1;}}
-  .tile.t100{background:linear-gradient(135deg,#ffe9a8,#ffd35c);}
-  .tile.hl{z-index:1; animation:hlPulse 1.5s ease-in-out infinite;}
-  @keyframes hlPulse{0%,100%{box-shadow:inset 0 0 0 3px var(--sky);}50%{box-shadow:inset 0 0 0 5px rgba(127,209,247,.55);}}
+  .tile:nth-child(odd){background:var(--cream-a);} .tile:nth-child(even){background:var(--cream-b);}
+  .tile.ladder{background:var(--cream-g);}
+  .tile.snake{background:#fdeede;}
+  .tile.quest{background:#fdf3d4;}
+  .tile.t100{background:linear-gradient(135deg,#ffe9a8,#ffc62b);}
+  .tile .num{position:absolute; top:3px; left:4px; font-size:clamp(7px,1.7vw,11px); font-weight:800; color:var(--num); line-height:1;
+             font-family:var(--display);}
+  .tile .star{position:absolute; left:50%; top:54%; transform:translate(-50%,-50%); width:38%; aspect-ratio:1;
+              background:var(--gold); opacity:.85;
+              clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+              filter:drop-shadow(0 1px 1px rgba(180,120,0,.4));}
+  .tile.quest .star{animation:twinkle 2.6s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{transform:translate(-50%,-50%) scale(1) rotate(0);}50%{transform:translate(-50%,-50%) scale(1.22) rotate(14deg);}}
+  .tile .trophy{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); font-size:clamp(10px,2.4vw,15px);}
+  .tile.hl{z-index:1; animation:hlPulse 1.4s ease-in-out infinite;}
+  @keyframes hlPulse{0%,100%{box-shadow:inset 0 0 0 3px rgba(59,130,246,.9);}50%{box-shadow:inset 0 0 0 5px rgba(59,130,246,.45);}}
   svg.art{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
 
   .pawn{position:absolute; width:9%; aspect-ratio:1; border-radius:50%; display:grid; place-items:center; z-index:5; overflow:hidden;
-        font-size:clamp(11px,2.8vw,17px); transition:left .12s linear, top .12s linear; border:2.5px solid; background:#fff;
-        box-shadow:0 3px 8px rgba(10,40,30,.4);}
+        font-size:clamp(10px,2.6vw,16px); transition:left .12s linear, top .12s linear; border:2.5px solid; background:#fff;
+        box-shadow:0 3px 7px rgba(8,38,28,.45);}
   .pawn img{width:100%; height:100%; object-fit:cover;}
-  .pawn.active{box-shadow:0 0 0 3px rgba(255,211,92,.7), 0 3px 8px rgba(10,40,30,.45); z-index:6;}
+  .pawn.active{box-shadow:0 0 0 3px rgba(255,198,43,.85), 0 3px 8px rgba(8,38,28,.5); z-index:6;}
   .pawn.hop{animation:hopArc .15s ease-out;}
   @keyframes hopArc{0%{margin-top:0; scale:1;}45%{margin-top:-2.6%; scale:1.15;}100%{margin-top:0; scale:1;}}
-  .pawn.climb{box-shadow:0 0 0 4px rgba(255,211,92,.9), 0 0 18px rgba(255,211,92,.85); animation:climbPulse .35s ease-in-out infinite;}
+  .pawn.climb{box-shadow:0 0 0 4px rgba(255,198,43,.95), 0 0 18px rgba(255,198,43,.85); animation:climbPulse .35s ease-in-out infinite;}
   @keyframes climbPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
   .pawn.slide{animation:slideShake .18s linear infinite; filter:saturate(1.6) hue-rotate(-14deg);}
   @keyframes slideShake{0%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}100%{transform:rotate(-7deg)}}
   .pawn.dance{animation:dance .55s ease-in-out infinite;}
   @keyframes dance{0%,100%{transform:translateY(0) rotate(-8deg);}50%{transform:translateY(-18%) rotate(8deg);}}
 
-  /* Fixed dock: ticker, four chips beside the die. The die IS the button. */
-  .dock{position:fixed; left:0; right:0; bottom:0; z-index:40;
-        background:rgba(11,60,46,.95); backdrop-filter:blur(10px);
-        border-top:1px solid var(--line);
-        padding:10px 14px calc(12px + env(safe-area-inset-bottom));}
-  .dock-inner{max-width:min(94vw, calc(100dvh - 290px)); margin:0 auto;}
-  .status{margin:0 0 8px; color:var(--muted); font-size:12.5px; line-height:1.45; min-height:36px; text-align:center;
-          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
-  .dock-row{display:flex; align-items:center; gap:12px;}
-  .chip-grid{flex:1; min-width:0; display:grid; grid-template-columns:repeat(2,1fr); gap:7px;}
-  .rchip{display:flex; align-items:center; gap:7px; background:var(--panel2); border-radius:13px; padding:6px 8px; border:1.5px solid transparent;}
-  .rchip.active{border-color:var(--sun); box-shadow:0 0 12px rgba(255,211,92,.25);}
-  .rchip .face{width:26px; height:26px; border-radius:50%; border:2px solid var(--mint); background:#fff; display:grid; place-items:center; font-size:13px; overflow:hidden; flex:none;}
-  .rchip .face img{width:100%;height:100%;object-fit:cover;}
-  .rmeta{min-width:0; flex:1;}
-  .rmeta b{display:block; font-size:11.5px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .rmeta .pwico{font-size:9px; margin-left:3px;}
-  .bar{display:block; height:4px; border-radius:999px; background:rgba(242,251,244,.16); margin-top:4px; overflow:hidden;}
-  .bar .fill{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--sun),var(--coral)); transition:width .25s ease;}
+  /* Info cards: Goal / Round / Fun Rule */
+  .info-row{display:grid; grid-template-columns:1fr 1.15fr 1fr; gap:9px;}
+  .info{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:10px 8px; text-align:center;
+        box-shadow:0 5px 0 rgba(0,0,0,.22);}
+  .info.mid{background:linear-gradient(180deg,#0a4730,#073822); box-shadow:0 5px 0 rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,198,43,.18);}
+  .info .ititle{font-family:var(--display); font-weight:800; font-size:clamp(12px,3.4vw,15px); display:flex; gap:5px; justify-content:center; align-items:center;}
+  .info .isub{margin:3px 0 0; color:var(--muted); font-size:clamp(10px,2.7vw,12.5px); font-weight:700; line-height:1.3;}
+  .info.mid .ititle{color:var(--gold);}
+  .info.mid .isub{color:var(--ink);}
+  .info .hot{color:var(--gold);}
 
-  .die-btn{flex:none; width:84px; height:84px; background:#fff; border-radius:22px; display:grid; place-items:center; border:none; position:relative;
-       box-shadow:0 6px 0 rgba(5,25,18,.6), 0 10px 22px rgba(5,25,18,.5), inset 0 -5px 0 rgba(10,40,30,.1); transition:transform .12s, opacity .25s;}
+  /* Fixed dock: player bars flanking the die */
+  .dock{position:fixed; left:0; right:0; bottom:0; z-index:40;
+        background:linear-gradient(180deg, rgba(8,46,30,.7), rgba(6,38,24,.97));
+        backdrop-filter:blur(8px); border-top:1px solid var(--line);
+        padding:8px 14px calc(12px + env(safe-area-inset-bottom));}
+  .dock-inner{max-width:600px; margin:0 auto;}
+  .status{margin:0 0 8px; color:var(--gold-soft); font-size:12px; line-height:1.4; min-height:20px; text-align:center; font-weight:700;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .dock-row{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  /* Player progress bars flanking the die — the race to 100 */
+  .pbars{flex:1; min-width:0; display:flex; flex-direction:column; gap:7px;}
+  .pbar{display:flex; align-items:center; gap:8px; padding:4px 7px; border-radius:13px; background:var(--panel);
+        border:1.5px solid transparent; box-shadow:0 4px 0 rgba(0,0,0,.22); cursor:pointer;}
+  .pbar.active{border-color:var(--gold); box-shadow:0 4px 0 rgba(0,0,0,.22), 0 0 12px rgba(255,198,43,.4);}
+  .pbar .bface{width:24px; height:24px; border-radius:50%; background:#fff; display:grid; place-items:center; font-size:13px; overflow:hidden;
+               flex:none; border:2.5px solid var(--pc);}
+  .pbar .bface img{width:100%; height:100%; object-fit:cover;}
+  .pbar .btrack{flex:1; min-width:0; height:8px; border-radius:999px; background:rgba(255,255,255,.14); overflow:hidden; position:relative;}
+  .pbar .bfill{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, color-mix(in srgb, var(--pc) 70%, #fff), var(--pc)); transition:width .25s ease;}
+  .pbar .bsq{flex:none; font-family:var(--display); font-weight:800; font-size:12px; color:var(--pc); min-width:18px; text-align:right;}
+  .pbar .pwico{font-size:10px;}
+
+  .die-zone{flex:none; display:flex; flex-direction:column; align-items:center; gap:5px;}
+  .die-ring{position:relative; width:86px; height:86px; display:grid; place-items:center;}
+  .die-ring::before{content:""; position:absolute; inset:-4px; border-radius:50%;
+        background:conic-gradient(var(--gold),var(--gold-deep),var(--gold),var(--gold-deep),var(--gold));
+        filter:blur(2px); opacity:.9; animation:ringspin 5s linear infinite;}
+  @keyframes ringspin{to{transform:rotate(360deg);}}
+  .die-btn{position:relative; width:74px; height:74px; background:#fff; border-radius:20px; display:grid; place-items:center;
+       box-shadow:0 6px 0 rgba(5,25,18,.55), inset 0 -4px 0 rgba(10,40,30,.08); transition:transform .12s, opacity .25s;}
   .die-btn:active{transform:scale(.94);}
   .die-btn.spin{animation:spin3 .75s cubic-bezier(.2,.6,.3,1);}
-  .die-btn.done{opacity:.45;}
-  .die-btn::after{content:"tap to roll"; position:absolute; bottom:0; left:0; right:0; text-align:center;
-                  font-size:8px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:#8a6b3a;}
+  .die-btn.done{opacity:.5;}
   @keyframes spin3{from{transform:rotate(0)}to{transform:rotate(1080deg)}}
-  .pips{width:54px; height:54px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
-  .pip{border-radius:50%; background:#0f4c3a; opacity:0; width:12px; height:12px; align-self:center; justify-self:center;}
+  .pips{width:48px; height:48px; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); gap:3px;}
+  .pip{border-radius:50%; background:#16321f; opacity:0; width:11px; height:11px; align-self:center; justify-self:center;}
   .pip.on{opacity:1;}
   .die-btn:not(.done) .pips{animation:dieBreathe 3s ease-in-out infinite;}
   @keyframes dieBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+  .die-label{font-family:var(--display); font-weight:800; font-size:11px; letter-spacing:.8px; text-transform:uppercase; color:var(--gold);}
 
-  .reset-row{width:100%; margin-top:16px; padding:12px; border-radius:12px; background:var(--panel2);
-             color:var(--muted); border:1px solid var(--line); font-weight:800; font-size:14px;}
-
-  /* Drama */
-  .modal{animation:popUp .3s cubic-bezier(.34,1.56,.64,1);}
+  /* Modals */
+  .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.82); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px; width:100%; max-width:430px; max-height:92dvh; overflow-y:auto; text-align:center;
+         animation:popUp .3s cubic-bezier(.34,1.56,.64,1);}
   @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
+  .modal h2{font-family:var(--display); font-weight:800; margin:0 0 4px; font-size:25px;}
+  .modal .qwho{display:inline-block; margin:6px auto 0; padding:4px 13px; border-radius:999px;
+    background:rgba(255,198,43,.16); border:1px solid rgba(255,198,43,.5); color:var(--gold); font-weight:800; font-size:13px;}
+  .modal .qtext{font-size:18px; font-weight:700; margin:12px 0 6px; line-height:1.5;}
+  .modal .easy{color:#7fd1f7; font-size:14px; font-weight:700; margin:8px 0;}
+  .modal .reward{background:rgba(255,198,43,.12); border:1px solid rgba(255,198,43,.35); color:var(--gold); border-radius:14px; padding:11px; font-weight:800; font-size:14px; margin-top:12px;}
+  .primary-btn{width:100%; margin-top:18px; padding:14px; border-radius:14px; background:linear-gradient(135deg,var(--gold),var(--gold-deep)); color:#3a2407; font-weight:900; font-size:16px; box-shadow:0 5px 0 rgba(10,40,30,.45);}
+  .primary-btn:active{transform:translateY(3px); box-shadow:0 2px 0 rgba(10,40,30,.45);}
+  .win-emoji{font-size:54px; margin:0;}
+  .info-list{margin:12px 0 0; padding:0; list-style:none; text-align:left; color:var(--ink); font-size:14px; line-height:1.6;}
+  .info-list li{display:flex; gap:9px; padding:8px 10px; margin:6px 0; background:var(--panel2); border:1px solid var(--line); border-radius:13px;}
+  .info-list li .ico{font-size:20px; flex:none;}
+  .info-list li b{color:var(--gold);}
+  .lede{color:var(--muted); font-size:14px; margin:2px 0 0; line-height:1.5;}
+
+  label{display:block; font-weight:800; font-size:11.5px; letter-spacing:1.4px; text-transform:uppercase; color:var(--muted); margin:14px 0 6px; text-align:left;}
+  input[type=text]{width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:11px 13px; font-size:15px; outline:none;}
+  .seg{display:flex; gap:8px; margin:6px 0 2px;}
+  .seg button{flex:1; padding:10px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); color:inherit; font-weight:800;}
+  .seg button.sel{background:rgba(255,198,43,.16); border-color:var(--gold);}
+  .p-edit{display:flex; align-items:center; gap:10px; margin-top:8px;}
+  .p-edit .face{width:44px; height:44px; border-radius:50%; border:2.5px solid var(--ladder); background:#fff; display:grid; place-items:center; font-size:22px; overflow:hidden; flex:none;}
+  .p-edit .face img{width:100%;height:100%;object-fit:cover;}
+  .p-edit input{flex:1;}
+  .mini-btn{padding:9px 12px; border-radius:11px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:800; font-size:13px;}
+  .reset-row{width:100%; margin-top:16px; padding:12px; border-radius:12px; background:var(--panel2); color:var(--muted); border:1px solid var(--line); font-weight:800; font-size:14px;}
+  .footer{font-size:11px; color:#6fa589; text-align:center; margin:2px 0 0;}
+  .footer a{color:inherit; text-decoration:underline; text-underline-offset:2px;}
+
   .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}
   .confetti span{position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; animation:confFall 3s linear forwards;}
   @keyframes confFall{to{transform:translateY(112vh) rotate(540deg);}}
 
-  .help-fab{position:fixed; right:14px; bottom:calc(188px + env(safe-area-inset-bottom)); z-index:41;
-    width:42px; height:42px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
-    color:var(--muted); font-weight:900; font-size:18px; box-shadow:0 6px 16px rgba(5,25,18,.45); backdrop-filter:blur(6px);}
-  .help-modal{text-align:left;}
-  .help-modal h2{text-align:center;}
-  .help-list{margin:10px 0 0; padding-left:6px; color:var(--muted); font-size:14px; line-height:1.75; list-style:none;}
-  .help-list li{margin:7px 0;}
-  .seg{display:flex; gap:8px; margin:6px 0 2px;}
-  .seg button{flex:1; padding:10px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); color:inherit; font-weight:800;}
-  .seg button.sel{background:rgba(255,211,92,.16); border-color:var(--sun);}
-
-  /* Modals */
-  .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.8); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
-  .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px; width:100%; max-width:420px; max-height:92dvh; overflow-y:auto; text-align:center;}
-  .modal h2{font-family:var(--display); font-weight:800; margin:0 0 4px; font-size:26px;}
-  .modal .qwho{display:inline-block; margin:6px auto 0; padding:4px 13px; border-radius:999px;
-    background:rgba(255,211,92,.16); border:1px solid rgba(255,211,92,.5); color:var(--sun);
-    font-weight:800; font-size:13px; letter-spacing:.3px;}
-  .modal .qtext{font-size:18px; font-weight:700; margin:12px 0 6px; line-height:1.5;}
-  .modal .easy{color:var(--sky); font-size:14px; font-weight:700; margin:8px 0;}
-  .modal .reward{background:rgba(255,211,92,.12); border:1px solid rgba(255,211,92,.35); color:var(--sun); border-radius:14px; padding:11px; font-weight:800; font-size:14px; margin-top:12px;}
-  .primary-btn{width:100%; margin-top:18px; padding:14px; border-radius:14px; background:linear-gradient(135deg,var(--sun),var(--coral)); color:#3a2407; font-weight:800; font-size:16px; box-shadow:0 5px 0 rgba(10,40,30,.45);}
-  .primary-btn:active{transform:translateY(3px); box-shadow:0 2px 0 rgba(10,40,30,.45);}
-  .win-emoji{font-size:54px; margin:0;}
-  label{display:block; font-weight:800; font-size:11.5px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin:14px 0 6px; text-align:left;}
-  input[type=text]{width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:11px 13px; font-size:15px; outline:none;}
-  .p-edit{display:flex; align-items:center; gap:10px; margin-top:8px;}
-  .p-edit .face{width:44px; height:44px; border-radius:50%; border:2.5px solid var(--mint); background:#fff; display:grid; place-items:center; font-size:22px; overflow:hidden; flex:none;}
-  .p-edit .face img{width:100%;height:100%;object-fit:cover;}
-  .p-edit input{flex:1;}
-  .mini-btn{padding:9px 12px; border-radius:11px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:800; font-size:13px;}
-  .footer{font-size:11.5px; color:#6fa589; text-align:center;}
-  .footer a{color:inherit; text-decoration:underline; text-underline-offset:2px;}
   @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important;} }
 </style>
 </head>
 <body>
+<!-- ambient leaves -->
+<svg class="leaf tl" viewBox="0 0 100 100"><path d="M10 90 C10 40 40 12 92 8 C70 30 64 56 30 64 C56 60 70 48 84 40 C66 70 40 78 10 90Z" fill="#1f7a48"/><path d="M14 86 C30 60 56 48 80 40" stroke="#0d5530" stroke-width="2" fill="none"/></svg>
+<svg class="leaf tr" viewBox="0 0 100 100"><path d="M10 90 C10 40 40 12 92 8 C70 30 64 56 30 64 C56 60 70 48 84 40 C66 70 40 78 10 90Z" fill="#249152"/></svg>
+<svg class="leaf bl" viewBox="0 0 100 100"><path d="M10 90 C10 40 40 12 92 8 C70 30 64 56 30 64 C56 60 70 48 84 40 C66 70 40 78 10 90Z" fill="#1f7a48"/></svg>
+<svg class="leaf br" viewBox="0 0 100 100"><path d="M10 90 C10 40 40 12 92 8 C70 30 64 56 30 64 C56 60 70 48 84 40 C66 70 40 78 10 90Z" fill="#249152"/></svg>
+
 <div class="wrap">
   <header>
-    <h1>Super <span>Snakes</span> 🐍🪜</h1>
-    <div class="icon-btns">
-      <button class="icon-btn" id="musicBtn" title="Music">🎵</button>
-      <button class="icon-btn" id="famBtn" title="Family setup">👨‍👩‍👧‍👦</button>
+    <button class="icon-btn" id="menuBtn" title="How to play" aria-label="How to play">☰</button>
+    <div class="titlewrap">
+      <h1>Super <span class="snakes">Snakes</span> 🐍 &amp; Ladders 🪜</h1>
+      <p class="subtitle"><span class="s">✦</span>Climb up, slide down, have fun together!<span class="s">✦</span></p>
+    </div>
+    <div class="icon-stack">
+      <button class="icon-btn" id="musicBtn" title="Music" aria-label="Music">🎵</button>
+      <button class="icon-btn" id="famBtn" title="Players &amp; photos" aria-label="Players and photos">👥</button>
     </div>
   </header>
 
-  <div class="layout">
+  <div class="board-frame">
     <div class="board" id="board"></div>
-
-    <p class="footer">Super Snakes by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a></p>
   </div>
+
+  <div class="info-row">
+    <div class="info">
+      <div class="ititle">⭐ Goal</div>
+      <p class="isub">Be the first to reach 100!</p>
+    </div>
+    <div class="info mid">
+      <div class="ititle">🚩 ROUND <span id="roundNum">1</span></div>
+      <p class="isub" id="turnInfo">Player 1's turn</p>
+    </div>
+    <div class="info">
+      <div class="ititle"><span class="hot">🔥</span> Fun Rule</div>
+      <p class="isub">Land on a <span class="hot">star</span> for a special surprise!</p>
+    </div>
+  </div>
+
+  <p class="footer">Super Snakes by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a></p>
 </div>
 
-<button class="help-fab" id="helpBtn" aria-label="How to play">?</button>
 <div class="dock">
   <div class="dock-inner">
     <p class="status" id="status">Tap the dice to begin your family adventure!</p>
     <div class="dock-row">
-      <div class="chip-grid" id="chipGrid"></div>
-      <button class="die-btn" id="dieBtn" aria-label="Roll the dice"><div class="pips" id="pips"></div></button>
+      <div class="pbars" id="pbarsLeft"></div>
+      <div class="die-zone">
+        <div class="die-ring">
+          <button class="die-btn" id="dieBtn" aria-label="Roll the dice"><div class="pips" id="pips"></div></button>
+        </div>
+        <span class="die-label">Tap to roll</span>
+      </div>
+      <div class="pbars" id="pbarsRight"></div>
     </div>
   </div>
 </div>
@@ -186,10 +256,12 @@
 <script src="cloud.js"></script>
 <script>
 "use strict";
-/* ===== Super Snakes — PWA port of the family Expo edition =====
-   Faithful: 4 players, snakes/ladders maps, quest tiles every 5th square with
-   easy variants, rewards (bonus/allBonus/nextTurnBoost/snakeShield), exact-100 rule.
-   Better: editable names + emoji or photo avatars (stored locally), synthesised audio. */
+/* ===== Super Snakes & Ladders =====
+   Game logic unchanged from the family edition: 4 players, snakes/ladders maps,
+   quest ("Challenge") tiles every 5th square with easy variants, rewards
+   ("Surprises": bonus / allBonus / nextTurnBoost / snakeShield), exact-100 rule.
+   Custom characters preserved: editable names + emoji OR uploaded photo avatars,
+   stored locally (IndexedDB) and optionally synced to a private account. */
 
 const BOARD_SIZE = 10, FINAL_TILE = 100;
 const SNAKES  = { 98:79, 95:75, 92:88, 83:61, 69:48, 64:60, 59:39, 52:33, 46:25, 29:9 };
@@ -236,6 +308,7 @@ const randomQuest = () => {
 const clampToBoard = (v) => Math.max(1, Math.min(FINAL_TILE, v));
 
 /* ---------- Players (editable; default family of four) ---------- */
+const PCOLORS = ["#34b27c","#ec4899","#3b82f6","#f5b400"];
 const DEFAULT_PLAYERS = [
   { id:0, name:"Player 1", emoji:"🦖" },
   { id:1, name:"Player 2", emoji:"🦄" },
@@ -256,13 +329,13 @@ const savePlayers = () => { try{
 function setPlayerCount(n){
   playerCount=n;
   players = roster.slice(0,n).map(p=>({ ...p, position:1, nextTurnBoost:false, snakeShield:false }));
-  currentTurn=0; winner=null; moving=false;
+  currentTurn=0; winner=null; moving=false; roundNum=1;
   buildBoard(); paintPawns(); paintTurn();
   setStatus(`Adventure restarted for ${n} players. ${players[0].name} goes first!`);
   savePlayers();
 }
 
-/* Avatar photos in IndexedDB */
+/* Avatar photos in IndexedDB — this is what lets a player be a custom photo. */
 const AvatarDB = (()=>{ let dbp=null;
   const open=()=>dbp||(dbp=new Promise((res,rej)=>{ const r=indexedDB.open("ss-avatars",1);
     r.onupgradeneeded=()=>r.result.createObjectStore("a"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }));
@@ -324,6 +397,9 @@ const Sound = (()=>{ let ctx=null, music=null;
 const boardEl = document.getElementById("board");
 function tileType(n){ if(LADDERS[n])return"ladder"; if(SNAKES[n])return"snake"; if(n%5===0&&n!==100)return"quest"; return"plain"; }
 function cellCenter(n){ const z=n-1, rb=Math.floor(z/10), rowTop=9-rb, pos=z%10, col=(rb%2===0)?pos:9-pos; return { x:(col+0.5)*10, y:(rowTop+0.5)*10 }; }
+function cubic(a,c1,c2,b,t){ const u=1-t;
+  return { x:u*u*u*a.x+3*u*u*t*c1.x+3*u*t*t*c2.x+t*t*t*b.x,
+           y:u*u*u*a.y+3*u*u*t*c1.y+3*u*t*t*c2.y+t*t*t*b.y }; }
 function buildBoard(){
   boardEl.innerHTML="";
   for (let r=0;r<10;r++) for (let c=0;c<10;c++){
@@ -332,10 +408,8 @@ function buildBoard(){
     const t=document.createElement("div");
     t.className=`tile ${type}${n===100?" t100":""}`; t.dataset.n=n;
     let inner=`<span class="num">${n}</span>`;
-    if(type==="ladder") inner+=`<span class="dest up">↑${LADDERS[n]}</span>`;
-    if(type==="snake")  inner+=`<span class="dest down">↓${SNAKES[n]}</span>`;
-    if(type==="quest")  inner+=`<span class="mark">⭐</span>`;
-    if(n===100)         inner+=`<span class="mark">🏆</span>`;
+    if(type==="quest")  inner+=`<span class="star"></span>`;
+    if(n===100)         inner+=`<span class="trophy">🏆</span>`;
     t.innerHTML=inner;
     boardEl.appendChild(t);
   }
@@ -343,41 +417,55 @@ function buildBoard(){
   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
   svg.setAttribute("viewBox","0 0 100 100"); svg.setAttribute("preserveAspectRatio","none"); svg.classList.add("art");
   let art="";
+
+  // Bamboo-style ladders
   for (const [f,to] of Object.entries(LADDERS)){
     const a=cellCenter(+f), b=cellCenter(to);
-    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), px=-dy/len, py=dx/len, w=1.5;
+    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy), px=-dy/len, py=dx/len, w=1.6;
     const rail=(sgn)=>`M${a.x+px*sgn} ${a.y+py*sgn} L${b.x+px*sgn} ${b.y+py*sgn}`;
-    // white casing lifts the art off busy tiles, then a single clean green
     for (const sgn of [w,-w]){
-      art+=`<path d="${rail(sgn)}" stroke="rgba(255,255,255,.92)" stroke-width="1.7" fill="none" stroke-linecap="round"/>`;
-      art+=`<path d="${rail(sgn)}" stroke="#2f9e63" stroke-width="0.95" fill="none" stroke-linecap="round"/>`;
+      art+=`<path d="${rail(sgn)}" stroke="rgba(255,255,255,.95)" stroke-width="2.1" fill="none" stroke-linecap="round"/>`;
+      art+=`<path d="${rail(sgn)}" stroke="#3f9e4a" stroke-width="1.25" fill="none" stroke-linecap="round"/>`;
+      art+=`<path d="${rail(sgn)}" stroke="#a7dba8" stroke-width="0.4" fill="none" stroke-linecap="round"/>`;
     }
     const rungs=Math.max(3,Math.floor(len/6));
     for(let i=1;i<rungs;i++){ const tt=i/rungs, cx=a.x+dx*tt, cy=a.y+dy*tt;
-      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="rgba(255,255,255,.92)" stroke-width="1.5" stroke-linecap="round"/>`;
-      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="#2f9e63" stroke-width="0.8" stroke-linecap="round"/>`; }
+      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="rgba(255,255,255,.95)" stroke-width="1.7" stroke-linecap="round"/>`;
+      art+=`<line x1="${cx+px*w}" y1="${cy+py*w}" x2="${cx-px*w}" y2="${cy-py*w}" stroke="#43a047" stroke-width="0.95" stroke-linecap="round"/>`; }
   }
+
+  // Friendly cartoon snakes
   for (const [f,to] of Object.entries(SNAKES)){
-    const a=cellCenter(+f), b=cellCenter(to);
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
-    const ux=dx/len, uy=dy/len, px=-uy, py=ux, amp=Math.min(6,len*0.18);
-    const c1x=a.x+dx*0.25+px*amp, c1y=a.y+dy*0.25+py*amp, c2x=a.x+dx*0.75-px*amp, c2y=a.y+dy*0.75-py*amp;
-    const body=`M${a.x} ${a.y} C${c1x} ${c1y} ${mx} ${my} ${mx} ${my} S${c2x} ${c2y} ${b.x} ${b.y}`;
-    art+=`<path d="${body}" stroke="rgba(255,255,255,.92)" stroke-width="2.7" fill="none" stroke-linecap="round"/>`;
-    art+=`<path d="${body}" stroke="#e2574d" stroke-width="1.75" fill="none" stroke-linecap="round"/>`;
-    art+=`<circle cx="${b.x}" cy="${b.y}" r="0.85" fill="#e2574d"/>`;
-    // friendly face on the head, looking where it slides
+    const a=cellCenter(+f), b=cellCenter(to);   // a = head (high number), b = tail (low number)
+    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+    const ux=dx/len, uy=dy/len, px=-uy, py=ux, amp=Math.min(6,len*0.2);
+    const c1={x:a.x+dx*0.3+px*amp, y:a.y+dy*0.3+py*amp};
+    const c2={x:a.x+dx*0.7-px*amp, y:a.y+dy*0.7-py*amp};
+    const body=`M${a.x} ${a.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${b.x} ${b.y}`;
+    art+=`<path d="${body}" stroke="rgba(255,255,255,.95)" stroke-width="3.4" fill="none" stroke-linecap="round"/>`;
+    art+=`<path d="${body}" stroke="#c2433a" stroke-width="2.7" fill="none" stroke-linecap="round"/>`;
+    art+=`<path d="${body}" stroke="#e8554a" stroke-width="2.0" fill="none" stroke-linecap="round"/>`;
+    // tummy spots
+    for (const tt of [0.32,0.46,0.6,0.74,0.88]){ const q=cubic(a,c1,c2,b,tt);
+      art+=`<circle cx="${q.x}" cy="${q.y}" r="0.55" fill="#f5923e"/>`; }
+    art+=`<circle cx="${b.x}" cy="${b.y}" r="0.9" fill="#e8554a"/>`;
+    // happy head facing along the slide
     const hx=a.x, hy=a.y;
-    art+=`<circle cx="${hx}" cy="${hy}" r="2" fill="#c8443a"/>`;
-    const e1x=hx-ux*0.5+px*0.75, e1y=hy-uy*0.5+py*0.75, e2x=hx-ux*0.5-px*0.75, e2y=hy-uy*0.5-py*0.75;
-    art+=`<circle cx="${e1x}" cy="${e1y}" r="0.55" fill="#fff"/><circle cx="${e2x}" cy="${e2y}" r="0.55" fill="#fff"/>`;
-    art+=`<circle cx="${e1x-ux*0.15}" cy="${e1y-uy*0.15}" r="0.26" fill="#26211f"/><circle cx="${e2x-ux*0.15}" cy="${e2y-uy*0.15}" r="0.26" fill="#26211f"/>`;
-    const m0x=hx-ux*1.9, m0y=hy-uy*1.9, tx=hx-ux*2.9, ty=hy-uy*2.9;
-    art+=`<path d="M${m0x} ${m0y} L${tx} ${ty}" stroke="#b3261e" stroke-width="0.35" fill="none"/>`;
-    art+=`<path d="M${tx} ${ty} l${-ux*0.5+px*0.45} ${-uy*0.5+py*0.45} M${tx} ${ty} l${-ux*0.5-px*0.45} ${-uy*0.5-py*0.45}" stroke="#b3261e" stroke-width="0.32" fill="none"/>`;
+    art+=`<circle cx="${hx}" cy="${hy}" r="2.4" fill="#e8554a" stroke="#fff" stroke-width="0.45"/>`;
+    const e1={x:hx+ux*0.5+px*0.85, y:hy+uy*0.5+py*0.85}, e2={x:hx+ux*0.5-px*0.85, y:hy+uy*0.5-py*0.85};
+    art+=`<circle cx="${e1.x}" cy="${e1.y}" r="0.7" fill="#fff"/><circle cx="${e2.x}" cy="${e2.y}" r="0.7" fill="#fff"/>`;
+    art+=`<circle cx="${e1.x+ux*0.18}" cy="${e1.y+uy*0.18}" r="0.34" fill="#26211f"/><circle cx="${e2.x+ux*0.18}" cy="${e2.y+uy*0.18}" r="0.34" fill="#26211f"/>`;
+    // smile
+    const m={x:hx+ux*1.0, y:hy+uy*1.0};
+    art+=`<path d="M${m.x-px*0.9} ${m.y-py*0.9} Q${m.x+ux*0.7} ${m.y+uy*0.7} ${m.x+px*0.9} ${m.y+py*0.9}" stroke="#7a1f18" stroke-width="0.34" fill="none" stroke-linecap="round"/>`;
+    // antennae
+    const an=(s)=>{ const base={x:hx-ux*1.4+px*s*0.8, y:hy-uy*1.4+py*s*0.8}, tip={x:base.x-ux*1.0+px*s*0.5, y:base.y-uy*1.0+py*s*0.5};
+      art+=`<path d="M${hx} ${hy} L${tip.x} ${tip.y}" stroke="#c2433a" stroke-width="0.3"/><circle cx="${tip.x}" cy="${tip.y}" r="0.45" fill="#e8554a"/>`; };
+    an(1); an(-1);
   }
+
   svg.innerHTML=art; boardEl.appendChild(svg);
-  for (const p of players){ const el=document.createElement("div"); el.className="pawn"; el.id="pawn"+p.id; el.style.borderColor=["#7fd1f7","#e789d3","#ffd35c","#8debb1"][p.id]; boardEl.appendChild(el); }
+  for (const p of players){ const el=document.createElement("div"); el.className="pawn"; el.id="pawn"+p.id; el.style.borderColor=PCOLORS[p.id]; boardEl.appendChild(el); }
   paintPawns();
 }
 function tokenOffset(i){ return [[-1.8,-1.8],[1.8,-1.8],[-1.8,1.8],[1.8,1.8]][i]; }
@@ -396,36 +484,49 @@ function paintPawns(){
 const el=(t,c,h)=>{ const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
 const esc=(t)=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
-const statusEl=document.getElementById("status"), chipGrid=document.getElementById("chipGrid");
+const statusEl=document.getElementById("status");
+const pbarsLeft=document.getElementById("pbarsLeft"), pbarsRight=document.getElementById("pbarsRight");
+[pbarsLeft,pbarsRight].forEach(c=>c.addEventListener("click",(e)=>{ const b=e.target.closest(".pbar"); if(b) openFamily(+b.dataset.pid); }));
+const roundNumEl=document.getElementById("roundNum"), turnInfoEl=document.getElementById("turnInfo");
 const pipsEl=document.getElementById("pips"), dieBtn=document.getElementById("dieBtn");
 const PIP_MAP={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 for(let i=0;i<9;i++) pipsEl.appendChild(el("span","pip"));
 const showDie=(v)=>[...pipsEl.children].forEach((p,i)=>p.classList.toggle("on",PIP_MAP[v].includes(i)));
-showDie(1);
+showDie(5);
 
-let currentTurn=0, winner=null, rolling=false, moving=false;
+let currentTurn=0, winner=null, rolling=false, moving=false, roundNum=1;
+function advanceTurn(){ const next=(currentTurn+1)%players.length; if(next===0) roundNum++; currentTurn=next; }
+
+/* Player "Square" cards + the Round card */
 function paintTurn(){
-  chipGrid.innerHTML="";
-  players.forEach((q,i)=>{
-    const chip=el("div","rchip"+(i===currentTurn&&!winner?" active":""));
-    const pct=Math.max(0,Math.min(100,q.position||1));
-    chip.innerHTML=`<span class="face">${face(q)}</span>
-      <span class="rmeta"><b>${esc(q.name)}${q.nextTurnBoost?'<span class="pwico">⚡</span>':""}${q.snakeShield?'<span class="pwico">🛡️</span>':""}</b>
-      <span class="bar"><span class="fill" style="width:${pct}%"></span></span></span>`;
-    chipGrid.appendChild(chip);
-  });
-  if (typeof dieBtn !== "undefined" && dieBtn) dieBtn.classList.toggle("done", !!winner);
+  roundNumEl.textContent = roundNum;
+  turnInfoEl.textContent = winner ? `${winner.name} wins! 🏆` : `${players[currentTurn].name}'s turn`;
+  if (dieBtn) dieBtn.classList.toggle("done", !!winner);
+
+  // Player progress bars flanking the die: first half left, second half right
+  const half = Math.ceil(players.length/2);
+  const barHTML = (q,i)=>{
+    const active = i===currentTurn && !winner;
+    const pct = Math.max(2, Math.min(100, q.position||1));
+    return `<div class="pbar${active?" active":""}" data-pid="${q.id}" style="--pc:${PCOLORS[q.id]}">
+      <span class="bface">${face(q)}</span>
+      <span class="btrack"><span class="bfill" style="width:${pct}%"></span></span>
+      <span class="bsq">${q.position}${q.nextTurnBoost?'<span class="pwico">⚡</span>':""}${q.snakeShield?'<span class="pwico">🛡️</span>':""}</span>
+    </div>`;
+  };
+  pbarsLeft.innerHTML  = players.slice(0,half).map((q,i)=>barHTML(q,i)).join("");
+  pbarsRight.innerHTML = players.slice(half).map((q,i)=>barHTML(q,i+half)).join("");
 }
 const setStatus=(t)=>statusEl.textContent=t;
 
-/* ---------- Game logic (mirrors the Expo version) ---------- */
+/* ---------- Game logic ---------- */
 async function animateAlong(playerIdx, from, to){
   if (from===to) return;
   const step=from<to?1:-1;
   const e=document.getElementById("pawn"+players[playerIdx].id);
   for(let pos=from+step; step>0?pos<=to:pos>=to; pos+=step){
     players[playerIdx].position=pos; Sound.step();
-    e.classList.add("hop"); paintPawns();
+    e.classList.add("hop"); paintPawns(); paintTurn();
     await delay(120);
     e.classList.remove("hop");
   }
@@ -446,7 +547,7 @@ function showQuest(quest, done, who=""){
   Sound.quest();
   const back=el("div","modal-back"), box=el("div","modal");
   box.innerHTML=`<p style="font-size:40px;margin:0">⭐</p><h2>${quest.title}</h2>
-    ${who?`<p class="qwho">🌟 ${esc(who)}'s mission!</p>`:""}
+    ${who?`<p class="qwho">🌟 ${esc(who)}'s challenge!</p>`:""}
     <p class="qtext">${quest.text}</p><p class="easy">🐣 ${quest.easy}</p>
     <div class="reward">🎁 ${quest.reward}</div>`;
   const ok=el("button","primary-btn","We did it! 🎉"); ok.onclick=()=>{ back.remove(); done&&done(); };
@@ -455,7 +556,7 @@ function showQuest(quest, done, who=""){
 function confetti(){
   try { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch {}
   const wrap = el("div","confetti");
-  const COLORS = ["#ffd35c","#ff8e72","#8debb1","#7fd1f7","#e789d3"];
+  const COLORS = ["#ffc62b","#f5923e","#34b27c","#3b82f6","#ec4899"];
   for (let k=0;k<70;k++){
     const c = el("span");
     c.style.left = (Math.random()*100)+"%";
@@ -485,8 +586,9 @@ async function runTurn(rolled){
   let target=startPos+moveAmount;
 
   if (target>FINAL_TILE){
-    setStatus(`${me.name} rolled ${rolled}. Need an exact roll for 100, so they stay on tile ${startPos}. Now it's ${players[(idx+1)%players.length].name}'s turn.`);
-    currentTurn=(idx+1)%players.length; paintPawns(); paintTurn(); return;
+    const upcoming=players[(idx+1)%players.length];
+    setStatus(`${me.name} rolled ${rolled}. Need an exact roll for 100, so they stay on tile ${startPos}. Now it's ${upcoming.name}'s turn.`);
+    advanceTurn(); paintPawns(); paintTurn(); return;
   }
   let message=`${me.name} rolled ${rolled}`;
   if(moveAmount!==rolled) message+=` + 1 bonus = ${moveAmount}`;
@@ -524,21 +626,21 @@ async function runTurn(rolled){
     showQuest(quest, async ()=>{
       applyQuestReward(quest, idx);
       if (players[idx].position!==target) await animateAlong(idx,target,players[idx].position);
-      const champ = questChampion(idx);   // any player a team boost carried to 100 wins — not just the roller
+      const champ = questChampion(idx);   // a team boost that carries any player to 100 wins
       if (champ){
-        setStatus(`${message} Quest done: ${quest.title}. ${champ.name} reached tile 100!`);
+        setStatus(`${message} Challenge done: ${quest.title}. ${champ.name} reached tile 100!`);
         moving=false; savePlayers(); showWin(champ);
         return;
       }
       const upcoming=players[(idx+1)%players.length];
-      setStatus(`${message} Quest done: ${quest.title}. Now it's ${upcoming.name}'s turn.`);
-      currentTurn=(idx+1)%players.length; moving=false; paintPawns(); paintTurn();
+      setStatus(`${message} Challenge done: ${quest.title}. Now it's ${upcoming.name}'s turn.`);
+      advanceTurn(); moving=false; paintPawns(); paintTurn();
     }, me.name);
     return;
   }
   const upcoming=players[(idx+1)%players.length];
   setStatus(`${message} Now it's ${upcoming.name}'s turn.`);
-  currentTurn=(idx+1)%players.length; moving=false; paintPawns(); paintTurn();
+  advanceTurn(); moving=false; paintPawns(); paintTurn();
 }
 function rollDice(){
   if (winner||rolling||moving) return;
@@ -554,15 +656,15 @@ function rollDice(){
 function resetGame(){
   players.forEach(p=>{ p.position=1; p.nextTurnBoost=false; p.snakeShield=false;
     const pe=document.getElementById("pawn"+p.id); if (pe) pe.classList.remove("dance"); });
-  currentTurn=0; winner=null; rolling=false; moving=false;
-  showDie(1); setStatus("Fresh start! Tap the dice to begin again.");
+  currentTurn=0; winner=null; rolling=false; moving=false; roundNum=1;
+  showDie(5); setStatus("Fresh start! Tap the dice to begin again.");
   paintPawns(); paintTurn();
 }
 
-/* ---------- Family setup ---------- */
-function openFamily(){
+/* ---------- Family setup (custom characters: name + emoji + photo) ---------- */
+function openFamily(focusId){
   const back=el("div","modal-back"), box=el("div","modal");
-  box.innerHTML=`<h2>Your family 👨‍👩‍👧‍👦</h2><p style="color:var(--muted);font-size:14px;margin:0">Names, emoji and optional photos. Sign in (☁️) to sync photos to your private account.</p>`;
+  box.innerHTML=`<h2>Your players 👥</h2><p class="lede">Give each player a name and an emoji — or upload a photo to make them your own. Sign in (☁️) to sync photos privately across devices.</p>`;
   let tempCount=playerCount;
   const rows=[], labels=[];
   const refreshRows=()=>{ rows.forEach((r,i)=>{ r.hidden=i>=tempCount; labels[i].hidden=i>=tempCount; }); };
@@ -577,7 +679,7 @@ function openFamily(){
   roster.forEach((p)=>{
     const lab=el("label",null,`Player ${p.id+1}`); labels.push(lab); box.appendChild(lab);
     const row=el("div","p-edit"); rows.push(row);
-    const f=el("span","face",face(p));
+    const f=el("span","face",face(p)); f.style.borderColor=PCOLORS[p.id];
     const nameI=el("input"); nameI.type="text"; nameI.value=p.name; nameI.oninput=()=>{ p.name=nameI.value||`Player ${p.id+1}`; };
     const emo=el("button","mini-btn",p.emoji); emo.title="Cycle emoji";
     const EMOJIS=["🦖","🦄","🌟","🚀","🐯","🐸","🦊","🐼","👑","🌈","⚽","🎀"];
@@ -590,7 +692,7 @@ function openFamily(){
       avMark("p"+p.id,false);
       if (window.Cloud) Cloud.uploadPhoto("avatar-p"+p.id, blob).then(ok=>{ if(ok) avMark("p"+p.id); });
       if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); avatarURL[p.id]=URL.createObjectURL(blob); f.innerHTML=face(p); };
-    const clr=el("button","mini-btn","✕");
+    const clr=el("button","mini-btn","✕"); clr.title="Remove photo";
     clr.onclick=async()=>{ await AvatarDB.del("p"+p.id); avMark("p"+p.id,false); if (window.Cloud) Cloud.deletePhoto("avatar-p"+p.id); if(avatarURL[p.id])URL.revokeObjectURL(avatarURL[p.id]); delete avatarURL[p.id]; f.innerHTML=face(p); };
     row.append(f,nameI,emo,up,clr,file); box.appendChild(row);
   });
@@ -603,11 +705,12 @@ function openFamily(){
     if (tempCount!==playerCount) setPlayerCount(tempCount);
     else { savePlayers(); paintPawns(); paintTurn(); }
   };
-  const save=el("button","primary-btn","Save family");
+  const save=el("button","primary-btn","Save players");
   save.onclick=()=>{ commit(); back.remove(); };
   box.appendChild(save); back.appendChild(box);
   back.onclick=(e)=>{ if(e.target===back){ commit(); back.remove(); } };
   document.getElementById("overlay").appendChild(back);
+  if (focusId!=null && rows[focusId]){ rows[focusId].scrollIntoView({block:"center"}); const inp=rows[focusId].querySelector("input[type=text]"); if(inp) setTimeout(()=>inp.focus(),120); }
 }
 function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=new Image();
   img.onload=()=>{ const r=Math.min(1,maxSide/Math.max(img.width,img.height));
@@ -616,23 +719,29 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
     cv.toBlob(b=>res(b||fileBlob),"image/jpeg",q); URL.revokeObjectURL(img.src); };
   img.onerror=()=>res(fileBlob); img.src=URL.createObjectURL(fileBlob); }); }
 
-function openHelp(){
-  const back=el("div","modal-back"), box=el("div","modal help-modal");
-  box.innerHTML=`<h2>How to play 🎲</h2><ul class="help-list">
-    <li>🎲 Take turns rolling. Climb 🪜 ladders, dodge 🐍 snakes.</li>
-    <li>⭐ Land on every 5th tile for a fun family quest — with an easy version for the littlest player.</li>
-    <li>🎁 Quests can give bonus steps, boosts, or a snake shield.</li>
-    <li>🏁 You need an exact roll to land on 100 — but a quest bonus that carries you there wins too!</li></ul>`;
+/* ---------- How to play / Challenges / Surprises ---------- */
+function simpleModal(html){
+  const back=el("div","modal-back"), box=el("div","modal");
+  box.innerHTML=html;
   const ok=el("button","primary-btn","Got it!"); ok.onclick=()=>back.remove();
   box.appendChild(ok); back.appendChild(box);
   back.onclick=(e)=>{ if(e.target===back) back.remove(); };
   document.getElementById("overlay").appendChild(back);
 }
+function openHelp(){
+  simpleModal(`<h2>How to play 🎲</h2>
+    <ul class="info-list">
+      <li><span class="ico">🎲</span><span>Take turns tapping the dice. Climb 🪜 ladders, slide down 🐍 snakes.</span></li>
+      <li><span class="ico">⭐</span><span>Land on a <b>star tile</b> (every 5th square) for a fun family challenge.</span></li>
+      <li><span class="ico">🎁</span><span>Finish a challenge to earn a surprise — bonus steps, boosts or a snake shield.</span></li>
+      <li><span class="ico">🏁</span><span>You need an <b>exact roll</b> to land on 100 — but a surprise that carries you there wins too!</span></li>
+    </ul>`);
+}
 
 /* ---------- Wire ---------- */
 dieBtn.onclick=rollDice;
-document.getElementById("famBtn").onclick=openFamily;
-document.getElementById("helpBtn").onclick=openHelp;
+document.getElementById("famBtn").onclick=()=>openFamily();
+document.getElementById("menuBtn").onclick=openHelp;
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=Sound.musicOn?1:0.45;
 musicBtn.onclick=()=>{ Sound.unlock(); Sound.setOn(!Sound.musicOn); paintMusicBtn(); };
