@@ -246,6 +246,7 @@ textarea { resize: vertical; }
 .sum-amt.green { color: var(--green); }
 .sum-sub { font-size: 12px; color: var(--faint); display: flex; gap: 8px; align-items: center; }
 .sum-soon { color: var(--orange-d); background: #fef3e2; border-radius: 999px; padding: 1px 7px; font-weight: 700; }
+.sum-over { color: var(--red); background: var(--red-tint); border-radius: 999px; padding: 1px 7px; font-weight: 700; }
 
 .group { margin-bottom: 18px; }
 .group-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 10px; cursor: pointer; }

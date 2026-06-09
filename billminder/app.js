@@ -538,13 +538,14 @@ function renderQuickActions() {
 function renderBills() {
   $$("#billsTabs button").forEach((b) => b.classList.toggle("is-selected", b.dataset.tab === state.billsTab));
   const due = billsDueWithin(7);
-  const badge = $("#dueSoonBadge"); if (badge) badge.textContent = due.length ? String(due.length) : "";
+  const overdue = overdueBills().slice().sort(byDue);
+  const badge = $("#dueSoonBadge"); if (badge) { const n = overdue.length + due.length; badge.textContent = n ? String(n) : ""; }
   renderBillsSummary();
   const wrap = $("#billsGroups");
   const tab = state.billsTab;
 
   if (tab === "due") {
-    wrap.innerHTML = listOrEmpty(due.slice().sort(byDue), "Nothing due in the next 7 days.");
+    wrap.innerHTML = listOrEmpty([...overdue, ...due.slice().sort(byDue)], "Nothing overdue or due soon.");
   } else if (tab === "paid") {
     const paid = state.bills.filter((b) => b.status === "paid").sort((a, b) => String(b.paidAt || "").localeCompare(String(a.paidAt || "")));
     wrap.innerHTML = listOrEmpty(paid, "No paid bills yet.");
@@ -558,6 +559,7 @@ function renderBills() {
     const month = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > addDays(t, 7) && dateFromInput(b.dueDate) <= monthEnd).sort(byDue);
     const later = billsLaterThanMonth();
     let html = "";
+    html += renderGroup("overdue", "Overdue", overdue, "gh-red");
     html += renderGroup("today", "Due today", today, "gh-red");
     html += renderGroup("week", "Due this week", week, "gh-orange");
     html += renderGroup("month", "Due this month", month, "gh-blue");
@@ -575,11 +577,12 @@ function listOrEmpty(bills, emptyMsg) {
 }
 
 function renderBillsSummary() {
-  const mo = billsThisMonthUnpaid(), pd = paidThisMonth(), due = billsDueWithin(7);
+  const mo = billsThisMonthUnpaid(), pd = paidThisMonth(), due = billsDueWithin(7), od = overdueBills();
+  const chips = `${od.length ? `<span class="sum-over">${od.length} overdue</span>` : ""}${due.length ? `<span class="sum-soon">${due.length} due soon</span>` : ""}`;
   $("#billsSummary").innerHTML = `<div class="summary-card">
     <div class="sum-col"><span class="sum-label">This month</span>
       <span class="sum-amt blue">${money(sumAmt(mo))}</span>
-      <span class="sum-sub">${mo.length} bills ${due.length ? `<span class="sum-soon">${due.length} due soon</span>` : ""}</span></div>
+      <span class="sum-sub">${mo.length} bills ${chips}</span></div>
     <div class="sum-col"><span class="sum-label">Paid this month</span>
       <span class="sum-amt green">${money(sumAmt(pd))}</span>
       <span class="sum-sub">${pd.length} bills</span></div>
