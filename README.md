@@ -16,9 +16,17 @@ SETUP-SUPABASE.md.
 | `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbaralabs.xyz`     |
 | `couples/`     | Couples Snakes & Ladders   | `couples.ogbaralabs.xyz`      |
 | `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbaralabs.xyz`  |
+| `billminder/`  | Bill Minder (bill tracker) | `billminder.ogbaralabs.xyz`   |
 
 Each folder is self-contained: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/`
 (How Many? also has a separate `app.js`).
+
+**Bill Minder is the one exception to "pure static."** It still ships as a static
+PWA shell (no build step), but its sync, auth, AI bill extraction, and scheduled
+email reminders run server-side: a `functions/` directory (Cloudflare Pages
+Functions) plus a separate cron Worker in `worker/`. It is therefore the only app
+whose Pages project needs secrets, and the only one with a companion Worker. Full
+setup is in `SETUP-SUPABASE.md` and `billminder/README.md`.
 
 ## Run locally
 

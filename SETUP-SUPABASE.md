@@ -107,3 +107,63 @@ on another device and sign in: progress follows you.
   that's the reason to upgrade to Pro ($25/mo) or export periodically.
 
 
+
+---
+
+# Bill Minder (additive — same shared project)
+
+Bill Minder reuses this same Supabase project and the same `auth.users` accounts,
+but it stores structured bill data in its own tables rather than the generic
+`app_state` blob. Nothing here collides with the five other apps; it is purely
+additive.
+
+## 1. Run Bill Minder's schema
+
+SQL Editor → New query → paste the contents of `billminder/supabase/schema.sql` →
+Run. This creates `public.bills` and `public.user_settings` with row-level
+security keyed on `user_id` (authenticated). Safe to re-run — it is idempotent.
+
+## 2. Add the auth redirect URL
+
+Authentication → URL Configuration → Redirect URLs, add:
+
+- `https://billminder.ogbaralabs.xyz`
+
+(Needed so password-reset links return to the app.) Email/password sign-up must
+be enabled, which it already is for the other apps.
+
+## 3. Cloudflare Pages project (the 6th)
+
+Connect the same repo, Framework preset **None**, Build command **empty**, Build
+output directory **.**, Root directory **`billminder`**. Add custom domain
+`billminder.ogbaralabs.xyz`. Then set these **Pages environment variables**:
+
+- `VITE_SUPABASE_URL` — this project's URL (same value as the other apps)
+- `VITE_SUPABASE_ANON_KEY` — this project's anon key (same value as the other apps)
+- `OPENAI_API_KEY` — for AI extraction of scanned PDFs
+- `OPENAI_MODEL` — optional, defaults to `gpt-4.1-mini`
+
+This is the only Pages project in the studio that uses Functions + secrets.
+
+## 4. Reminder Worker (cron) — separate from Pages
+
+The guaranteed daily email reminders run as a standalone Worker. From
+`billminder/`, deploy it with `wrangler.reminders.toml` (cron `0 18 * * *`). Add
+these **Worker secrets**:
+
+- `VITE_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`  (service role — server-only, never in the browser)
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+
+Optional Worker secrets: `RESEND_ALLOWED_TO`, `REMINDER_CRON_SECRET`.
+
+Set a small **budget alert** on OpenAI and Resend, the same way the Brainy Trails
+TTS worker recommends a Google Cloud budget alert, so usage can't surprise you.
+
+## 5. Smoke test
+
+Sign up → sign in → upload a text-readable PDF (decodes in the browser) → upload a
+scanned PDF (AI extraction) → mark a bill paid and reschedule another with notes →
+JSON export then import → enable email reminders and hit the Worker's
+`/run-reminders` endpoint once to confirm an email arrives.
