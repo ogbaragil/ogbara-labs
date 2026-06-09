@@ -2,7 +2,7 @@ const jsonHeaders = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store"
 };
-const DEFAULT_FROM = "Bill Minder <onboarding@resend.dev>";
+const DEFAULT_FROM = "Cleared <onboarding@resend.dev>";
 
 export async function onRequestPost({ request, env }) {
   if (!env.RESEND_API_KEY) {
@@ -20,7 +20,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   if (env.RESEND_ALLOWED_TO && to.toLowerCase() !== env.RESEND_ALLOWED_TO.toLowerCase()) {
-    return jsonResponse({ error: "This recipient is not allowed for this Bill Minder deployment." }, 403);
+    return jsonResponse({ error: "This recipient is not allowed for this Cleared deployment." }, 403);
   }
 
   if (!subject || (!html && !text)) {

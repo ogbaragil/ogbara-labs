@@ -1,6 +1,8 @@
-# Bill Minder
+# Cleared
 
-Bill Minder is a local-first PWA for tracking PDF bills and payment reminders.
+Cleared is a local-first PWA that scans statements, tracks due dates and amounts owing, sends reminders, and shows history, forecast and insights.
+
+> The product is named **Cleared**. The folder, Cloudflare Pages project, and worker keep the `billminder` name (and `billminder.ogbaralabs.xyz` subdomain) so the existing deployment is preserved. Rename the Pages project and subdomain to `cleared` later if you want the URL to match.
 
 ## Run locally
 
@@ -14,23 +16,24 @@ Then open:
 http://127.0.0.1:4173/
 ```
 
-## Current MVP
+## What it does
 
 - Installable PWA shell with offline caching.
 - PDF upload with browser-side decoding for text-readable compressed PDFs.
 - AI extraction fallback through a Cloudflare Pages Function.
-- Review form for biller, amount, due date, reference, and notes.
-- Local browser storage with cloud sync for bills and reminder settings.
-- Cloud sync through Cloudflare Pages Functions.
+- Add/edit bills with biller, amount, due date, **category**, **recurrence**, reference, and notes.
+- Dashboard: a "cleared" status gauge (paid vs outstanding this month), due today/this week/this month/next 30 days cards, upcoming bills, cash-flow forecast, category breakdown, calendar, recent activity, and smart insights.
+- Recurring bills (weekly to yearly) that roll the schedule forward when marked paid, powering the forecast.
+- Bills, calendar, and forecast views; a bill detail sheet with mark paid / reschedule / edit / delete and payment history.
+- Local browser storage with optional cloud sync for bills and reminder settings.
 - Email/password login, account signup, and password reset through Supabase Auth.
-- Dashboard totals for unpaid, due soon, and overdue bills.
-- Paid/unpaid filtering, bill rescheduling with notes, payment date/notes, JSON export, and JSON import.
+- JSON export and import for backups and device transfers.
 - Synced email reminder settings per signed-in user.
 - Scheduled email reminders through a Cloudflare Worker Cron Trigger and Resend.
 
 ## Supabase
 
-Run `supabase/schema.sql` in a Supabase project SQL editor. Re-run it after this update so `user_settings`, payment note fields, `user_id`, `client_bill_id`, indexes, and authenticated policies are created.
+Run `supabase/schema.sql` in a Supabase project SQL editor. Re-run it after this update so the new `category` and `recurrence` columns (plus `user_settings`, payment note fields, `user_id`, `client_bill_id`, indexes, and authenticated policies) are created. The statements are idempotent, so re-running is safe.
 
 The MVP policy allows anon sync only when the request includes the browser's generated sync secret. Add Supabase Auth and per-user row-level security before using this for real shared or sensitive production data.
 Logged-in users sync through Supabase Auth and `user_id`. The hosted app requires sign-in before the dashboard can be used.

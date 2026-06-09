@@ -1,6 +1,40 @@
-const STORE_KEY = "bill-minder:bills";
-const SETTINGS_KEY = "bill-minder:settings";
-const AUTH_KEY = "bill-minder:auth";
+/* =====================================================================
+   Cleared — personal bill & statement tracker
+   Scan statements, store due dates + amounts, get reminders, and see
+   history, forecast and insights. Local-first PWA with optional cloud
+   sync (Cloudflare Pages Functions + Supabase) and AI PDF extraction.
+   The data/auth/sync/PDF engine is preserved from the original app;
+   this file rebuilds the UI and adds category + recurrence + analytics.
+   ===================================================================== */
+"use strict";
+
+const STORE_KEY = "cleared:bills";
+const SETTINGS_KEY = "cleared:settings";
+const AUTH_KEY = "cleared:auth";
+const LEGACY = { bills: "bill-minder:bills", settings: "bill-minder:settings", auth: "bill-minder:auth" };
+
+const CURRENCY = "AUD";
+
+const CATEGORIES = {
+  utilities:     { label: "Utilities",     color: "#f59e0b", glyph: "\u26A1" },
+  telecom:       { label: "Telecom",       color: "#0ea5e9", glyph: "\uD83D\uDCF6" },
+  insurance:     { label: "Insurance",     color: "#6366f1", glyph: "\uD83D\uDEE1\uFE0F" },
+  subscriptions: { label: "Subscriptions", color: "#8b5cf6", glyph: "\u25B6\uFE0F" },
+  housing:       { label: "Housing",       color: "#10b981", glyph: "\uD83C\uDFE0" },
+  health:        { label: "Health",        color: "#f43f5e", glyph: "\u2795" },
+  other:         { label: "Other",         color: "#64748b", glyph: "\u2022" }
+};
+const CATEGORY_ORDER = ["utilities", "telecom", "insurance", "subscriptions", "housing", "health", "other"];
+
+const RECURRENCE = {
+  once:        { label: "One-off",     months: 0 },
+  weekly:      { label: "Weekly",      months: 0, days: 7 },
+  fortnightly: { label: "Fortnightly", months: 0, days: 14 },
+  monthly:     { label: "Monthly",     months: 1 },
+  quarterly:   { label: "Quarterly",   months: 3 },
+  yearly:      { label: "Yearly",      months: 12 }
+};
+
 const DEFAULT_SETTINGS = {
   reminderLeadDays: 3,
   emailReminders: false,
@@ -10,277 +44,1255 @@ const DEFAULT_SETTINGS = {
 };
 
 const state = {
-  bills: readJson(STORE_KEY, []),
-  settings: { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) },
-  auth: readJson(AUTH_KEY, null),
+  bills: [],
+  settings: {},
+  auth: null,
+  view: "dashboard",
   filter: "unpaid",
-  deferredInstallPrompt: null,
+  calendarMonth: startOfDay(new Date()),
   currentPdfFile: null,
-  markingPaidBillId: null,
-  reschedulingBillId: null,
-  recoveryToken: ""
+  editingBillId: null,
+  paidBillId: null,
+  rescheduleBillId: null,
+  detailBillId: null,
+  recoveryToken: "",
+  deferredInstallPrompt: null
 };
 
-const els = {
-  authScreen: document.querySelector("#authScreen"),
-  authSigninCard: document.querySelector("#authSigninCard"),
-  authSignupCard: document.querySelector("#authSignupCard"),
-  appShell: document.querySelector("#appShell"),
-  authScreenStatus: document.querySelector("#authScreenStatus"),
-  authScreenEmailInput: document.querySelector("#authScreenEmailInput"),
-  authScreenPasswordInput: document.querySelector("#authScreenPasswordInput"),
-  authScreenLoginButton: document.querySelector("#authScreenLoginButton"),
-  authScreenSignupButton: document.querySelector("#authScreenSignupButton"),
-  authScreenForgotButton: document.querySelector("#authScreenForgotButton"),
-  authSignupStatus: document.querySelector("#authSignupStatus"),
-  authSignupEmailInput: document.querySelector("#authSignupEmailInput"),
-  authSignupPasswordInput: document.querySelector("#authSignupPasswordInput"),
-  authSignupConfirmPasswordInput: document.querySelector("#authSignupConfirmPasswordInput"),
-  authCreateAccountButton: document.querySelector("#authCreateAccountButton"),
-  backToSigninButton: document.querySelector("#backToSigninButton"),
-  signupModal: document.querySelector("#signupModal"),
-  signupForm: document.querySelector("#signupForm"),
-  signupStatus: document.querySelector("#signupStatus"),
-  signupEmailInput: document.querySelector("#signupEmailInput"),
-  signupPasswordInput: document.querySelector("#signupPasswordInput"),
-  signupConfirmPasswordInput: document.querySelector("#signupConfirmPasswordInput"),
-  closeSignupModalButton: document.querySelector("#closeSignupModalButton"),
-  cancelSignupButton: document.querySelector("#cancelSignupButton"),
-  createAccountButton: document.querySelector("#createAccountButton"),
-  paidModal: document.querySelector("#paidModal"),
-  paidForm: document.querySelector("#paidForm"),
-  paidStatus: document.querySelector("#paidStatus"),
-  paidDateInput: document.querySelector("#paidDateInput"),
-  paymentNotesInput: document.querySelector("#paymentNotesInput"),
-  closePaidButton: document.querySelector("#closePaidButton"),
-  cancelPaidButton: document.querySelector("#cancelPaidButton"),
-  rescheduleModal: document.querySelector("#rescheduleModal"),
-  rescheduleForm: document.querySelector("#rescheduleForm"),
-  rescheduleStatus: document.querySelector("#rescheduleStatus"),
-  rescheduleDateInput: document.querySelector("#rescheduleDateInput"),
-  rescheduleNotesInput: document.querySelector("#rescheduleNotesInput"),
-  closeRescheduleButton: document.querySelector("#closeRescheduleButton"),
-  cancelRescheduleButton: document.querySelector("#cancelRescheduleButton"),
-  resetPasswordModal: document.querySelector("#resetPasswordModal"),
-  resetPasswordForm: document.querySelector("#resetPasswordForm"),
-  resetPasswordStatus: document.querySelector("#resetPasswordStatus"),
-  newPasswordInput: document.querySelector("#newPasswordInput"),
-  confirmNewPasswordInput: document.querySelector("#confirmNewPasswordInput"),
-  closeResetPasswordButton: document.querySelector("#closeResetPasswordButton"),
-  cancelResetPasswordButton: document.querySelector("#cancelResetPasswordButton"),
-  saveNewPasswordButton: document.querySelector("#saveNewPasswordButton"),
-  todayLabel: document.querySelector("#todayLabel"),
-  totalUnpaid: document.querySelector("#totalUnpaid"),
-  dueSoonCount: document.querySelector("#dueSoonCount"),
-  overdueCount: document.querySelector("#overdueCount"),
-  billList: document.querySelector("#billList"),
-  emptyState: document.querySelector("#emptyState"),
-  template: document.querySelector("#billItemTemplate"),
-  form: document.querySelector("#billForm"),
-  pdfInput: document.querySelector("#pdfInput"),
-  billerInput: document.querySelector("#billerInput"),
-  amountInput: document.querySelector("#amountInput"),
-  dueDateInput: document.querySelector("#dueDateInput"),
-  referenceInput: document.querySelector("#referenceInput"),
-  notesInput: document.querySelector("#notesInput"),
-  aiExtractButton: document.querySelector("#aiExtractButton"),
-  dropZone: document.querySelector("#dropZone"),
-  extractStatus: document.querySelector("#extractStatus"),
-  extractPreview: document.querySelector("#extractPreview"),
-  confidenceBadge: document.querySelector("#confidenceBadge"),
-  authStatus: document.querySelector("#authStatus"),
-  logoutButton: document.querySelector("#logoutButton"),
-  reminderLeadSelect: document.querySelector("#reminderLeadSelect"),
-  emailReminderToggle: document.querySelector("#emailReminderToggle"),
-  emailReminderHint: document.querySelector("#emailReminderHint"),
-  installButton: document.querySelector("#installButton"),
-  importInput: document.querySelector("#importInput"),
-  syncSupabaseButton: document.querySelector("#syncSupabaseButton"),
-  restoreSupabaseButton: document.querySelector("#restoreSupabaseButton"),
-  syncStatus: document.querySelector("#syncStatus")
-};
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-const moneyFormat = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "AUD"
-});
-
-init();
-
+/* ---------------- boot ---------------- */
 function init() {
-  els.todayLabel.textContent = new Intl.DateTimeFormat(undefined, {
-    weekday: "long",
-    month: "short",
-    day: "numeric"
-  }).format(new Date());
+  migrateLegacyKeys();
+  state.bills = readJson(STORE_KEY, []).map(normalizeBill);
+  state.settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
+  state.auth = readJson(AUTH_KEY, null);
+  saveSettings();
 
   setupNavigation();
-  setupUpload();
+  setupTopbar();
+  setupBillSheet();
+  setupDetailSheet();
+  setupModals();
   setupSettings();
+  setupAuth();
   setupInstall();
+
   handleRecoveryRedirect();
   updateAuthGate();
   render();
 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
+  if (hasSyncConnection()) {
+    restoreReminderSettings();
+    restoreSupabase().catch(() => {});
+  }
+  window.addEventListener("focus", () => { if (hasSyncConnection()) restoreSupabase().catch(() => {}); });
+}
+
+function migrateLegacyKeys() {
+  for (const [now, old] of [[STORE_KEY, LEGACY.bills], [SETTINGS_KEY, LEGACY.settings], [AUTH_KEY, LEGACY.auth]]) {
+    if (localStorage.getItem(now) == null && localStorage.getItem(old) != null) {
+      localStorage.setItem(now, localStorage.getItem(old));
+    }
   }
 }
 
+/* ---------------- navigation ---------------- */
 function setupNavigation() {
-  document.querySelectorAll("[data-view], [data-view-jump]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const view = button.dataset.view || button.dataset.viewJump;
-      showView(view);
-    });
-  });
-
-  document.querySelectorAll("[data-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.filter = button.dataset.filter;
-      document.querySelectorAll("[data-filter]").forEach((item) => {
-        item.classList.toggle("is-selected", item === button);
-      });
-      renderBills();
-    });
-  });
+  $$("[data-view]").forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
 }
 
 function showView(view) {
-  document.querySelectorAll(".view").forEach((section) => {
-    section.classList.toggle("is-visible", section.id === `${view}View`);
+  state.view = view;
+  $$(".view").forEach((v) => v.classList.toggle("is-visible", v.id === `${view}View`));
+  $$("[data-view]").forEach((btn) => {
+    const active = btn.dataset.view === view;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-current", active ? "page" : "false");
   });
-  document.querySelectorAll(".nav-tab").forEach((tab) => {
-    const active = tab.dataset.view === view;
-    tab.classList.toggle("is-active", active);
-    tab.setAttribute("aria-pressed", String(active));
-  });
+  render();
+  $(".main")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function setupUpload() {
-  ["dragenter", "dragover"].forEach((eventName) => {
-    els.dropZone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      els.dropZone.classList.add("is-dragging");
+function setupTopbar() {
+  $("#addBillButton")?.addEventListener("click", () => openBillSheet());
+  $("#topbarAdd")?.addEventListener("click", () => openBillSheet());
+  $("#topbarAddMobile")?.addEventListener("click", () => openBillSheet());
+}
+
+/* ---------------- formatting ---------------- */
+const moneyFmt = new Intl.NumberFormat(undefined, { style: "currency", currency: CURRENCY, minimumFractionDigits: 2 });
+const money0Fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: CURRENCY, maximumFractionDigits: 0 });
+function money(n) { return moneyFmt.format(Number(n) || 0); }
+function money0(n) { return money0Fmt.format(Number(n) || 0); }
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function firstName() {
+  const email = state.auth?.email || "";
+  const handle = email.split("@")[0] || "there";
+  return handle.charAt(0).toUpperCase() + handle.slice(1).replace(/[._-].*$/, "");
+}
+
+function relativeDue(bill) {
+  const today = startOfDay(new Date());
+  const due = dateFromInput(bill.dueDate);
+  const diff = Math.round((due - today) / 86400000);
+  if (bill.status === "paid") return "Paid";
+  if (diff < 0) return `${Math.abs(diff)} day${Math.abs(diff) === 1 ? "" : "s"} overdue`;
+  if (diff === 0) return "Due today";
+  if (diff === 1) return "Due tomorrow";
+  if (diff <= 30) return `Due in ${diff} days`;
+  return `Due ${formatDisplayDate(bill.dueDate)}`;
+}
+
+/* ---------------- bill model ---------------- */
+function normalizeBill(bill) {
+  return {
+    id: bill.id || crypto.randomUUID(),
+    clientBillId: String(bill.clientBillId || bill.id || crypto.randomUUID()),
+    remoteId: bill.remoteId,
+    biller: bill.biller || "Untitled bill",
+    amount: Number(bill.amount) || 0,
+    dueDate: bill.dueDate || formatDatePartsFromDate(new Date()),
+    category: CATEGORIES[bill.category] ? bill.category : "other",
+    recurrence: RECURRENCE[bill.recurrence] ? bill.recurrence : "once",
+    reference: bill.reference || "",
+    notes: bill.notes || "",
+    fileName: bill.fileName || "",
+    status: bill.status === "paid" ? "paid" : "unpaid",
+    paidAt: bill.paidAt || "",
+    paymentNotes: bill.paymentNotes || "",
+    rescheduleNotes: bill.rescheduleNotes || "",
+    createdAt: bill.createdAt || new Date().toISOString(),
+    remindedFor: Array.isArray(bill.remindedFor) ? bill.remindedFor : []
+  };
+}
+
+function billStatus(bill) {
+  if (bill.status === "paid") return "paid";
+  const today = startOfDay(new Date());
+  const due = dateFromInput(bill.dueDate);
+  const lead = Number(state.settings.reminderLeadDays) || 0;
+  if (due < today) return "overdue";
+  if (due.getTime() === today.getTime()) return "due-today";
+  const diff = Math.round((due - today) / 86400000);
+  if (diff <= Math.max(lead, 7)) return "due-soon";
+  return "upcoming";
+}
+
+const STATUS_META = {
+  overdue:    { label: "Overdue",    color: "#dc2626" },
+  "due-today":{ label: "Due today",  color: "#f59e0b" },
+  "due-soon": { label: "Due soon",   color: "#6366f1" },
+  upcoming:   { label: "Upcoming",   color: "#3b82f6" },
+  paid:       { label: "Paid",       color: "#16a34a" }
+};
+
+/* ---------------- analytics ---------------- */
+function sumUnpaid() {
+  return state.bills.filter((b) => b.status === "unpaid").reduce((t, b) => t + b.amount, 0);
+}
+
+function billsDueWithin(days) {
+  const today = startOfDay(new Date());
+  const limit = addDays(today, days);
+  return state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) >= today && dateFromInput(b.dueDate) <= limit);
+}
+
+function overdueBills() {
+  const today = startOfDay(new Date());
+  return state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) < today);
+}
+
+function dueOn(bill, target) { return dateFromInput(bill.dueDate).getTime() === target.getTime(); }
+
+function clearedRatio() {
+  // Of this calendar month's bills (paid + unpaid), how many are cleared?
+  const now = new Date();
+  const inMonth = (b) => {
+    const d = dateFromInput(b.status === "paid" && b.paidAt ? b.paidAt : b.dueDate);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  };
+  const month = state.bills.filter(inMonth);
+  if (!month.length) return 1;
+  const cleared = month.filter((b) => b.status === "paid").length;
+  return cleared / month.length;
+}
+
+// Project unpaid + recurring bills forward into N calendar months from current month.
+function forecastMonths(count = 4) {
+  const today = startOfDay(new Date());
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const ref = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    out.push({ key: `${ref.getFullYear()}-${ref.getMonth()}`, date: ref, total: 0, byCategory: {} });
+  }
+  const horizon = new Date(today.getFullYear(), today.getMonth() + count, 1);
+
+  state.bills.forEach((bill) => {
+    const occurrences = projectOccurrences(bill, today, horizon);
+    occurrences.forEach((d) => {
+      const bucket = out.find((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
+      if (!bucket) return;
+      bucket.total += bill.amount;
+      bucket.byCategory[bill.category] = (bucket.byCategory[bill.category] || 0) + bill.amount;
     });
   });
+  return out;
+}
 
-  ["dragleave", "drop"].forEach((eventName) => {
-    els.dropZone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      els.dropZone.classList.remove("is-dragging");
-    });
+function projectOccurrences(bill, from, to) {
+  const dates = [];
+  const rec = RECURRENCE[bill.recurrence] || RECURRENCE.once;
+  let cursor = dateFromInput(bill.dueDate);
+  // Skip already-paid one-offs from forecast; recurring keep projecting future copies.
+  if (bill.recurrence === "once") {
+    if (bill.status === "unpaid" && cursor >= startOfDay(from) && cursor < to) dates.push(cursor);
+    return dates;
+  }
+  // Advance cursor to >= from
+  let guard = 0;
+  while (cursor < startOfDay(from) && guard < 500) { cursor = advance(cursor, rec); guard++; }
+  guard = 0;
+  while (cursor < to && guard < 500) { dates.push(cursor); cursor = advance(cursor, rec); guard++; }
+  return dates;
+}
+
+function advance(date, rec) {
+  if (rec.days) return addDays(date, rec.days);
+  return startOfDay(new Date(date.getFullYear(), date.getMonth() + rec.months, date.getDate()));
+}
+
+function categoryBreakdown(months = 3) {
+  const forecast = forecastMonths(months);
+  const totals = {};
+  forecast.forEach((m) => {
+    Object.entries(m.byCategory).forEach(([cat, val]) => { totals[cat] = (totals[cat] || 0) + val; });
   });
+  const grand = Object.values(totals).reduce((a, b) => a + b, 0);
+  const rows = CATEGORY_ORDER.filter((c) => totals[c]).map((c) => ({ cat: c, value: totals[c], pct: grand ? totals[c] / grand : 0 }));
+  return { rows: rows.sort((a, b) => b.value - a.value), total: grand };
+}
 
-  els.dropZone.addEventListener("drop", (event) => {
-    const file = event.dataTransfer.files[0];
-    if (file) {
-      handlePdf(file);
+function recentActivity(limit = 5) {
+  const items = [];
+  state.bills.forEach((b) => {
+    if (b.status === "paid" && b.paidAt) items.push({ ts: b.paidAt, kind: "paid", bill: b, text: `${b.biller} paid`, sub: `${formatDisplayDate(b.paidAt)} \u2022 ${money(b.amount)}` });
+    if (b.rescheduleNotes) items.push({ ts: b.dueDate, kind: "rescheduled", bill: b, text: `${b.biller} rescheduled`, sub: `New date: ${formatDisplayDate(b.dueDate)}` });
+    items.push({ ts: b.createdAt?.slice(0, 10) || b.dueDate, kind: "added", bill: b, text: `${b.biller} added`, sub: `${money(b.amount)} \u2022 ${relativeDue(b)}` });
+  });
+  return items.sort((a, b) => String(b.ts).localeCompare(String(a.ts))).slice(0, limit);
+}
+
+function insights() {
+  const out = [];
+  const overdue = overdueBills();
+  const soon = billsDueWithin(7);
+  if (!overdue.length) out.push({ tone: "good", title: "You're on track", body: "No overdue bills \u2014 nicely cleared." });
+  else out.push({ tone: "bad", title: `${overdue.length} overdue bill${overdue.length === 1 ? "" : "s"}`, body: `${money(overdue.reduce((t, b) => t + b.amount, 0))} needs attention.` });
+  if (soon.length) out.push({ tone: "warn", title: `${soon.length} bill${soon.length === 1 ? "" : "s"} due within 7 days`, body: `${money(soon.reduce((t, b) => t + b.amount, 0))} coming up soon.` });
+  const breakdown = categoryBreakdown(3);
+  if (breakdown.rows.length) {
+    const top = breakdown.rows[0];
+    out.push({ tone: "info", title: `${CATEGORIES[top.cat].label} is your biggest category`, body: `${money(top.value)} projected over 3 months.` });
+  }
+  return out.slice(0, 3);
+}
+
+/* ---------------- render ---------------- */
+function render() {
+  const signedIn = hasActiveSession();
+  $("#authScreen").hidden = signedIn;
+  $("#appShell").hidden = !signedIn;
+  if (!signedIn) return;
+
+  $("#greetingName").textContent = `${greeting()}, ${firstName()}`;
+  renderDashboard();
+  renderBillsView();
+  renderCalendarView();
+  renderForecastView();
+  updateSyncChip();
+}
+
+function renderDashboard() {
+  if (state.view !== "dashboard") return;
+  renderStatusHero();
+  renderStatCards();
+  renderUpcoming("#dashUpcoming", 3);
+  renderForecastChart("#dashForecast", 4);
+  renderMiniCalendar("#dashCalendar");
+  renderCategoryDonut("#dashCategory");
+  renderActivity("#dashActivity");
+  renderInsights("#dashInsights");
+}
+
+function renderStatusHero() {
+  const ratio = clearedRatio();
+  const overdue = overdueBills();
+  const onTrack = overdue.length === 0;
+  const pct = Math.round(ratio * 100);
+  const status = onTrack ? "On track" : "Action needed";
+  const sub = onTrack
+    ? (pct === 100 ? "Everything this month is cleared." : `${pct}% of this month is cleared.`)
+    : `${overdue.length} overdue \u2022 ${money(overdue.reduce((t, b) => t + b.amount, 0))}`;
+  const C = 2 * Math.PI * 52;
+  const dash = C * ratio;
+  const ring = onTrack ? "#16a34a" : "#dc2626";
+  const card = $("#dashStatus");
+  card.classList.toggle("has-warn", !onTrack);
+  card.innerHTML = `
+    <div class="status-hero ${onTrack ? "ok" : "warn"}">
+      <div class="status-gauge">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="52" class="gauge-track"></circle>
+          <circle cx="60" cy="60" r="52" class="gauge-fill" stroke="${ring}"
+            stroke-dasharray="${dash.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)"></circle>
+        </svg>
+        <div class="gauge-center">${onTrack ? "\u2713" : "!"}</div>
+      </div>
+      <div class="status-copy">
+        <p class="status-eyebrow">Financial status</p>
+        <h3>${status}</h3>
+        <p class="status-sub">${escapeHtml(sub)}</p>
+      </div>
+    </div>`;
+}
+
+function renderStatCards() {
+  const today = startOfDay(new Date());
+  const dueToday = state.bills.filter((b) => b.status === "unpaid" && dueOn(b, today));
+  const dueWeek = billsDueWithin(7);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const dueMonth = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) >= today && dateFromInput(b.dueDate) <= monthEnd);
+  const next30 = billsDueWithin(30);
+  const cards = [
+    { label: "Due today", value: money(dueToday.reduce((t, b) => t + b.amount, 0)), note: `${dueToday.length} bill${dueToday.length === 1 ? "" : "s"}`, tone: "amber" },
+    { label: "Due this week", value: money(dueWeek.reduce((t, b) => t + b.amount, 0)), note: `${dueWeek.length} bill${dueWeek.length === 1 ? "" : "s"}`, tone: "indigo" },
+    { label: "Due this month", value: money(dueMonth.reduce((t, b) => t + b.amount, 0)), note: `${dueMonth.length} bill${dueMonth.length === 1 ? "" : "s"}`, tone: "blue" },
+    { label: "Next 30 days", value: money(next30.reduce((t, b) => t + b.amount, 0)), note: `${next30.length} bill${next30.length === 1 ? "" : "s"}`, tone: "violet" }
+  ];
+  $("#dashStats").innerHTML = cards.map((c) => `
+    <article class="stat-card tone-${c.tone}">
+      <span class="stat-label">${c.label}</span>
+      <strong class="stat-value">${c.value}</strong>
+      <span class="stat-note">${c.note}</span>
+    </article>`).join("");
+}
+
+function billRow(bill) {
+  const cat = CATEGORIES[bill.category];
+  const st = billStatus(bill);
+  const meta = STATUS_META[st];
+  const due = relativeDue(bill);
+  const urgent = st === "overdue" || st === "due-today";
+  return `
+    <button class="bill-row" data-bill-open="${bill.id}" type="button">
+      <span class="bill-icon" style="background:${cat.color}1f;color:${cat.color}">${cat.glyph}</span>
+      <span class="bill-main">
+        <span class="bill-name">${escapeHtml(bill.biller)}</span>
+        <span class="bill-sub">${escapeHtml(CATEGORIES[bill.category].label)} \u2022 ${RECURRENCE[bill.recurrence].label}</span>
+        <span class="bill-pill" style="color:${meta.color};background:${meta.color}1a">${meta.label}</span>
+      </span>
+      <span class="bill-right">
+        <span class="bill-amount">${money(bill.amount)}</span>
+        <span class="bill-due ${urgent ? "urgent" : ""}">${escapeHtml(due)}</span>
+      </span>
+    </button>`;
+}
+
+function renderUpcoming(target, limit) {
+  const el = $(target);
+  if (!el) return;
+  const upcoming = state.bills
+    .filter((b) => b.status === "unpaid")
+    .sort((a, b) => dateFromInput(a.dueDate) - dateFromInput(b.dueDate))
+    .slice(0, limit);
+  const body = upcoming.length
+    ? upcoming.map(billRow).join("")
+    : `<div class="empty-inline">No unpaid bills. You're all cleared.</div>`;
+  el.innerHTML = `
+    <div class="panel-head"><h3>Upcoming bills</h3><button class="link" data-view="bills" type="button">View all</button></div>
+    <div class="bill-rows">${body}</div>`;
+  bindRows(el);
+  $("[data-view=bills]", el)?.addEventListener("click", () => showView("bills"));
+}
+
+function renderForecastChart(target, count) {
+  const el = $(target);
+  if (!el) return;
+  const months = forecastMonths(count);
+  const max = Math.max(1, ...months.map((m) => m.total));
+  const total3 = months.slice(0, 3).reduce((t, m) => t + m.total, 0);
+  const palette = ["#10b981", "#3b82f6", "#8b5cf6", "#94a3b8"];
+  const bars = months.map((m, i) => {
+    const h = Math.round((m.total / max) * 100);
+    const label = m.date.toLocaleDateString(undefined, { month: "short" });
+    return `<div class="bar-col">
+        <span class="bar-val">${m.total ? money0(m.total) : ""}</span>
+        <div class="bar" style="height:${Math.max(h, 3)}%;background:${palette[i % palette.length]}"></div>
+        <span class="bar-label">${label}</span>
+      </div>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="panel-head"><h3>Cash flow forecast</h3><button class="link" data-view="forecast" type="button">Full forecast</button></div>
+    <div class="bar-chart">${bars}</div>
+    <div class="forecast-foot">
+      <div><span class="muted">Projected next 3 months</span><strong>${money(total3)}</strong></div>
+    </div>`;
+  $("[data-view=forecast]", el)?.addEventListener("click", () => showView("forecast"));
+}
+
+function renderCategoryDonut(target) {
+  const el = $(target);
+  if (!el) return;
+  const { rows, total } = categoryBreakdown(3);
+  let offset = 0;
+  const R = 52, C = 2 * Math.PI * R;
+  const segs = rows.map((r) => {
+    const len = C * r.pct;
+    const seg = `<circle cx="70" cy="70" r="${R}" fill="none" stroke="${CATEGORIES[r.cat].color}" stroke-width="16"
+      stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}" transform="rotate(-90 70 70)"></circle>`;
+    offset += len;
+    return seg;
+  }).join("");
+  const legend = rows.map((r) => `
+    <div class="legend-row">
+      <span class="legend-dot" style="background:${CATEGORIES[r.cat].color}"></span>
+      <span class="legend-name">${CATEGORIES[r.cat].label}</span>
+      <span class="legend-val">${money(r.value)}</span>
+    </div>`).join("");
+  el.innerHTML = `
+    <div class="panel-head"><h3>By category</h3><span class="muted">Next 3 months</span></div>
+    <div class="donut-wrap">
+      <div class="donut">
+        <svg viewBox="0 0 140 140" aria-hidden="true">
+          <circle cx="70" cy="70" r="52" fill="none" stroke="var(--line)" stroke-width="16"></circle>
+          ${segs}
+        </svg>
+        <div class="donut-center"><span class="muted">Total</span><strong>${money0(total)}</strong></div>
+      </div>
+      <div class="legend">${legend || '<div class="empty-inline">No data yet.</div>'}</div>
+    </div>`;
+}
+
+function renderActivity(target) {
+  const el = $(target);
+  if (!el) return;
+  const items = recentActivity(5);
+  const icon = { paid: "\u2713", added: "+", rescheduled: "\u21BB", reminded: "\uD83D\uDD14" };
+  const body = items.length ? items.map((it) => `
+    <div class="activity-row">
+      <span class="activity-icon kind-${it.kind}">${icon[it.kind] || "\u2022"}</span>
+      <span class="activity-main"><strong>${escapeHtml(it.text)}</strong><span class="muted">${escapeHtml(it.sub)}</span></span>
+    </div>`).join("") : `<div class="empty-inline">Activity will show here.</div>`;
+  el.innerHTML = `<div class="panel-head"><h3>Recent activity</h3></div><div class="activity">${body}</div>`;
+}
+
+function renderInsights(target) {
+  const el = $(target);
+  if (!el) return;
+  const body = insights().map((i) => `
+    <div class="insight-row tone-${i.tone}">
+      <span class="insight-dot"></span>
+      <span class="insight-main"><strong>${escapeHtml(i.title)}</strong><span class="muted">${escapeHtml(i.body)}</span></span>
+    </div>`).join("");
+  el.innerHTML = `<div class="panel-head"><h3>Smart insights</h3></div><div class="insights">${body}</div>`;
+}
+
+/* ----- Bills view (full list + filter + history) ----- */
+function renderBillsView() {
+  if (state.view !== "bills") return;
+  const seg = $("#billsFilter");
+  if (seg) $$("button", seg).forEach((b) => b.classList.toggle("is-selected", b.dataset.filter === state.filter));
+  const list = $("#billsList");
+  const today = startOfDay(new Date());
+  let bills = state.bills.slice();
+  if (state.filter === "unpaid") bills = bills.filter((b) => b.status === "unpaid");
+  else if (state.filter === "paid") bills = bills.filter((b) => b.status === "paid");
+  else if (state.filter === "overdue") bills = bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) < today);
+  bills.sort((a, b) => {
+    if (a.status !== b.status) return a.status === "unpaid" ? -1 : 1;
+    return dateFromInput(a.dueDate) - dateFromInput(b.dueDate);
+  });
+  list.innerHTML = bills.length ? bills.map(billRow).join("") : `<div class="empty-state">
+      <h3>No bills here</h3>
+      <p>Add a statement or bill and Cleared will track the due date.</p>
+      <button class="btn primary" id="emptyAdd" type="button">Add a bill</button>
+    </div>`;
+  bindRows(list);
+  $("#emptyAdd")?.addEventListener("click", () => openBillSheet());
+}
+
+/* ----- Calendar view ----- */
+function renderCalendarView() {
+  if (state.view !== "calendar") return;
+  renderCalendar("#calendarFull", state.calendarMonth, true);
+}
+
+function renderMiniCalendar(target) {
+  renderCalendar(target, startOfDay(new Date()), false);
+}
+
+function renderCalendar(target, monthDate, big) {
+  const el = $(target);
+  if (!el) return;
+  const year = monthDate.getFullYear(), month = monthDate.getMonth();
+  const first = new Date(year, month, 1);
+  const startDow = (first.getDay() + 6) % 7; // Monday-first
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = startOfDay(new Date());
+  const title = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const dows = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<span class="cal-dow">${d}</span>`).join("");
+  let cells = "";
+  for (let i = 0; i < startDow; i++) cells += `<span class="cal-cell empty"></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cellDate = startOfDay(new Date(year, month, d));
+    const dayBills = state.bills.filter((b) => dueOn(b, cellDate));
+    const isToday = cellDate.getTime() === today.getTime();
+    let dot = "";
+    if (dayBills.length) {
+      const st = billStatus(dayBills.find((b) => b.status === "unpaid") || dayBills[0]);
+      dot = `<span class="cal-dot" style="background:${STATUS_META[st].color}"></span>`;
     }
-  });
+    const titleAttr = dayBills.length ? `title="${dayBills.map((b) => `${b.biller} ${money(b.amount)}`).join(", ").replace(/"/g, "")}"` : "";
+    cells += `<span class="cal-cell ${isToday ? "today" : ""}" ${titleAttr}><span class="cal-num">${d}</span>${dot}</span>`;
+  }
+  const nav = big ? `<div class="cal-nav"><button class="icon-btn" id="calPrev" type="button" aria-label="Previous month">\u2039</button><button class="icon-btn" id="calNext" type="button" aria-label="Next month">\u203A</button></div>` : "";
+  const legend = `<div class="cal-legend">
+      <span><i style="background:#dc2626"></i>Overdue</span>
+      <span><i style="background:#f59e0b"></i>Due today</span>
+      <span><i style="background:#3b82f6"></i>Upcoming</span>
+      <span><i style="background:#16a34a"></i>Paid</span></div>`;
+  el.innerHTML = `
+    <div class="panel-head"><h3>${big ? "Calendar" : "Calendar overview"}</h3><div class="cal-head-right"><span class="muted">${title}</span>${nav}</div></div>
+    <div class="cal-grid">${dows}${cells}</div>
+    ${legend}`;
+  if (big) {
+    $("#calPrev")?.addEventListener("click", () => { state.calendarMonth = new Date(year, month - 1, 1); render(); });
+    $("#calNext")?.addEventListener("click", () => { state.calendarMonth = new Date(year, month + 1, 1); render(); });
+  }
+}
 
-  els.pdfInput.addEventListener("change", () => {
-    const file = els.pdfInput.files[0];
-    if (file) {
-      handlePdf(file);
+/* ----- Forecast view ----- */
+function renderForecastView() {
+  if (state.view !== "forecast") return;
+  renderForecastChart("#forecastChart", 6);
+  const months = forecastMonths(6);
+  const rows = months.map((m) => `
+    <div class="fc-row">
+      <span>${m.date.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+      <strong>${money(m.total)}</strong>
+    </div>`).join("");
+  $("#forecastTable").innerHTML = `<div class="panel-head"><h3>Projected by month</h3></div><div class="fc-table">${rows}</div>`;
+  renderCategoryDonut("#forecastCategory");
+}
+
+/* ---------------- row binding ---------------- */
+function bindRows(root) {
+  $$("[data-bill-open]", root).forEach((row) => row.addEventListener("click", () => openDetailSheet(row.dataset.billOpen)));
+}
+
+/* ---------------- Add / Edit bill sheet ---------------- */
+function setupBillSheet() {
+  const sheet = $("#billSheet");
+  $("#closeBillSheet")?.addEventListener("click", closeBillSheet);
+  $("#billSheetBackdrop")?.addEventListener("click", closeBillSheet);
+  $("#billForm")?.addEventListener("submit", saveBillFromForm);
+  $("#clearFormButton")?.addEventListener("click", () => { resetBillForm(); });
+  $("#aiExtractButton")?.addEventListener("click", extractWithAi);
+
+  const drop = $("#dropZone");
+  const input = $("#pdfInput");
+  input?.addEventListener("change", () => input.files[0] && handlePdf(input.files[0]));
+  ["dragover", "dragenter"].forEach((e) => drop?.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((e) => drop?.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.remove("drag"); }));
+  drop?.addEventListener("drop", (ev) => { const f = ev.dataTransfer?.files?.[0]; if (f) handlePdf(f); });
+
+  const catSel = $("#categoryInput");
+  if (catSel && !catSel.children.length) {
+    catSel.innerHTML = CATEGORY_ORDER.map((c) => `<option value="${c}">${CATEGORIES[c].label}</option>`).join("");
+  }
+}
+
+function openBillSheet(billId) {
+  state.editingBillId = billId || null;
+  state.currentPdfFile = null;
+  resetBillForm();
+  if (billId) {
+    const bill = state.bills.find((b) => b.id === billId);
+    if (bill) {
+      $("#billSheetTitle").textContent = "Edit bill";
+      $("#billerInput").value = bill.biller;
+      $("#amountInput").value = bill.amount;
+      $("#dueDateInput").value = bill.dueDate;
+      $("#categoryInput").value = bill.category;
+      $("#recurrenceInput").value = bill.recurrence;
+      $("#referenceInput").value = bill.reference;
+      $("#notesInput").value = bill.notes;
     }
-  });
+  } else {
+    $("#billSheetTitle").textContent = "Add bill";
+    $("#dueDateInput").value = formatDatePartsFromDate(new Date());
+  }
+  $("#billSheet").classList.add("open");
+  $("#billSheet").setAttribute("aria-hidden", "false");
+}
 
-  document.querySelector("#clearFormButton").addEventListener("click", clearForm);
-  els.aiExtractButton.addEventListener("click", extractWithAi);
+function closeBillSheet() {
+  $("#billSheet").classList.remove("open");
+  $("#billSheet").setAttribute("aria-hidden", "true");
+}
 
-  els.form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const bill = {
-      id: crypto.randomUUID(),
-      biller: els.billerInput.value.trim(),
-      amount: Number(els.amountInput.value),
-      dueDate: els.dueDateInput.value,
-      reference: els.referenceInput.value.trim(),
-      notes: els.notesInput.value.trim(),
-      fileName: els.pdfInput.files[0]?.name || "",
-      status: "unpaid",
-      createdAt: new Date().toISOString(),
-      remindedFor: []
-    };
+function resetBillForm() {
+  $("#billForm").reset();
+  $("#categoryInput").value = "other";
+  $("#recurrenceInput").value = "once";
+  $("#extractStatus").textContent = "Upload a statement or bill PDF and Cleared will pull out the amount, due date, biller and reference.";
+  $("#extractPreview").textContent = "";
+  $("#confidenceBadge").textContent = "Waiting";
+  $("#aiExtractButton").disabled = true;
+}
 
-    state.bills.push(bill);
-    saveBills();
-    clearForm();
-    showView("dashboard");
-    render();
-  });
+function saveBillFromForm(event) {
+  event.preventDefault();
+  const amount = Number($("#amountInput").value);
+  const dueDate = $("#dueDateInput").value;
+  if (!$("#billerInput").value.trim() || !amount || !dueDate) return;
+
+  if (state.editingBillId) {
+    const bill = state.bills.find((b) => b.id === state.editingBillId);
+    if (bill) {
+      Object.assign(bill, {
+        biller: $("#billerInput").value.trim(),
+        amount, dueDate,
+        category: $("#categoryInput").value,
+        recurrence: $("#recurrenceInput").value,
+        reference: $("#referenceInput").value.trim(),
+        notes: $("#notesInput").value.trim()
+      });
+    }
+  } else {
+    state.bills.push(normalizeBill({
+      biller: $("#billerInput").value.trim(),
+      amount, dueDate,
+      category: $("#categoryInput").value,
+      recurrence: $("#recurrenceInput").value,
+      reference: $("#referenceInput").value.trim(),
+      notes: $("#notesInput").value.trim(),
+      fileName: state.currentPdfFile?.name || ""
+    }));
+  }
+  saveBills();
+  closeBillSheet();
+  if (state.view !== "dashboard" && state.view !== "bills") showView("dashboard"); else render();
+  pushBillsQuietly();
 }
 
 async function handlePdf(file) {
   state.currentPdfFile = file;
-  els.aiExtractButton.disabled = false;
-  els.extractStatus.textContent = `Reading ${file.name}...`;
-  els.confidenceBadge.textContent = "Reading";
-  els.extractPreview.textContent = "";
-
-  const buffer = await file.arrayBuffer();
-  const readable = await decodePdfText(buffer);
-  const details = extractBillDetails(readable, file.name);
-
-  fillIfFound(els.billerInput, details.biller);
-  fillIfFound(els.amountInput, details.amount);
-  fillIfFound(els.dueDateInput, details.dueDate);
-  fillIfFound(els.referenceInput, details.reference);
-
-  const foundCount = ["biller", "amount", "dueDate", "reference"].filter((key) => details[key]).length;
-  els.confidenceBadge.textContent = foundCount >= 3 ? "Good" : foundCount >= 2 ? "Partial" : "Manual";
-  els.extractStatus.textContent = foundCount
-    ? "I found a few likely details. Please check them before saving."
-    : "This PDF may be scanned or compressed. Add the details manually for now.";
-  els.extractPreview.textContent = readable.slice(0, 4000) || "No readable text found in this PDF.";
+  $("#aiExtractButton").disabled = false;
+  $("#extractStatus").textContent = `Reading ${file.name}\u2026`;
+  $("#confidenceBadge").textContent = "Reading";
+  $("#extractPreview").textContent = "";
+  try {
+    const buffer = await file.arrayBuffer();
+    const readable = await decodePdfText(buffer);
+    const details = extractBillDetails(readable, file.name);
+    fillIfFound($("#billerInput"), details.biller);
+    fillIfFound($("#amountInput"), details.amount);
+    fillIfFound($("#dueDateInput"), details.dueDate);
+    fillIfFound($("#referenceInput"), details.reference);
+    const found = ["biller", "amount", "dueDate", "reference"].filter((k) => details[k]).length;
+    $("#confidenceBadge").textContent = found >= 3 ? "Good" : found >= 2 ? "Partial" : "Manual";
+    $("#extractStatus").textContent = found
+      ? "Found a few likely details. Check them before saving."
+      : "This looks scanned or compressed. Try AI extract, or enter details manually.";
+    $("#extractPreview").textContent = readable.slice(0, 3000) || "No readable text found.";
+  } catch (err) {
+    $("#extractStatus").textContent = "Could not read this PDF. Enter the details manually or try AI extract.";
+  }
 }
 
 async function extractWithAi() {
   if (!state.currentPdfFile) return;
-
-  if (!useCloudflareSync()) {
-    els.extractStatus.textContent = "AI extraction is available on the hosted Cloudflare app.";
-    return;
-  }
-
-  els.aiExtractButton.disabled = true;
-  els.extractStatus.textContent = "AI is reading the PDF...";
-  els.confidenceBadge.textContent = "AI";
-
+  if (!useCloudflareSync()) { $("#extractStatus").textContent = "AI extract runs on the hosted Cleared app."; return; }
+  $("#aiExtractButton").disabled = true;
+  $("#extractStatus").textContent = "AI is reading the statement\u2026";
+  $("#confidenceBadge").textContent = "AI";
   try {
     const formData = new FormData();
     formData.append("pdf", state.currentPdfFile, state.currentPdfFile.name);
-
-    const response = await fetch("/api/extract-bill", {
-      method: "POST",
-      body: formData
-    });
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
+    const response = await fetch("/api/extract-bill", { method: "POST", body: formData });
+    if (!response.ok) throw new Error(await response.text());
     const result = await response.json();
-    fillIfFound(els.billerInput, result.biller);
-    fillIfFound(els.amountInput, result.amountDue);
-    fillIfFound(els.dueDateInput, result.dueDate);
-    fillIfFound(els.referenceInput, result.reference || result.invoiceNumber);
-    if (result.notes) {
-      els.notesInput.value = result.notes;
-    }
-
-    els.extractStatus.textContent = "AI found likely bill details. Please check them before saving.";
-    els.confidenceBadge.textContent = `${Math.round(Number(result.confidence || 0) * 100)}%`;
-    els.extractPreview.textContent = JSON.stringify(result, null, 2);
-  } catch (error) {
-    els.extractStatus.textContent = "AI extraction failed. You can still enter the details manually.";
-    els.extractPreview.textContent = error.message || "AI extraction failed.";
+    fillIfFound($("#billerInput"), result.biller);
+    fillIfFound($("#amountInput"), result.amountDue);
+    fillIfFound($("#dueDateInput"), result.dueDate);
+    fillIfFound($("#referenceInput"), result.reference || result.invoiceNumber);
+    if (result.notes) $("#notesInput").value = result.notes;
+    $("#extractStatus").textContent = "AI found likely details. Check them before saving.";
+    $("#confidenceBadge").textContent = `${Math.round(Number(result.confidence || 0) * 100)}%`;
+  } catch (err) {
+    $("#extractStatus").textContent = "AI extract failed. You can still enter details manually.";
   } finally {
-    els.aiExtractButton.disabled = false;
+    $("#aiExtractButton").disabled = false;
   }
 }
 
+function fillIfFound(input, value) {
+  if (!input || value === undefined || value === null || value === "") return;
+  if (!input.value) input.value = value;
+}
+
+/* ---------------- Bill detail sheet ---------------- */
+function setupDetailSheet() {
+  $("#closeDetailSheet")?.addEventListener("click", closeDetailSheet);
+  $("#detailSheetBackdrop")?.addEventListener("click", closeDetailSheet);
+}
+
+function openDetailSheet(billId) {
+  const bill = state.bills.find((b) => b.id === billId);
+  if (!bill) return;
+  state.detailBillId = billId;
+  const cat = CATEGORIES[bill.category];
+  const st = billStatus(bill);
+  const meta = STATUS_META[st];
+  const body = $("#detailBody");
+  const historyRows = [];
+  if (bill.status === "paid" && bill.paidAt) historyRows.push(`<div class="dt-hist"><span>${formatDisplayDate(bill.paidAt)}</span><span class="paid-tag">Paid \u2713</span><strong>${money(bill.amount)}</strong></div>`);
+  if (bill.rescheduleNotes) historyRows.push(`<div class="dt-hist"><span>Rescheduled</span><span class="muted">${escapeHtml(bill.rescheduleNotes)}</span><strong></strong></div>`);
+  body.innerHTML = `
+    <div class="dt-hero">
+      <span class="dt-icon" style="background:${cat.color};">${cat.glyph}</span>
+      <h2>${escapeHtml(bill.biller)}</h2>
+      <p class="dt-amount">${money(bill.amount)}</p>
+      <span class="dt-status" style="color:${meta.color};background:${meta.color}1a">${escapeHtml(relativeDue(bill))}</span>
+    </div>
+    <div class="dt-grid">
+      <div><span class="muted">Category</span><strong>${cat.label}</strong></div>
+      <div><span class="muted">Due date</span><strong>${formatDisplayDate(bill.dueDate)}</strong></div>
+      <div><span class="muted">Repeats</span><strong>${RECURRENCE[bill.recurrence].label}</strong></div>
+      <div><span class="muted">Reminder</span><strong>${state.settings.reminderLeadDays === 0 ? "On due date" : state.settings.reminderLeadDays + " day(s) before"}</strong></div>
+      ${bill.reference ? `<div class="dt-wide"><span class="muted">Reference</span><strong>${escapeHtml(bill.reference)}</strong></div>` : ""}
+      ${bill.notes ? `<div class="dt-wide"><span class="muted">Notes</span><strong>${escapeHtml(bill.notes)}</strong></div>` : ""}
+    </div>
+    <div class="dt-actions">
+      ${bill.status === "unpaid"
+        ? `<button class="btn primary" id="dtMarkPaid" type="button">Mark as paid</button>
+           <button class="btn ghost" id="dtReschedule" type="button">Reschedule</button>`
+        : `<button class="btn ghost" id="dtMarkUnpaid" type="button">Mark as unpaid</button>`}
+      <button class="btn ghost" id="dtEdit" type="button">Edit</button>
+      <button class="btn danger-text" id="dtDelete" type="button">Delete</button>
+    </div>
+    ${historyRows.length ? `<div class="dt-history"><h4>History</h4>${historyRows.join("")}</div>` : ""}`;
+  $("#dtMarkPaid")?.addEventListener("click", () => { closeDetailSheet(); openPaidModal(bill); });
+  $("#dtReschedule")?.addEventListener("click", () => { closeDetailSheet(); openRescheduleModal(bill); });
+  $("#dtMarkUnpaid")?.addEventListener("click", () => { bill.status = "unpaid"; bill.paidAt = ""; saveBills(); closeDetailSheet(); render(); pushBillsQuietly(); });
+  $("#dtEdit")?.addEventListener("click", () => { closeDetailSheet(); openBillSheet(bill.id); });
+  $("#dtDelete")?.addEventListener("click", () => {
+    if (!confirm(`Delete ${bill.biller}? This removes it from this device and the cloud.`)) return;
+    deleteBill(bill.id);
+  });
+  $("#detailSheet").classList.add("open");
+  $("#detailSheet").setAttribute("aria-hidden", "false");
+}
+
+function closeDetailSheet() {
+  $("#detailSheet").classList.remove("open");
+  $("#detailSheet").setAttribute("aria-hidden", "true");
+  state.detailBillId = null;
+}
+
+function deleteBill(id) {
+  const bill = state.bills.find((b) => b.id === id);
+  state.bills = state.bills.filter((b) => b.id !== id);
+  saveBills();
+  closeDetailSheet();
+  render();
+  if (bill?.remoteId) deleteRemoteBill(bill).catch(() => {});
+}
+
+/* ---------------- modals (paid / reschedule / reset) ---------------- */
+function setupModals() {
+  $("#paidForm")?.addEventListener("submit", (e) => { e.preventDefault(); savePaidBill(); });
+  $("#closePaidButton")?.addEventListener("click", closePaidModal);
+  $("#cancelPaidButton")?.addEventListener("click", closePaidModal);
+  $("#rescheduleForm")?.addEventListener("submit", (e) => { e.preventDefault(); saveRescheduledBill(); });
+  $("#closeRescheduleButton")?.addEventListener("click", closeRescheduleModal);
+  $("#cancelRescheduleButton")?.addEventListener("click", closeRescheduleModal);
+  $("#resetPasswordForm")?.addEventListener("submit", (e) => { e.preventDefault(); updatePassword(); });
+  $("#closeResetPasswordButton")?.addEventListener("click", closeResetPasswordModal);
+  $("#cancelResetPasswordButton")?.addEventListener("click", closeResetPasswordModal);
+}
+
+function openPaidModal(bill) {
+  state.paidBillId = bill.id;
+  $("#paidDateInput").value = formatDatePartsFromDate(new Date());
+  $("#paymentNotesInput").value = "";
+  $("#paidStatus").textContent = `Mark ${bill.biller} as paid.`;
+  $("#paidModal").hidden = false;
+}
+function closePaidModal() { $("#paidModal").hidden = true; state.paidBillId = null; }
+function savePaidBill() {
+  const bill = state.bills.find((b) => b.id === state.paidBillId);
+  if (!bill) return;
+  bill.status = "paid";
+  bill.paidAt = $("#paidDateInput").value || formatDatePartsFromDate(new Date());
+  bill.paymentNotes = $("#paymentNotesInput").value.trim();
+  // Recurring bills: spawn the next occurrence as unpaid so the schedule
+  // continues, and demote this paid one to a one-off so it isn't projected twice.
+  if (bill.recurrence !== "once") {
+    const next = advance(dateFromInput(bill.dueDate), RECURRENCE[bill.recurrence]);
+    state.bills.push(normalizeBill({
+      biller: bill.biller, amount: bill.amount, dueDate: formatDatePartsFromDate(next),
+      category: bill.category, recurrence: bill.recurrence, reference: bill.reference, notes: bill.notes
+    }));
+    bill.recurrence = "once";
+  }
+  saveBills();
+  closePaidModal();
+  render();
+  pushBillsQuietly();
+}
+
+function openRescheduleModal(bill) {
+  state.rescheduleBillId = bill.id;
+  $("#rescheduleDateInput").value = bill.dueDate;
+  $("#rescheduleNotesInput").value = "";
+  $("#rescheduleStatus").textContent = `Choose a new due date for ${bill.biller}.`;
+  $("#rescheduleModal").hidden = false;
+}
+function closeRescheduleModal() { $("#rescheduleModal").hidden = true; state.rescheduleBillId = null; }
+function saveRescheduledBill() {
+  const bill = state.bills.find((b) => b.id === state.rescheduleBillId);
+  if (!bill) return;
+  bill.dueDate = $("#rescheduleDateInput").value || bill.dueDate;
+  bill.rescheduleNotes = $("#rescheduleNotesInput").value.trim();
+  bill.remindedFor = [];
+  saveBills();
+  closeRescheduleModal();
+  render();
+  pushBillsQuietly();
+}
+
+/* ---------------- settings ---------------- */
+function setupSettings() {
+  $("#reminderLeadSelect")?.addEventListener("change", (e) => {
+    state.settings.reminderLeadDays = Number(e.target.value);
+    saveSettings(); render(); syncReminderSettingsQuietly();
+  });
+  $("#emailReminderToggle")?.addEventListener("change", (e) => {
+    state.settings.emailReminders = e.target.checked;
+    saveSettings(); updateEmailReminderHint(); syncReminderSettingsQuietly();
+  });
+  $("#exportButton")?.addEventListener("click", exportBills);
+  $("#importButton")?.addEventListener("click", () => $("#importInput").click());
+  $("#importInput")?.addEventListener("change", importBills);
+  $("#clearBillsButton")?.addEventListener("click", () => {
+    if (!confirm("Clear all bills from this device? Export first if you want a backup.")) return;
+    state.bills = []; saveBills(); render();
+  });
+  $("#logoutButton")?.addEventListener("click", logout);
+  $("#syncSupabaseButton")?.addEventListener("click", () => syncSupabase());
+  $("#restoreSupabaseButton")?.addEventListener("click", () => restoreSupabase());
+
+  $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
+  $("#emailReminderToggle").checked = !!state.settings.emailReminders;
+  updateEmailReminderHint();
+}
+
+function updateEmailReminderHint() {
+  const hint = $("#emailReminderHint");
+  if (hint) hint.textContent = state.settings.emailReminders
+    ? `Reminders email ${state.auth?.email || "your account"} ${state.settings.reminderLeadDays || 0} day(s) before each due date.`
+    : "Turn on to get an email before each bill is due.";
+}
+
+function exportBills() {
+  const blob = new Blob([JSON.stringify({ bills: state.bills, settings: { reminderLeadDays: state.settings.reminderLeadDays, emailReminders: state.settings.emailReminders } }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `cleared-export-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importBills(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const incoming = Array.isArray(data) ? data : data.bills || [];
+    const byId = new Map(state.bills.map((b) => [b.clientBillId, b]));
+    incoming.map(normalizeBill).forEach((b) => byId.set(b.clientBillId, b));
+    state.bills = Array.from(byId.values());
+    if (data.settings) {
+      if (data.settings.reminderLeadDays != null) state.settings.reminderLeadDays = Number(data.settings.reminderLeadDays);
+      if (data.settings.emailReminders != null) state.settings.emailReminders = !!data.settings.emailReminders;
+      saveSettings();
+    }
+    saveBills(); render();
+    updateSyncStatus(`Imported ${incoming.length} bill(s).`);
+  } catch (err) {
+    updateSyncStatus("Import failed. Check the JSON file and try again.");
+  } finally {
+    event.target.value = "";
+  }
+}
+
+/* ---------------- auth UI ---------------- */
+function setupAuth() {
+  $("#authLoginButton")?.addEventListener("click", () => authenticate("login"));
+  $("#authForm")?.addEventListener("submit", (e) => { e.preventDefault(); state.signupMode ? createAccount() : authenticate("login"); });
+  $("#authToggleSignup")?.addEventListener("click", toggleSignup);
+  $("#authForgotButton")?.addEventListener("click", () => recoverPassword());
+  updateAuthStatus();
+}
+
+function toggleSignup() {
+  state.signupMode = !state.signupMode;
+  $("#authConfirmRow").hidden = !state.signupMode;
+  $("#authPrimary").textContent = state.signupMode ? "Create account" : "Log in";
+  $("#authHeadline").textContent = state.signupMode ? "Create your Cleared account." : "Welcome back to Cleared.";
+  $("#authToggleSignup").textContent = state.signupMode ? "Have an account? Log in" : "New here? Create account";
+  $("#authForgotButton").hidden = state.signupMode;
+  updateAuthStatus(state.signupMode ? "Pick an email and a password to get started." : "Sign in to load your bills.");
+}
+
+function authStatusEl() { return $("#authStatus"); }
+function updateAuthStatus(message) {
+  const el = authStatusEl();
+  if (!el) return;
+  el.textContent = message || (state.auth?.email && hasActiveSession() ? `Signed in as ${state.auth.email}.` : "Sign in to load your bills.");
+}
+
+async function authenticate(mode) {
+  if (!useCloudflareSync()) { updateAuthStatus("Sign in runs on the hosted Cleared app."); return; }
+  const email = $("#authEmail").value.trim();
+  const password = $("#authPassword").value;
+  if (!email || !password) { updateAuthStatus("Enter your email and password."); return; }
+  const btn = $("#authPrimary");
+  btn.disabled = true;
+  updateAuthStatus("Logging in\u2026");
+  try {
+    const response = await fetch(`/api/auth/${mode}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "Sign in failed.");
+    if (!payload?.accessToken) { updateAuthStatus(payload?.message || "Check your email to confirm your account, then log in."); return; }
+    state.auth = payload; saveAuth();
+    $("#authPassword").value = "";
+    updateAuthGate(); render();
+    await restoreReminderSettings();
+    await restoreSupabase().catch(() => {});
+  } catch (err) {
+    updateAuthStatus(err.message || "Sign in failed.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function createAccount() {
+  if (!useCloudflareSync()) { updateAuthStatus("Sign up runs on the hosted Cleared app."); return; }
+  const email = $("#authEmail").value.trim();
+  const password = $("#authPassword").value;
+  const confirm = $("#authConfirm").value;
+  if (!email || password.length < 6) { updateAuthStatus("Use an email and a password of at least 6 characters."); return; }
+  if (password !== confirm) { updateAuthStatus("Passwords do not match."); return; }
+  const btn = $("#authPrimary");
+  btn.disabled = true;
+  updateAuthStatus("Creating your account\u2026");
+  try {
+    const response = await fetch("/api/auth/signup", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "Sign up failed.");
+    if (!payload?.accessToken) { updateAuthStatus(payload?.message || "Check your email to confirm your account, then log in."); toggleSignup(); return; }
+    state.auth = payload; saveAuth();
+    updateAuthGate(); render();
+    await syncReminderSettings().catch(() => {});
+  } catch (err) {
+    updateAuthStatus(err.message || "Sign up failed.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function recoverPassword() {
+  if (!useCloudflareSync()) { updateAuthStatus("Password reset runs on the hosted Cleared app."); return; }
+  const email = $("#authEmail").value.trim();
+  if (!email) { updateAuthStatus("Enter your email, then choose Forgot password."); return; }
+  const btn = $("#authForgotButton");
+  btn.disabled = true;
+  updateAuthStatus("Sending a reset link\u2026");
+  try {
+    const response = await fetch("/api/auth/recover", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "Reset failed.");
+    updateAuthStatus(payload?.message || "Password reset email sent.");
+  } catch (err) {
+    updateAuthStatus(err.message || "Reset failed.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function handleRecoveryRedirect() {
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(location.search);
+  const token = hash.get("access_token") || query.get("access_token") || "";
+  const type = hash.get("type") || query.get("type") || "";
+  if (token && type === "recovery") {
+    state.recoveryToken = token;
+    $("#resetPasswordModal").hidden = false;
+    $("#newPasswordInput").focus();
+    history.replaceState({}, document.title, location.pathname);
+  }
+}
+
+function closeResetPasswordModal() {
+  state.recoveryToken = "";
+  $("#resetPasswordModal").hidden = true;
+  $("#newPasswordInput").value = "";
+  $("#confirmNewPasswordInput").value = "";
+}
+
+async function updatePassword() {
+  if (!state.recoveryToken) { $("#resetPasswordStatus").textContent = "Use the reset link from your email first."; return; }
+  const password = $("#newPasswordInput").value;
+  const confirm = $("#confirmNewPasswordInput").value;
+  if (password.length < 6) { $("#resetPasswordStatus").textContent = "Use a password of at least 6 characters."; return; }
+  if (password !== confirm) { $("#resetPasswordStatus").textContent = "Passwords do not match."; return; }
+  $("#saveNewPasswordButton").disabled = true;
+  $("#resetPasswordStatus").textContent = "Saving\u2026";
+  try {
+    const response = await fetch("/api/auth/update-password", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken: state.recoveryToken, password })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "Update failed.");
+    closeResetPasswordModal();
+    updateAuthStatus("Password updated. Please log in.");
+  } catch (err) {
+    $("#resetPasswordStatus").textContent = err.message || "Update failed.";
+  } finally {
+    $("#saveNewPasswordButton").disabled = false;
+  }
+}
+
+function logout() {
+  state.auth = null;
+  localStorage.removeItem(AUTH_KEY);
+  updateAuthGate();
+  render();
+}
+
+function saveAuth() { localStorage.setItem(AUTH_KEY, JSON.stringify(state.auth)); }
+
+function updateAuthGate() {
+  const signedIn = hasActiveSession();
+  $("#authScreen").hidden = signedIn;
+  $("#appShell").hidden = !signedIn;
+  const acct = $("#accountStatus");
+  if (acct) acct.textContent = signedIn ? `Signed in as ${state.auth.email}` : "Not signed in.";
+  updateAuthStatus();
+}
+
+/* ---------------- install ---------------- */
+function setupInstall() {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    state.deferredInstallPrompt = e;
+    const b = $("#installButton"); if (b) b.hidden = false;
+  });
+  $("#installButton")?.addEventListener("click", async () => {
+    if (!state.deferredInstallPrompt) return;
+    state.deferredInstallPrompt.prompt();
+    await state.deferredInstallPrompt.userChoice;
+    state.deferredInstallPrompt = null;
+    $("#installButton").hidden = true;
+  });
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+/* ---------------- storage ---------------- */
+function readJson(key, fallback) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch { return fallback; }
+}
+function saveBills() { localStorage.setItem(STORE_KEY, JSON.stringify(state.bills)); }
+function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
+
+/* ---------------- sync ---------------- */
+function useCloudflareSync() {
+  return location.protocol.startsWith("http") && !["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+}
+function hasActiveSession() {
+  if (!state.auth?.accessToken) return false;
+  if (!state.auth.expiresAt) return true;
+  return Number(state.auth.expiresAt) > Date.now() + 30000;
+}
+function hasSyncConnection() { return useCloudflareSync() && hasActiveSession(); }
+
+function cloudflareSyncRequest(path, options = {}) {
+  return fetch(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "x-sync-secret": state.settings.syncSecret,
+      ...(state.auth?.accessToken ? { Authorization: `Bearer ${state.auth.accessToken}` } : {}),
+      ...(options.headers || {})
+    }
+  });
+}
+
+async function syncSupabase() {
+  if (!hasSyncConnection()) { updateSyncStatus("Sign in to sync."); return; }
+  updateSyncStatus("Syncing\u2026", "sync");
+  try {
+    await upsertRemoteBills(state.bills);
+    await syncReminderSettings();
+    const remote = await fetchRemoteBills();
+    state.bills = mergeBills(state.bills, remote.map(normalizeBill));
+    saveBills(); render();
+    updateSyncStatus("All data synced", "idle");
+  } catch (err) {
+    updateSyncStatus(err.message || "Sync failed", "err");
+  }
+}
+
+async function restoreSupabase() {
+  if (!hasSyncConnection()) { updateSyncStatus("Sign in to sync."); return; }
+  updateSyncStatus("Syncing\u2026", "sync");
+  try {
+    const remote = await fetchRemoteBills();
+    const remoteSettings = await fetchRemoteSettings();
+    if (remoteSettings) applyRemoteSettings(remoteSettings);
+    state.bills = mergeBills(state.bills, remote.map(normalizeBill));
+    saveBills(); saveSettings(); render();
+    updateSyncStatus("All data synced", "idle");
+  } catch (err) {
+    updateSyncStatus(err.message || "Sync failed", "err");
+  }
+}
+
+async function pushBillsQuietly() {
+  if (!hasSyncConnection()) return;
+  try { await upsertRemoteBills(state.bills); updateSyncStatus("All data synced", "idle"); }
+  catch (err) { updateSyncStatus("Will sync when back online", "err"); }
+}
+
+async function upsertRemoteBills(bills) {
+  if (!bills.length) return;
+  const response = await cloudflareSyncRequest("/api/bills", {
+    method: "POST", body: JSON.stringify({ appInstanceId: state.settings.appInstanceId, bills })
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+async function deleteRemoteBill(bill) {
+  // Best-effort: a future server endpoint will handle hard deletes. For now,
+  // dropping it locally and re-pushing keeps this device authoritative.
+  return pushBillsQuietly();
+}
+
+async function fetchRemoteBills() {
+  const appId = encodeURIComponent(state.settings.appInstanceId);
+  const response = await cloudflareSyncRequest(`/api/bills?appInstanceId=${appId}`);
+  if (!response.ok) throw new Error(await response.text());
+  const payload = await response.json();
+  return payload.bills || [];
+}
+
+async function syncReminderSettings() {
+  if (!hasSyncConnection()) return;
+  state.settings.timezone = getBrowserTimezone();
+  const response = await cloudflareSyncRequest("/api/settings", {
+    method: "POST",
+    body: JSON.stringify({
+      email: state.auth?.email || "",
+      reminderLeadDays: state.settings.reminderLeadDays,
+      emailReminders: state.settings.emailReminders,
+      timezone: state.settings.timezone
+    })
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+async function syncReminderSettingsQuietly() {
+  try { await syncReminderSettings(); } catch (err) { /* retried on next change */ }
+}
+
+async function fetchRemoteSettings() {
+  if (!hasSyncConnection()) return null;
+  const response = await cloudflareSyncRequest("/api/settings");
+  if (!response.ok) throw new Error(await response.text());
+  const payload = await response.json();
+  return payload.settings || null;
+}
+
+async function restoreReminderSettings() {
+  try {
+    const remote = await fetchRemoteSettings();
+    if (remote) { applyRemoteSettings(remote); saveSettings(); updateEmailReminderHint(); return; }
+    await syncReminderSettings();
+  } catch (err) { /* will sync later */ }
+}
+
+function applyRemoteSettings(settings) {
+  if (!settings) return;
+  state.settings.reminderLeadDays = Number(settings.reminderLeadDays ?? state.settings.reminderLeadDays);
+  state.settings.emailReminders = Boolean(settings.emailReminders);
+  state.settings.timezone = settings.timezone || state.settings.timezone || getBrowserTimezone();
+  if ($("#reminderLeadSelect")) $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
+  if ($("#emailReminderToggle")) $("#emailReminderToggle").checked = state.settings.emailReminders;
+  updateEmailReminderHint();
+}
+
+function mergeBills(localBills, remoteBills) {
+  const byKey = new Map();
+  [...remoteBills, ...localBills].forEach((bill) => { byKey.set(bill.clientBillId || bill.id, normalizeBill(bill)); });
+  return Array.from(byKey.values());
+}
+
+function updateSyncStatus(message, statusClass) {
+  const el = $("#syncStatus");
+  if (el) el.textContent = message;
+  if (statusClass) state.syncState = statusClass;
+  updateSyncChip(message, statusClass);
+}
+
+function updateSyncChip(message, statusClass) {
+  const chip = $("#syncChip");
+  if (!chip) return;
+  const cls = statusClass || (hasSyncConnection() ? "idle" : "off");
+  chip.className = `sync-chip ${cls}`;
+  $("#syncChipText").textContent = hasSyncConnection()
+    ? (cls === "sync" ? "Syncing\u2026" : cls === "err" ? "Sync issue" : "All data synced")
+    : "Local only";
+  $("#syncChipSub").textContent = hasSyncConnection() ? (message && cls === "idle" ? "Just now" : "") : "Sign in to back up";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+/* ============ preserved PDF text engine ============ */
 async function decodePdfText(buffer) {
   const rawText = new TextDecoder("latin1").decode(buffer);
   const streamText = await decodeCompressedPdfStreams(buffer, rawText);
@@ -688,913 +1700,8 @@ function formatDateParts(year, month, day) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function fillIfFound(input, value) {
-  if (value) {
-    input.value = value;
-  }
-}
 
-function clearForm() {
-  state.currentPdfFile = null;
-  els.form.reset();
-  els.extractStatus.textContent = "Upload a PDF and I will look for amount, due date, biller, and reference details.";
-  els.extractPreview.textContent = "";
-  els.confidenceBadge.textContent = "Waiting";
-  els.aiExtractButton.disabled = true;
-}
-
-function setupSettings() {
-  els.reminderLeadSelect.value = String(state.settings.reminderLeadDays);
-  els.emailReminderToggle.checked = Boolean(state.settings.emailReminders);
-  updateEmailReminderHint();
-  updateSyncStatus();
-  updateAuthStatus();
-
-  els.authScreenLoginButton.addEventListener("click", () => authenticate("login", "screen"));
-  els.authScreenSignupButton.addEventListener("click", () => openSignupModal("screen"));
-  els.authScreenForgotButton.addEventListener("click", () => recoverPassword("screen"));
-  els.backToSigninButton.addEventListener("click", showSigninForm);
-  els.authSignupCard.addEventListener("submit", (event) => {
-    event.preventDefault();
-    createAccount("screen");
-  });
-  els.logoutButton.addEventListener("click", logout);
-  els.closeSignupModalButton.addEventListener("click", closeSignupModal);
-  els.cancelSignupButton.addEventListener("click", closeSignupModal);
-  els.signupModal.addEventListener("click", (event) => {
-    if (event.target === els.signupModal) closeSignupModal();
-  });
-  els.signupForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    createAccount("modal");
-  });
-  els.closePaidButton.addEventListener("click", closePaidModal);
-  els.cancelPaidButton.addEventListener("click", closePaidModal);
-  els.paidModal.addEventListener("click", (event) => {
-    if (event.target === els.paidModal) closePaidModal();
-  });
-  els.paidForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    savePaidBill();
-  });
-  els.closeRescheduleButton.addEventListener("click", closeRescheduleModal);
-  els.cancelRescheduleButton.addEventListener("click", closeRescheduleModal);
-  els.rescheduleModal.addEventListener("click", (event) => {
-    if (event.target === els.rescheduleModal) closeRescheduleModal();
-  });
-  els.rescheduleForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveRescheduledBill();
-  });
-  els.closeResetPasswordButton.addEventListener("click", closeResetPasswordModal);
-  els.cancelResetPasswordButton.addEventListener("click", closeResetPasswordModal);
-  els.resetPasswordModal.addEventListener("click", (event) => {
-    if (event.target === els.resetPasswordModal) closeResetPasswordModal();
-  });
-  els.resetPasswordForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    updatePassword();
-  });
-
-  els.reminderLeadSelect.addEventListener("change", () => {
-    state.settings.reminderLeadDays = Number(els.reminderLeadSelect.value);
-    state.settings.timezone = getBrowserTimezone();
-    saveSettings();
-    syncReminderSettingsQuietly();
-  });
-
-  els.emailReminderToggle.addEventListener("change", () => {
-    if (els.emailReminderToggle.checked && !state.auth?.email) {
-      els.emailReminderToggle.checked = false;
-      updateSyncStatus("Sign in before turning on email notifications.");
-      return;
-    }
-    state.settings.emailReminders = els.emailReminderToggle.checked;
-    state.settings.timezone = getBrowserTimezone();
-    saveSettings();
-    updateEmailReminderHint();
-    syncReminderSettingsQuietly();
-  });
-
-  document.querySelector("#exportButton").addEventListener("click", exportBills);
-  document.querySelector("#importButton").addEventListener("click", () => {
-    els.importInput.click();
-  });
-  els.importInput.addEventListener("change", importBills);
-  document.querySelector("#clearBillsButton").addEventListener("click", () => {
-    if (confirm("Clear all saved bills from this browser?")) {
-      state.bills = [];
-      saveBills();
-      render();
-    }
-  });
-
-  els.syncSupabaseButton.addEventListener("click", syncSupabase);
-  els.restoreSupabaseButton.addEventListener("click", restoreSupabase);
-}
-
-function setupInstall() {
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    state.deferredInstallPrompt = event;
-    els.installButton.hidden = false;
-  });
-
-  els.installButton.addEventListener("click", async () => {
-    if (!state.deferredInstallPrompt) return;
-    state.deferredInstallPrompt.prompt();
-    await state.deferredInstallPrompt.userChoice;
-    state.deferredInstallPrompt = null;
-    els.installButton.hidden = true;
-  });
-}
-
-function render() {
-  renderStats();
-  renderBills();
-}
-
-function renderStats() {
-  const unpaid = state.bills.filter((bill) => bill.status !== "paid");
-  const today = startOfDay(new Date());
-  const soonLimit = addDays(today, 7);
-
-  const total = unpaid.reduce((sum, bill) => sum + Number(bill.amount || 0), 0);
-  const dueSoon = unpaid.filter((bill) => {
-    const due = dateFromInput(bill.dueDate);
-    return due >= today && due <= soonLimit;
-  });
-  const overdue = unpaid.filter((bill) => dateFromInput(bill.dueDate) < today);
-
-  els.totalUnpaid.textContent = moneyFormat.format(total);
-  els.dueSoonCount.textContent = String(dueSoon.length);
-  els.overdueCount.textContent = String(overdue.length);
-}
-
-function renderBills() {
-  els.billList.innerHTML = "";
-  const bills = filteredBills().sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  els.emptyState.hidden = bills.length > 0;
-
-  bills.forEach((bill) => {
-    const item = els.template.content.firstElementChild.cloneNode(true);
-    const status = getBillStatus(bill);
-    item.querySelector("h4").textContent = bill.biller;
-    item.querySelector(".bill-date").textContent = formatDisplayDate(bill.dueDate);
-    const referenceChip = item.querySelector(".reference-chip");
-    referenceChip.textContent = bill.reference || "No ref";
-    referenceChip.hidden = false;
-    const notes = item.querySelector(".bill-notes");
-    notes.textContent = buildBillDetails(bill);
-    item.querySelector(".bill-amount").textContent = moneyFormat.format(Number(bill.amount || 0));
-
-    const pill = item.querySelector(".status-pill");
-    pill.textContent = status.label;
-    pill.classList.add(status.kind);
-    const markPaidButton = item.querySelector(".mark-paid");
-    markPaidButton.textContent = bill.status === "paid" ? "Mark Unpaid" : "Mark Paid";
-    markPaidButton.classList.toggle("secondary-button", bill.status === "paid");
-    markPaidButton.classList.toggle("success-button", bill.status !== "paid");
-
-    item.querySelector(".details-button").addEventListener("click", (event) => {
-      notes.hidden = !notes.hidden;
-      event.currentTarget.textContent = notes.hidden ? "Details +" : "Details -";
-    });
-
-    markPaidButton.addEventListener("click", () => {
-      if (bill.status === "paid") {
-        bill.status = "unpaid";
-        bill.paidAt = "";
-        bill.paymentNotes = "";
-        bill.updatedAt = new Date().toISOString();
-        saveBills();
-        render();
-        return;
-      }
-      openPaidModal(bill);
-    });
-
-    item.querySelector(".reschedule-bill").addEventListener("click", () => {
-      openRescheduleModal(bill);
-    });
-
-    item.querySelector(".delete-bill").addEventListener("click", () => {
-      if (confirm(`Delete ${bill.biller}?`)) {
-        state.bills = state.bills.filter((candidate) => candidate.id !== bill.id);
-        saveBills();
-        render();
-      }
-    });
-
-    els.billList.append(item);
-  });
-}
-
-function buildBillDetails(bill) {
-  const details = [];
-  details.push(`Due ${formatDisplayDate(bill.dueDate)}`);
-  if (bill.paidAt) details.push(`Paid ${formatDisplayDate(bill.paidAt)}`);
-  if (bill.reference) details.push(`Reference: ${bill.reference}`);
-  if (bill.paymentNotes) details.push(`Payment notes: ${bill.paymentNotes}`);
-  if (bill.rescheduleNotes) details.push(`Reschedule notes: ${bill.rescheduleNotes}`);
-  if (bill.notes) details.push(`Notes: ${bill.notes}`);
-  if (bill.fileName) details.push(`File: ${bill.fileName}`);
-  return details.join("\n");
-}
-
-function filteredBills() {
-  if (state.filter === "paid") {
-    return state.bills.filter((bill) => bill.status === "paid");
-  }
-  if (state.filter === "unpaid") {
-    return state.bills.filter((bill) => bill.status !== "paid");
-  }
-  return state.bills;
-}
-
-function getBillStatus(bill) {
-  if (bill.status === "paid") return { label: "Paid", kind: "paid" };
-  const today = startOfDay(new Date());
-  const due = dateFromInput(bill.dueDate);
-  if (due < today) return { label: "Overdue", kind: "overdue" };
-  if (due <= addDays(today, 7)) return { label: "Due soon", kind: "soon" };
-  return { label: "Upcoming", kind: "upcoming" };
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function exportBills() {
-  const blob = new Blob([JSON.stringify({ bills: state.bills, settings: state.settings }, null, 2)], {
-    type: "application/json"
-  });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `bill-minder-export-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-async function importBills() {
-  const file = els.importInput.files[0];
-  if (!file) return;
-
-  try {
-    const payload = JSON.parse(await file.text());
-    const importedBills = Array.isArray(payload) ? payload : payload.bills;
-    if (!Array.isArray(importedBills)) {
-      throw new Error("No bills found in this JSON file.");
-    }
-
-    const validBills = importedBills.map(normalizeImportedBill).filter(Boolean);
-    if (!validBills.length) {
-      throw new Error("No valid bills found in this JSON file.");
-    }
-
-    state.bills = mergeBills(state.bills, validBills);
-    saveBills();
-
-    if (payload.settings?.reminderLeadDays !== undefined) {
-      state.settings.reminderLeadDays = Number(payload.settings.reminderLeadDays) || state.settings.reminderLeadDays;
-      els.reminderLeadSelect.value = String(state.settings.reminderLeadDays);
-      saveSettings();
-    }
-
-    render();
-    updateSyncStatus(`Imported ${validBills.length} bill${validBills.length === 1 ? "" : "s"}.`);
-  } catch (error) {
-    updateSyncStatus(error.message || "Import failed.");
-  } finally {
-    els.importInput.value = "";
-  }
-}
-
-function normalizeImportedBill(bill) {
-  if (!bill || !bill.biller || !bill.amount || !bill.dueDate) return null;
-
-  return {
-    id: bill.id || crypto.randomUUID(),
-    biller: String(bill.biller).trim(),
-    amount: Number(bill.amount),
-    dueDate: String(bill.dueDate).slice(0, 10),
-    reference: bill.reference ? String(bill.reference) : "",
-    notes: bill.notes ? String(bill.notes) : "",
-    fileName: bill.fileName ? String(bill.fileName) : "",
-    status: bill.status === "paid" ? "paid" : "unpaid",
-    paidAt: bill.paidAt ? String(bill.paidAt).slice(0, 10) : "",
-    paymentNotes: bill.paymentNotes ? String(bill.paymentNotes) : "",
-    rescheduleNotes: bill.rescheduleNotes ? String(bill.rescheduleNotes) : "",
-    createdAt: bill.createdAt || new Date().toISOString(),
-    remoteId: bill.remoteId || "",
-    clientBillId: bill.clientBillId || bill.id || "",
-    remindedFor: Array.isArray(bill.remindedFor) ? bill.remindedFor : []
-  };
-}
-
-function readJson(key, fallback) {
-  try {
-    return JSON.parse(localStorage.getItem(key)) || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveBills() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(state.bills));
-}
-
-function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
-}
-
-async function syncSupabase() {
-  if (!hasSyncConnection()) {
-    updateSyncStatus("Cloud sync is available after deploying to Cloudflare Pages.");
-    return;
-  }
-
-  els.syncSupabaseButton.disabled = true;
-  updateSyncStatus("Syncing...");
-
-  try {
-    await syncReminderSettings();
-    await upsertRemoteBills(state.bills);
-    const remoteBills = await fetchRemoteBills();
-    const remoteSettings = await fetchRemoteSettings();
-    if (remoteSettings) applyRemoteSettings(remoteSettings);
-    const merged = mergeBills(state.bills, remoteBills);
-    state.bills = merged;
-    saveBills();
-    saveSettings();
-    render();
-    updateSyncStatus(`Synced ${merged.length} bill${merged.length === 1 ? "" : "s"} and reminder settings.`);
-  } catch (error) {
-    updateSyncStatus(error.message || "Sync failed.");
-  } finally {
-    els.syncSupabaseButton.disabled = false;
-  }
-}
-
-async function authenticate(mode, source) {
-  if (!useCloudflareSync()) {
-    updateAuthStatus("Login is available on the hosted Cloudflare app.");
-    return;
-  }
-
-  const emailInput = els.authScreenEmailInput;
-  const passwordInput = els.authScreenPasswordInput;
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-  if (!email || !password) {
-    updateAuthStatus("Enter email and password.");
-    return;
-  }
-
-  const button = els.authScreenLoginButton;
-  button.disabled = true;
-  updateAuthStatus(mode === "signup" ? "Creating account..." : "Logging in...");
-
-  try {
-    const response = await fetch(`/api/auth/${mode}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(payload?.error || "Authentication failed.");
-    }
-
-    if (!payload?.accessToken) {
-      updateAuthStatus(payload?.message || payload?.error || "Check your email to confirm your account, then log in.");
-      return;
-    }
-
-    state.auth = payload;
-    saveAuth();
-    els.authScreenEmailInput.value = payload.email || email;
-    passwordInput.value = "";
-    els.authScreenPasswordInput.value = "";
-    updateAuthStatus();
-    updateAuthGate();
-    await restoreReminderSettings();
-  } catch (error) {
-    updateAuthStatus(error.message || "Authentication failed.");
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function openSignupModal(source) {
-  const email = els.authScreenEmailInput.value.trim();
-  if (source === "screen") {
-    els.authSignupEmailInput.value = email;
-    els.authSignupPasswordInput.value = "";
-    els.authSignupConfirmPasswordInput.value = "";
-    els.authSignupStatus.textContent = "Use this form only when making a new account.";
-    els.authSigninCard.hidden = true;
-    els.authSignupCard.hidden = false;
-    els.authSignupEmailInput.focus();
-    return;
-  }
-
-  els.signupEmailInput.value = email;
-  els.signupPasswordInput.value = "";
-  els.signupConfirmPasswordInput.value = "";
-  els.signupStatus.textContent = "Create an account to sync bills across devices.";
-  els.signupModal.hidden = false;
-  els.signupEmailInput.focus();
-}
-
-function showSigninForm() {
-  els.authSignupCard.hidden = true;
-  els.authSigninCard.hidden = false;
-  els.authScreenStatus.textContent = state.auth?.email && hasActiveSession()
-    ? `Signed in as ${state.auth.email}.`
-    : "Use your Bill Minder account to continue.";
-  els.authScreenEmailInput.focus();
-}
-
-function closeSignupModal() {
-  els.signupModal.hidden = true;
-}
-
-async function createAccount(source = "modal") {
-  if (!useCloudflareSync()) {
-    getSignupStatus(source).textContent = "Sign up is available on the hosted Cloudflare app.";
-    return;
-  }
-
-  const fields = getSignupFields(source);
-  const email = fields.email.value.trim();
-  const password = fields.password.value;
-  const confirmPassword = fields.confirm.value;
-  const status = getSignupStatus(source);
-  const button = source === "screen" ? els.authCreateAccountButton : els.createAccountButton;
-  if (!email || password.length < 6) {
-    status.textContent = "Enter an email and a password with at least 6 characters.";
-    return;
-  }
-  if (password !== confirmPassword) {
-    status.textContent = "Passwords do not match.";
-    return;
-  }
-
-  button.disabled = true;
-  status.textContent = "Creating account...";
-
-  try {
-    const response = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(payload?.error || "Signup failed.");
-    }
-
-    if (!payload?.accessToken) {
-      status.textContent = payload?.message || "Check your email to confirm your account, then log in.";
-      els.authScreenEmailInput.value = email;
-      return;
-    }
-
-    state.auth = payload;
-    saveAuth();
-    els.authScreenEmailInput.value = payload.email || email;
-    await syncReminderSettings();
-    if (source === "screen") {
-      showSigninForm();
-    } else {
-      closeSignupModal();
-    }
-    updateAuthStatus();
-    updateAuthGate();
-  } catch (error) {
-    status.textContent = error.message || "Signup failed.";
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function getSignupFields(source) {
-  if (source === "screen") {
-    return {
-      email: els.authSignupEmailInput,
-      password: els.authSignupPasswordInput,
-      confirm: els.authSignupConfirmPasswordInput
-    };
-  }
-
-  return {
-    email: els.signupEmailInput,
-    password: els.signupPasswordInput,
-    confirm: els.signupConfirmPasswordInput
-  };
-}
-
-function getSignupStatus(source) {
-  return source === "screen" ? els.authSignupStatus : els.signupStatus;
-}
-
-async function recoverPassword(source) {
-  if (!useCloudflareSync()) {
-    updateAuthStatus("Password reset is available on the hosted Cloudflare app.");
-    return;
-  }
-
-  const emailInput = els.authScreenEmailInput;
-  const email = emailInput.value.trim();
-  if (!email) {
-    updateAuthStatus("Enter your email, then tap Forgot password.");
-    emailInput.focus();
-    return;
-  }
-
-  const button = els.authScreenForgotButton;
-  button.disabled = true;
-  updateAuthStatus("Sending password reset email...");
-
-  try {
-    const response = await fetch("/api/auth/recover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email })
-    });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(payload?.error || "Password reset failed.");
-    }
-
-    updateAuthStatus(payload?.message || "Password reset email sent.");
-  } catch (error) {
-    updateAuthStatus(error.message || "Password reset failed.");
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function handleRecoveryRedirect() {
-  const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
-  const query = new URLSearchParams(location.search);
-  const token = hash.get("access_token") || query.get("access_token") || "";
-  const type = hash.get("type") || query.get("type") || "";
-
-  if (token && type === "recovery") {
-    state.recoveryToken = token;
-    els.resetPasswordModal.hidden = false;
-    els.newPasswordInput.focus();
-    history.replaceState({}, document.title, location.pathname);
-  }
-}
-
-function closeResetPasswordModal() {
-  state.recoveryToken = "";
-  els.resetPasswordModal.hidden = true;
-  els.newPasswordInput.value = "";
-  els.confirmNewPasswordInput.value = "";
-}
-
-async function updatePassword() {
-  if (!state.recoveryToken) {
-    els.resetPasswordStatus.textContent = "Use the password reset link from your email first.";
-    return;
-  }
-
-  const password = els.newPasswordInput.value;
-  const confirmPassword = els.confirmNewPasswordInput.value;
-  if (password.length < 6) {
-    els.resetPasswordStatus.textContent = "Enter a password with at least 6 characters.";
-    return;
-  }
-  if (password !== confirmPassword) {
-    els.resetPasswordStatus.textContent = "Passwords do not match.";
-    return;
-  }
-
-  els.saveNewPasswordButton.disabled = true;
-  els.resetPasswordStatus.textContent = "Saving password...";
-
-  try {
-    const response = await fetch("/api/auth/update-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: state.recoveryToken, password })
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(payload?.error || "Password update failed.");
-    }
-
-    closeResetPasswordModal();
-    updateAuthStatus("Password updated. Please log in.");
-  } catch (error) {
-    els.resetPasswordStatus.textContent = error.message || "Password update failed.";
-  } finally {
-    els.saveNewPasswordButton.disabled = false;
-  }
-}
-
-function logout() {
-  state.auth = null;
-  localStorage.removeItem(AUTH_KEY);
-  updateAuthStatus();
-  updateAuthGate();
-}
-
-function saveAuth() {
-  localStorage.setItem(AUTH_KEY, JSON.stringify(state.auth));
-}
-
-function updateAuthStatus(message) {
-  if (message) {
-    els.authStatus.textContent = message;
-    els.authScreenStatus.textContent = message;
-    return;
-  }
-
-  const messageText = state.auth?.email && hasActiveSession()
-    ? `Signed in as ${state.auth.email}.`
-    : state.auth?.email
-      ? "Your session expired. Please log in again."
-    : "Not signed in.";
-  els.authStatus.textContent = messageText;
-  els.authScreenStatus.textContent = useCloudflareSync()
-    ? messageText
-    : "Sign in is available on the hosted Cloudflare app.";
-  updateEmailReminderHint();
-}
-
-function updateEmailReminderHint() {
-  if (!els.emailReminderHint) return;
-  els.emailReminderHint.textContent = state.auth?.email
-    ? `Sent to ${state.auth.email}.`
-    : "Sign in to use email notifications.";
-}
-
-function updateAuthGate() {
-  const requiresLogin = useCloudflareSync();
-  const signedIn = hasActiveSession();
-  els.authScreen.hidden = !requiresLogin || signedIn;
-  els.appShell.hidden = requiresLogin && !signedIn;
-  if (requiresLogin && !signedIn) {
-    els.authSignupCard.hidden = true;
-    els.authSigninCard.hidden = false;
-    if (state.auth?.email) {
-      els.authScreenEmailInput.value = state.auth.email;
-    }
-    updateAuthStatus();
-  }
-}
-
-function openPaidModal(bill) {
-  state.markingPaidBillId = bill.id;
-  els.paidDateInput.value = bill.paidAt || formatDatePartsFromDate(new Date());
-  els.paymentNotesInput.value = bill.paymentNotes || "";
-  els.paidStatus.textContent = `Add payment details for ${bill.biller}.`;
-  els.paidModal.hidden = false;
-  els.paidDateInput.focus();
-}
-
-function closePaidModal() {
-  state.markingPaidBillId = null;
-  els.paidModal.hidden = true;
-}
-
-function savePaidBill() {
-  const bill = state.bills.find((candidate) => candidate.id === state.markingPaidBillId);
-  if (!bill) {
-    closePaidModal();
-    return;
-  }
-
-  if (!els.paidDateInput.value) {
-    els.paidStatus.textContent = "Choose the date paid.";
-    return;
-  }
-
-  bill.status = "paid";
-  bill.paidAt = els.paidDateInput.value;
-  bill.paymentNotes = els.paymentNotesInput.value.trim();
-  bill.updatedAt = new Date().toISOString();
-  saveBills();
-  closePaidModal();
-  render();
-}
-
-function openRescheduleModal(bill) {
-  state.reschedulingBillId = bill.id;
-  els.rescheduleDateInput.value = bill.dueDate;
-  els.rescheduleNotesInput.value = bill.rescheduleNotes || "";
-  els.rescheduleStatus.textContent = `Choose a new due date for ${bill.biller}.`;
-  els.rescheduleModal.hidden = false;
-  els.rescheduleDateInput.focus();
-}
-
-function closeRescheduleModal() {
-  state.reschedulingBillId = null;
-  els.rescheduleModal.hidden = true;
-}
-
-function saveRescheduledBill() {
-  const bill = state.bills.find((candidate) => candidate.id === state.reschedulingBillId);
-  if (!bill) {
-    closeRescheduleModal();
-    return;
-  }
-
-  if (!els.rescheduleDateInput.value) {
-    els.rescheduleStatus.textContent = "Choose a due date.";
-    return;
-  }
-
-  bill.dueDate = els.rescheduleDateInput.value;
-  bill.rescheduleNotes = els.rescheduleNotesInput.value.trim();
-  bill.updatedAt = new Date().toISOString();
-  bill.remindedFor = [];
-  saveBills();
-  closeRescheduleModal();
-  render();
-}
-
-async function restoreSupabase() {
-  if (!hasSyncConnection()) {
-    updateSyncStatus("Cloud sync is available after deploying to Cloudflare Pages.");
-    return;
-  }
-
-  els.restoreSupabaseButton.disabled = true;
-  updateSyncStatus("Restoring from cloud...");
-
-  try {
-    const remoteBills = await fetchRemoteBills();
-    const remoteSettings = await fetchRemoteSettings();
-    if (remoteSettings) applyRemoteSettings(remoteSettings);
-    state.bills = mergeBills(state.bills, remoteBills);
-    saveBills();
-    saveSettings();
-    render();
-    updateSyncStatus(`Restored ${remoteBills.length} cloud bill${remoteBills.length === 1 ? "" : "s"} and reminder settings.`);
-  } catch (error) {
-    updateSyncStatus(error.message || "Restore failed.");
-  } finally {
-    els.restoreSupabaseButton.disabled = false;
-  }
-}
-
-async function upsertRemoteBills(bills) {
-  if (!bills.length) return;
-
-  const response = await cloudflareSyncRequest("/api/bills", {
-    method: "POST",
-    body: JSON.stringify({
-      appInstanceId: state.settings.appInstanceId,
-      bills
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-}
-
-async function fetchRemoteBills() {
-  const appId = encodeURIComponent(state.settings.appInstanceId);
-  const response = await cloudflareSyncRequest(`/api/bills?appInstanceId=${appId}`);
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-
-  const payload = await response.json();
-  return payload.bills || [];
-}
-
-async function syncReminderSettings() {
-  if (!hasSyncConnection()) return;
-
-  state.settings.timezone = getBrowserTimezone();
-  const response = await cloudflareSyncRequest("/api/settings", {
-    method: "POST",
-    body: JSON.stringify({
-      email: state.auth?.email || "",
-      reminderLeadDays: state.settings.reminderLeadDays,
-      emailReminders: state.settings.emailReminders,
-      timezone: state.settings.timezone
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-}
-
-async function syncReminderSettingsQuietly() {
-  try {
-    await syncReminderSettings();
-    updateSyncStatus("Reminder settings saved.");
-  } catch (error) {
-    updateSyncStatus(error.message || "Reminder settings will sync later.");
-  }
-}
-
-async function fetchRemoteSettings() {
-  if (!hasSyncConnection()) return null;
-
-  const response = await cloudflareSyncRequest("/api/settings");
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-
-  const payload = await response.json();
-  return payload.settings || null;
-}
-
-async function restoreReminderSettings() {
-  try {
-    const remoteSettings = await fetchRemoteSettings();
-    if (remoteSettings) {
-      applyRemoteSettings(remoteSettings);
-      saveSettings();
-      updateEmailReminderHint();
-      updateSyncStatus("Reminder settings restored.");
-      return;
-    }
-    await syncReminderSettings();
-  } catch (error) {
-    updateSyncStatus(error.message || "Reminder settings will sync later.");
-  }
-}
-
-function applyRemoteSettings(settings) {
-  if (!settings) return;
-  state.settings.reminderLeadDays = Number(settings.reminderLeadDays ?? state.settings.reminderLeadDays);
-  state.settings.emailReminders = Boolean(settings.emailReminders);
-  state.settings.timezone = settings.timezone || state.settings.timezone || getBrowserTimezone();
-  els.reminderLeadSelect.value = String(state.settings.reminderLeadDays);
-  els.emailReminderToggle.checked = state.settings.emailReminders;
-  updateEmailReminderHint();
-}
-
-function hasSyncConnection() {
-  return useCloudflareSync() && hasActiveSession();
-}
-
-function useCloudflareSync() {
-  return location.protocol.startsWith("http") && !["localhost", "127.0.0.1", "::1"].includes(location.hostname);
-}
-
-function cloudflareSyncRequest(path, options = {}) {
-  return fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "x-sync-secret": state.settings.syncSecret,
-      ...(state.auth?.accessToken ? { Authorization: `Bearer ${state.auth.accessToken}` } : {}),
-      ...(options.headers || {})
-    }
-  });
-}
-
-function hasActiveSession() {
-  if (!state.auth?.accessToken) return false;
-  if (!state.auth.expiresAt) return true;
-  return Number(state.auth.expiresAt) > Date.now() + 30000;
-}
-
-function mergeBills(localBills, remoteBills) {
-  const billsById = new Map();
-  [...remoteBills, ...localBills].forEach((bill) => {
-    billsById.set(bill.id, bill);
-  });
-  return Array.from(billsById.values());
-}
-
-function updateSyncStatus(message) {
-  if (message) {
-    els.syncStatus.textContent = message;
-    return;
-  }
-
-  if (useCloudflareSync()) {
-    els.syncStatus.textContent = hasActiveSession()
-      ? `Cloud sync ready. Device ID: ${state.settings.appInstanceId}`
-      : "Sign in to use cloud sync.";
-    return;
-  }
-
-  els.syncStatus.textContent = "Cloud sync activates on the hosted Cloudflare app.";
-}
-
+/* ============ preserved date helpers ============ */
 function dateFromInput(value) {
   const [year, month, day] = value.split("-").map(Number);
   return startOfDay(new Date(year, month - 1, day));
@@ -1625,3 +1732,7 @@ function formatDisplayDate(value) {
     year: "numeric"
   }).format(dateFromInput(value));
 }
+
+/* ============ bootstrap ============ */
+if (document.readyState !== "loading") init();
+else document.addEventListener("DOMContentLoaded", init);

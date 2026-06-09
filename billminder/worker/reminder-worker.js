@@ -1,5 +1,5 @@
 const DEFAULT_SUPABASE_URL = "https://qfjudxzxyvqraogwskwc.supabase.co";
-const DEFAULT_FROM = "Bill Minder <onboarding@resend.dev>";
+const DEFAULT_FROM = "Cleared <onboarding@resend.dev>";
 
 export default {
   async scheduled(controller, env, ctx) {
@@ -9,7 +9,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname !== "/run-reminders") {
-      return jsonResponse({ ok: true, service: "Bill Minder reminder worker" });
+      return jsonResponse({ ok: true, service: "Cleared reminder worker" });
     }
 
     if (env.REMINDER_CRON_SECRET) {

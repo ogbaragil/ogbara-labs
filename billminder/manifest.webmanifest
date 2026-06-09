@@ -1,12 +1,12 @@
 {
-  "name": "Bill Minder",
-  "short_name": "Bill Minder",
-  "description": "Track PDF bill details and get payment reminders.",
+  "name": "Cleared",
+  "short_name": "Cleared",
+  "description": "Scan statements, track due dates and amounts, and never miss a payment.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#fbfcfc",
-  "theme_color": "#22577a",
+  "background_color": "#f7f8fa",
+  "theme_color": "#0b1220",
   "icons": [
     {
       "src": "icons/icon.svg",

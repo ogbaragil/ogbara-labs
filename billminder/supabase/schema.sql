@@ -7,6 +7,8 @@ create table if not exists public.bills (
   biller text not null,
   amount numeric(12, 2) not null,
   due_date date not null,
+  category text not null default 'other',
+  recurrence text not null default 'once',
   reference text,
   notes text,
   file_name text,
@@ -46,6 +48,12 @@ alter table public.bills
 
 alter table public.bills
   add column if not exists reschedule_notes text;
+
+alter table public.bills
+  add column if not exists category text not null default 'other';
+
+alter table public.bills
+  add column if not exists recurrence text not null default 'once';
 
 update public.bills
 set client_bill_id = id::text

@@ -2,215 +2,135 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#22577a">
-    <title>Bill Minder</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1220">
+    <title>Cleared — bills, cleared</title>
+    <meta name="description" content="Scan statements, track due dates and amounts, and never miss a payment.">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icons/icon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
+    <!-- ============ AUTH ============ -->
     <section class="auth-screen" id="authScreen" hidden>
-      <div class="auth-card" id="authSigninCard">
-        <div class="brand auth-brand">
-          <div class="brand-mark" aria-hidden="true">BM</div>
-          <div>
-            <h1>Bill Minder</h1>
-            <p>Private bill reminders</p>
-          </div>
+      <div class="auth-card">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">C</span>
+          <span class="brand-name">Cleared<small>Bills, cleared.</small></span>
         </div>
-        <div>
-          <p class="eyebrow">Sign in</p>
-          <h2>Keep your bills backed up and ready.</h2>
+        <p class="eyebrow">Sign in</p>
+        <h1 id="authHeadline">Welcome back to Cleared.</h1>
+        <p class="auth-status" id="authStatus">Sign in to load your bills.</p>
+        <form id="authForm" novalidate>
+          <label>Email
+            <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required>
+          </label>
+          <label>Password
+            <input id="authPassword" type="password" placeholder="At least 6 characters" autocomplete="current-password" required>
+          </label>
+          <label id="authConfirmRow" hidden>Confirm password
+            <input id="authConfirm" type="password" placeholder="Re-enter password" autocomplete="new-password">
+          </label>
+          <button class="btn primary block" id="authPrimary" type="submit">Log in</button>
+        </form>
+        <div class="auth-links">
+          <button class="link" id="authToggleSignup" type="button">New here? Create account</button>
+          <button class="link" id="authForgotButton" type="button">Forgot password?</button>
         </div>
-        <p id="authScreenStatus" class="auth-message">Use your Bill Minder account to continue.</p>
-        <label>
-          Email
-          <input id="authScreenEmailInput" type="email" placeholder="you@example.com" autocomplete="email">
-        </label>
-        <label>
-          Password
-          <input id="authScreenPasswordInput" type="password" placeholder="Minimum 6 characters" autocomplete="current-password">
-        </label>
-        <div class="form-actions">
-          <button class="primary-button" id="authScreenLoginButton" type="button">Log in</button>
-          <button class="secondary-button" id="authScreenSignupButton" type="button">Create account</button>
-        </div>
-        <button class="link-button" id="authScreenForgotButton" type="button">Forgot password?</button>
       </div>
-
-      <form class="auth-card" id="authSignupCard" hidden>
-        <div class="brand auth-brand">
-          <div class="brand-mark" aria-hidden="true">BM</div>
-          <div>
-            <h1>Bill Minder</h1>
-            <p>Private bill reminders</p>
-          </div>
-        </div>
-        <div>
-          <p class="eyebrow">Sign up</p>
-          <h2>Create your Bill Minder account.</h2>
-        </div>
-        <p id="authSignupStatus" class="auth-message">Use this form only when making a new account.</p>
-        <label>
-          Email
-          <input id="authSignupEmailInput" type="email" placeholder="you@example.com" autocomplete="email" required>
-        </label>
-        <label>
-          Password
-          <input id="authSignupPasswordInput" type="password" placeholder="Minimum 6 characters" autocomplete="new-password" required>
-        </label>
-        <label>
-          Confirm password
-          <input id="authSignupConfirmPasswordInput" type="password" placeholder="Re-enter password" autocomplete="new-password" required>
-        </label>
-        <div class="form-actions">
-          <button class="secondary-button" id="backToSigninButton" type="button">Back to sign in</button>
-          <button class="primary-button" id="authCreateAccountButton" type="submit">Create account</button>
-        </div>
-      </form>
     </section>
 
-    <div class="app-shell" id="appShell">
-      <aside class="sidebar" aria-label="App navigation">
+    <!-- ============ APP ============ -->
+    <div class="app-shell" id="appShell" hidden>
+      <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark" aria-hidden="true">BM</div>
-          <div>
-            <h1>Bill Minder</h1>
-            <p>Private bill reminders</p>
-          </div>
+          <span class="brand-mark" aria-hidden="true">C</span>
+          <span class="brand-name">Cleared<small>Bills, cleared.</small></span>
         </div>
-        <nav class="nav-tabs" aria-label="Views">
-          <button class="nav-tab is-active" type="button" data-view="dashboard" aria-pressed="true">
-            <span aria-hidden="true">#</span>
-            Dashboard
-          </button>
-          <button class="nav-tab" type="button" data-view="upload" aria-pressed="false">
-            <span aria-hidden="true">+</span>
-            Add bill
-          </button>
-          <button class="nav-tab" type="button" data-view="settings" aria-pressed="false">
-            <span aria-hidden="true">!</span>
-            Settings
-          </button>
+        <nav class="nav" aria-label="Views">
+          <button class="nav-item is-active" data-view="dashboard" type="button"><span class="nav-ic">◧</span>Dashboard</button>
+          <button class="nav-item" data-view="bills" type="button"><span class="nav-ic">▤</span>Bills</button>
+          <button class="nav-item" data-view="calendar" type="button"><span class="nav-ic">▦</span>Calendar</button>
+          <button class="nav-item" data-view="forecast" type="button"><span class="nav-ic">▰</span>Forecast</button>
+          <button class="nav-item" data-view="settings" type="button"><span class="nav-ic">⚙</span>Settings</button>
         </nav>
-        <div class="privacy-note">
-          <strong>Local first</strong>
-          <span>Data is stored in this browser for the MVP.</span>
+        <button class="btn primary block sidebar-add" id="addBillButton" type="button">+ Add bill</button>
+        <div class="sync-chip idle" id="syncChip">
+          <span class="sync-ic" aria-hidden="true">☁</span>
+          <span class="sync-text"><strong id="syncChipText">All data synced</strong><small id="syncChipSub">Just now</small></span>
         </div>
       </aside>
 
       <main class="main">
-        <section class="topbar" aria-label="Summary">
+        <header class="topbar">
           <div>
-            <p class="eyebrow">Today</p>
-            <h2 id="todayLabel">Upcoming bills</h2>
+            <h2 id="greetingName">Good morning</h2>
+            <p class="topbar-sub">Here's your financial overview for today.</p>
           </div>
           <div class="topbar-actions">
-            <button class="icon-button" id="installButton" type="button" hidden title="Install app" aria-label="Install app">v</button>
-            <button class="primary-button" type="button" data-view-jump="upload">Add bill</button>
+            <button class="icon-btn" id="installButton" type="button" hidden title="Install app" aria-label="Install app">⤓</button>
+            <button class="btn primary" id="topbarAdd" type="button">+ Add bill</button>
+          </div>
+        </header>
+
+        <!-- Dashboard -->
+        <section class="view is-visible" id="dashboardView">
+          <div class="dash-top">
+            <div class="card hero-card" id="dashStatus"></div>
+            <div class="stats-grid" id="dashStats"></div>
+          </div>
+          <div class="dash-grid">
+            <div class="card" id="dashUpcoming"></div>
+            <div class="card" id="dashForecast"></div>
+            <div class="card" id="dashCalendar"></div>
+            <div class="card" id="dashCategory"></div>
+            <div class="card" id="dashActivity"></div>
+            <div class="card" id="dashInsights"></div>
           </div>
         </section>
 
-        <section class="view is-visible" id="dashboardView">
-          <div class="stats-grid" aria-label="Bill summary">
-            <article class="stat-card">
-              <span>Total unpaid</span>
-              <strong id="totalUnpaid">$0.00</strong>
-            </article>
-            <article class="stat-card">
-              <span>Due next 7 days</span>
-              <strong id="dueSoonCount">0</strong>
-            </article>
-            <article class="stat-card">
-              <span>Overdue</span>
-              <strong id="overdueCount">0</strong>
-            </article>
-          </div>
-
-          <div class="section-heading">
-            <h3>Bills</h3>
-            <div class="segmented" role="group" aria-label="Filter bills">
-              <button class="is-selected" type="button" data-filter="unpaid">Unpaid</button>
-              <button type="button" data-filter="all">All</button>
-              <button type="button" data-filter="paid">Paid</button>
+        <!-- Bills -->
+        <section class="view" id="billsView">
+          <div class="view-head">
+            <h3>All bills</h3>
+            <div class="segmented" id="billsFilter" role="group" aria-label="Filter bills">
+              <button class="is-selected" data-filter="unpaid" type="button">Unpaid</button>
+              <button data-filter="overdue" type="button">Overdue</button>
+              <button data-filter="paid" type="button">Paid</button>
+              <button data-filter="all" type="button">All</button>
             </div>
           </div>
+          <div class="card"><div class="bill-rows" id="billsList"></div></div>
+        </section>
 
-          <div class="bill-list" id="billList" aria-live="polite"></div>
-          <div class="empty-state" id="emptyState" hidden>
-            <h3>No bills yet</h3>
-            <p>Add a PDF bill, review the extracted details, and Bill Minder will track the due date.</p>
-            <button class="primary-button" type="button" data-view-jump="upload">Add first bill</button>
+        <!-- Calendar -->
+        <section class="view" id="calendarView">
+          <div class="card" id="calendarFull"></div>
+        </section>
+
+        <!-- Forecast -->
+        <section class="view" id="forecastView">
+          <div class="forecast-grid">
+            <div class="card" id="forecastChart"></div>
+            <div class="card" id="forecastCategory"></div>
+            <div class="card" id="forecastTable"></div>
           </div>
         </section>
 
-        <section class="view" id="uploadView">
-          <div class="upload-layout">
-            <form class="upload-panel" id="billForm">
-              <div class="drop-zone" id="dropZone">
-                <input id="pdfInput" name="pdf" type="file" accept="application/pdf">
-                <div>
-                  <strong>Drop a PDF bill here</strong>
-                  <span>or choose a file to extract the key details</span>
-                </div>
-              </div>
-
-              <div class="form-grid">
-                <label>
-                  Biller
-                  <input id="billerInput" name="biller" type="text" placeholder="Energy Co" required>
-                </label>
-                <label>
-                  Amount due
-                  <input id="amountInput" name="amount" type="number" min="0" step="0.01" placeholder="128.40" required>
-                </label>
-                <label>
-                  Due date
-                  <input id="dueDateInput" name="dueDate" type="date" required>
-                </label>
-                <label>
-                  Reference
-                  <input id="referenceInput" name="reference" type="text" placeholder="Account or invoice number">
-                </label>
-              </div>
-
-              <label>
-                Notes
-                <textarea id="notesInput" name="notes" rows="3" placeholder="Payment link, BPAY details, or anything useful"></textarea>
-              </label>
-
-              <div class="form-actions">
-                <button class="secondary-button" id="clearFormButton" type="button">Clear</button>
-                <button class="primary-button" type="submit">Save bill</button>
-              </div>
-            </form>
-
-            <aside class="review-panel">
-              <div class="section-heading compact">
-                <h3>Extraction review</h3>
-                <span id="confidenceBadge" class="badge">Waiting</span>
-              </div>
-              <p id="extractStatus">Upload a PDF and I will look for amount, due date, biller, and reference details.</p>
-              <button class="secondary-button" id="aiExtractButton" type="button" disabled>AI extract</button>
-              <pre id="extractPreview" aria-label="Extracted PDF text preview"></pre>
-            </aside>
-          </div>
-        </section>
-
+        <!-- Settings -->
         <section class="view" id="settingsView">
           <div class="settings-grid">
-            <article class="settings-panel wide-panel">
+            <article class="card settings-panel">
               <h3>Account</h3>
-              <p id="authStatus">Not signed in.</p>
-              <div class="form-actions align-left">
-                <button class="secondary-button" id="logoutButton" type="button">Log out</button>
-              </div>
+              <p id="accountStatus" class="muted">Not signed in.</p>
+              <button class="btn ghost" id="logoutButton" type="button">Log out</button>
             </article>
-            <article class="settings-panel">
+            <article class="card settings-panel">
               <h3>Reminders</h3>
-              <label>
-                Remind me
+              <label class="field">Remind me
                 <select id="reminderLeadSelect">
                   <option value="0">On the due date</option>
                   <option value="1">1 day before</option>
@@ -219,156 +139,133 @@
                 </select>
               </label>
               <label class="toggle-row">
-                <span>
-                  Email notifications
-                  <small id="emailReminderHint">Sent to your signed-in email.</small>
-                </span>
+                <span>Email reminders<small id="emailReminderHint"></small></span>
                 <input id="emailReminderToggle" type="checkbox">
               </label>
             </article>
-            <article class="settings-panel">
-              <h3>Data</h3>
-              <p>Bills are saved in this browser. Export before clearing browser data or changing devices.</p>
-              <div class="form-actions align-left">
-                <button class="secondary-button" id="exportButton" type="button">Export JSON</button>
-                <button class="secondary-button" id="importButton" type="button">Import JSON</button>
-                <button class="danger-button" id="clearBillsButton" type="button">Clear bills</button>
+            <article class="card settings-panel">
+              <h3>Your data</h3>
+              <p class="muted">Bills live on this device and sync to your account. Export a backup anytime.</p>
+              <div class="btn-row">
+                <button class="btn ghost" id="exportButton" type="button">Export JSON</button>
+                <button class="btn ghost" id="importButton" type="button">Import JSON</button>
+                <button class="btn danger-text" id="clearBillsButton" type="button">Clear bills</button>
               </div>
               <input id="importInput" type="file" accept="application/json,.json" hidden>
             </article>
-            <article class="settings-panel wide-panel">
+            <article class="card settings-panel">
               <h3>Cloud sync</h3>
-              <p>Back up this browser's bills and restore them on this device.</p>
-              <div class="form-actions align-left">
-                <button class="primary-button" id="syncSupabaseButton" type="button">Sync now</button>
-                <button class="secondary-button" id="restoreSupabaseButton" type="button">Restore cloud</button>
+              <p class="muted">Back up to your account and pull the latest on this device.</p>
+              <div class="btn-row">
+                <button class="btn primary" id="syncSupabaseButton" type="button">Sync now</button>
+                <button class="btn ghost" id="restoreSupabaseButton" type="button">Pull latest</button>
               </div>
-              <p id="syncStatus" class="sync-status">Not connected.</p>
+              <p class="muted sync-status" id="syncStatus">Connected.</p>
             </article>
           </div>
         </section>
       </main>
+
+      <!-- Mobile bottom nav -->
+      <nav class="bottom-nav" aria-label="Views">
+        <button class="bn-item is-active" data-view="dashboard" type="button"><span>◧</span>Home</button>
+        <button class="bn-item" data-view="bills" type="button"><span>▤</span>Bills</button>
+        <button class="bn-add" id="topbarAddMobile" type="button" aria-label="Add bill">+</button>
+        <button class="bn-item" data-view="calendar" type="button"><span>▦</span>Calendar</button>
+        <button class="bn-item" data-view="settings" type="button"><span>⚙</span>More</button>
+      </nav>
     </div>
 
-    <template id="billItemTemplate">
-      <article class="bill-item">
-        <div class="bill-main">
-          <div class="bill-title-row">
-            <h4></h4>
-          </div>
-          <div class="bill-detail-row">
-            <button class="details-button" type="button">Details +</button>
-            <span class="reference-chip" hidden></span>
-          </div>
-          <p class="bill-notes" hidden></p>
+    <!-- ============ Add / edit bill sheet ============ -->
+    <div class="sheet" id="billSheet" aria-hidden="true">
+      <div class="sheet-backdrop" id="billSheetBackdrop"></div>
+      <div class="sheet-panel">
+        <div class="sheet-head">
+          <h2 id="billSheetTitle">Add bill</h2>
+          <button class="icon-btn" id="closeBillSheet" type="button" aria-label="Close">✕</button>
         </div>
-        <div class="bill-side">
-          <div class="bill-summary">
-            <span class="status-pill"></span>
-            <strong class="bill-amount"></strong>
-            <span class="bill-date"></span>
+        <form id="billForm" novalidate>
+          <div class="drop-zone" id="dropZone">
+            <input id="pdfInput" name="pdf" type="file" accept="application/pdf">
+            <strong>Drop a statement or bill PDF</strong>
+            <span>or tap to choose a file — we'll pull out the details</span>
           </div>
-          <div class="bill-actions">
-            <button class="success-button mark-paid" type="button">Mark Paid</button>
-            <button class="primary-button reschedule-bill" type="button">Reschedule</button>
-            <button class="icon-button delete-bill" type="button" title="Delete bill" aria-label="Delete bill">Del</button>
+          <div class="extract-row">
+            <button class="btn ghost sm" id="aiExtractButton" type="button" disabled>AI extract</button>
+            <span class="badge" id="confidenceBadge">Waiting</span>
           </div>
-        </div>
-      </article>
-    </template>
+          <p class="extract-status" id="extractStatus">Upload a statement or bill PDF and Cleared will pull out the amount, due date, biller and reference.</p>
+          <pre class="extract-preview" id="extractPreview" aria-label="Extracted text preview"></pre>
 
+          <div class="form-grid">
+            <label>Biller<input id="billerInput" type="text" placeholder="Origin Energy" required></label>
+            <label>Amount due<input id="amountInput" type="number" min="0" step="0.01" placeholder="128.40" required></label>
+            <label>Due date<input id="dueDateInput" type="date" required></label>
+            <label>Category<select id="categoryInput"></select></label>
+            <label>Repeats
+              <select id="recurrenceInput">
+                <option value="once">One-off</option>
+                <option value="weekly">Weekly</option>
+                <option value="fortnightly">Fortnightly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            <label>Reference<input id="referenceInput" type="text" placeholder="Account or invoice number"></label>
+          </div>
+          <label>Notes<textarea id="notesInput" rows="2" placeholder="BPAY, payment link, or anything useful"></textarea></label>
+          <div class="sheet-actions">
+            <button class="btn ghost" id="clearFormButton" type="button">Clear</button>
+            <button class="btn primary" type="submit">Save bill</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ============ Bill detail sheet ============ -->
+    <div class="sheet" id="detailSheet" aria-hidden="true">
+      <div class="sheet-backdrop" id="detailSheetBackdrop"></div>
+      <div class="sheet-panel">
+        <div class="sheet-head">
+          <h2>Bill</h2>
+          <button class="icon-btn" id="closeDetailSheet" type="button" aria-label="Close">✕</button>
+        </div>
+        <div id="detailBody"></div>
+      </div>
+    </div>
+
+    <!-- ============ Modals ============ -->
     <div class="modal-backdrop" id="paidModal" hidden>
       <form class="modal-card" id="paidForm">
-        <div class="modal-heading">
-          <h2>Payment details</h2>
-          <button class="icon-button" id="closePaidButton" type="button" aria-label="Close">x</button>
-        </div>
-        <p id="paidStatus" class="auth-message">Add the payment date and any notes.</p>
-        <label>
-          Date paid
-          <input id="paidDateInput" type="date" required>
-        </label>
-        <label>
-          Payment notes
-          <textarea id="paymentNotesInput" rows="3" placeholder="Receipt number, payment method, or anything useful"></textarea>
-        </label>
-        <div class="form-actions">
-          <button class="secondary-button" id="cancelPaidButton" type="button">Cancel</button>
-          <button class="primary-button" type="submit">Save as paid</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="modal-backdrop" id="signupModal" hidden>
-      <form class="modal-card" id="signupForm">
-        <div class="modal-heading">
-          <h2>Create account</h2>
-          <button class="icon-button" id="closeSignupModalButton" type="button" aria-label="Close">x</button>
-        </div>
-        <p id="signupStatus" class="auth-message">Create an account to sync bills across devices.</p>
-        <label>
-          Email
-          <input id="signupEmailInput" type="email" placeholder="you@example.com" autocomplete="email" required>
-        </label>
-        <label>
-          Password
-          <input id="signupPasswordInput" type="password" placeholder="Minimum 6 characters" autocomplete="new-password" required>
-        </label>
-        <label>
-          Confirm password
-          <input id="signupConfirmPasswordInput" type="password" placeholder="Re-enter password" autocomplete="new-password" required>
-        </label>
-        <div class="form-actions">
-          <button class="secondary-button" id="cancelSignupButton" type="button">Cancel</button>
-          <button class="primary-button" id="createAccountButton" type="submit">Create account</button>
-        </div>
+        <div class="modal-head"><h2>Mark as paid</h2><button class="icon-btn" id="closePaidButton" type="button" aria-label="Close">✕</button></div>
+        <p class="muted" id="paidStatus">Add the payment date and any notes.</p>
+        <label>Date paid<input id="paidDateInput" type="date" required></label>
+        <label>Payment notes<textarea id="paymentNotesInput" rows="2" placeholder="Receipt number or method"></textarea></label>
+        <div class="sheet-actions"><button class="btn ghost" id="cancelPaidButton" type="button">Cancel</button><button class="btn primary" type="submit">Save as paid</button></div>
       </form>
     </div>
 
     <div class="modal-backdrop" id="rescheduleModal" hidden>
       <form class="modal-card" id="rescheduleForm">
-        <div class="modal-heading">
-          <h2>Reschedule bill</h2>
-          <button class="icon-button" id="closeRescheduleButton" type="button" aria-label="Close">x</button>
-        </div>
-        <p id="rescheduleStatus" class="auth-message">Choose a new due date.</p>
-        <label>
-          Due date
-          <input id="rescheduleDateInput" type="date" required>
-        </label>
-        <label>
-          Reschedule notes
-          <textarea id="rescheduleNotesInput" rows="3" placeholder="Reason, payment plan, or follow-up note"></textarea>
-        </label>
-        <div class="form-actions">
-          <button class="secondary-button" id="cancelRescheduleButton" type="button">Cancel</button>
-          <button class="primary-button" type="submit">Save date</button>
-        </div>
+        <div class="modal-head"><h2>Reschedule</h2><button class="icon-btn" id="closeRescheduleButton" type="button" aria-label="Close">✕</button></div>
+        <p class="muted" id="rescheduleStatus">Choose a new due date.</p>
+        <label>New due date<input id="rescheduleDateInput" type="date" required></label>
+        <label>Reschedule notes<textarea id="rescheduleNotesInput" rows="2" placeholder="Reason or payment plan"></textarea></label>
+        <div class="sheet-actions"><button class="btn ghost" id="cancelRescheduleButton" type="button">Cancel</button><button class="btn primary" type="submit">Save date</button></div>
       </form>
     </div>
 
     <div class="modal-backdrop" id="resetPasswordModal" hidden>
       <form class="modal-card" id="resetPasswordForm">
-        <div class="modal-heading">
-          <h2>Set new password</h2>
-          <button class="icon-button" id="closeResetPasswordButton" type="button" aria-label="Close">x</button>
-        </div>
-        <p id="resetPasswordStatus" class="auth-message">Enter a new password for your account.</p>
-        <label>
-          New password
-          <input id="newPasswordInput" type="password" placeholder="Minimum 6 characters" autocomplete="new-password" required>
-        </label>
-        <label>
-          Confirm password
-          <input id="confirmNewPasswordInput" type="password" placeholder="Re-enter password" autocomplete="new-password" required>
-        </label>
-        <div class="form-actions">
-          <button class="secondary-button" id="cancelResetPasswordButton" type="button">Cancel</button>
-          <button class="primary-button" id="saveNewPasswordButton" type="submit">Save password</button>
-        </div>
+        <div class="modal-head"><h2>Set a new password</h2><button class="icon-btn" id="closeResetPasswordButton" type="button" aria-label="Close">✕</button></div>
+        <p class="muted" id="resetPasswordStatus">Enter a new password for your account.</p>
+        <label>New password<input id="newPasswordInput" type="password" placeholder="At least 6 characters" autocomplete="new-password" required></label>
+        <label>Confirm password<input id="confirmNewPasswordInput" type="password" placeholder="Re-enter password" autocomplete="new-password" required></label>
+        <div class="sheet-actions"><button class="btn ghost" id="cancelResetPasswordButton" type="button">Cancel</button><button class="btn primary" id="saveNewPasswordButton" type="submit">Save password</button></div>
       </form>
     </div>
 
-    <script src="app.js" type="module"></script>
+    <script src="app.js" defer></script>
   </body>
 </html>
