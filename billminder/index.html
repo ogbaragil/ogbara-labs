@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0b1220">
+    <meta name="theme-color" content="#f4f5f7">
     <title>Cleared — bills, cleared</title>
     <meta name="description" content="Scan statements, track due dates and amounts, and never miss a payment.">
     <link rel="manifest" href="manifest.webmanifest">
@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=cleared-3">
+    <link rel="stylesheet" href="styles.css?v=cleared-4">
   </head>
   <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -28,6 +28,7 @@
           stroke-linecap="round" stroke-linejoin="round"/>
       </symbol>
     </svg>
+
     <!-- ============ AUTH ============ -->
     <section class="auth-screen" id="authScreen" hidden>
       <div class="auth-card">
@@ -58,136 +59,116 @@
     </section>
 
     <!-- ============ APP ============ -->
-    <div class="app-shell" id="appShell" hidden>
-      <aside class="sidebar">
-        <div class="brand">
-          <span class="brand-mark" aria-hidden="true"><svg class="mark" viewBox="0 0 64 64"><use href="#clearedMark"/></svg></span>
-          <span class="brand-name">Cleared<small>Clear today. Move forward.</small></span>
+    <div class="app" id="appShell" hidden>
+      <header class="appbar">
+        <div class="appbar-text">
+          <h1 id="greetingName">Good morning</h1>
+          <p class="appbar-sub">Here's what's happening with your bills.</p>
         </div>
-        <nav class="nav" aria-label="Views">
-          <button class="nav-item is-active" data-view="dashboard" type="button"><span class="nav-ic">◧</span>Dashboard</button>
-          <button class="nav-item" data-view="bills" type="button"><span class="nav-ic">▤</span>Bills</button>
-          <button class="nav-item" data-view="calendar" type="button"><span class="nav-ic">▦</span>Calendar</button>
-          <button class="nav-item" data-view="forecast" type="button"><span class="nav-ic">▰</span>Forecast</button>
-          <button class="nav-item" data-view="settings" type="button"><span class="nav-ic">⚙</span>Settings</button>
-        </nav>
-        <button class="btn primary block sidebar-add" id="addBillButton" type="button">+ Add bill</button>
-        <div class="sync-chip idle" id="syncChip">
-          <span class="sync-ic" aria-hidden="true">☁</span>
-          <span class="sync-text"><strong id="syncChipText">All data synced</strong><small id="syncChipSub">Just now</small></span>
+        <div class="appbar-actions">
+          <button class="round-btn" id="installButton" type="button" hidden title="Install app" aria-label="Install app">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+          </button>
+          <button class="round-btn" id="remindersBtn" type="button" aria-label="Reminders">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+            <span class="badge-dot" id="reminderBadge" hidden></span>
+          </button>
+          <button class="round-btn" id="accountBtn" type="button" aria-label="Account">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.4-4 12.6-4 14 0"/></svg>
+          </button>
         </div>
-      </aside>
+      </header>
 
-      <main class="main">
-        <header class="topbar">
-          <div>
-            <h2 id="greetingName">Good morning</h2>
-            <p class="topbar-sub">Here's your financial overview for today.</p>
-          </div>
-          <div class="topbar-actions">
-            <button class="icon-btn" id="installButton" type="button" hidden title="Install app" aria-label="Install app">⤓</button>
-            <button class="btn primary" id="topbarAdd" type="button">+ Add bill</button>
-          </div>
-        </header>
-
-        <!-- Dashboard -->
-        <section class="view is-visible" id="dashboardView">
-          <div class="dash-top">
-            <div class="card hero-card" id="dashStatus"></div>
-            <div class="stats-grid" id="dashStats"></div>
-          </div>
-          <div class="dash-grid">
-            <div class="card" id="dashUpcoming"></div>
-            <div class="card" id="dashForecast"></div>
-            <div class="card" id="dashCalendar"></div>
-            <div class="card" id="dashCategory"></div>
-            <div class="card" id="dashActivity"></div>
-            <div class="card" id="dashInsights"></div>
-          </div>
+      <main class="screens">
+        <!-- Overview -->
+        <section class="screen is-visible" id="overviewScreen">
+          <div id="ovHero"></div>
+          <div id="ovStats"></div>
+          <section class="panel" id="ovUpcoming"></section>
+          <div id="ovMonth"></div>
+          <div id="ovActions"></div>
         </section>
 
         <!-- Bills -->
-        <section class="view" id="billsView">
-          <div class="view-head">
-            <h3>All bills</h3>
-            <div class="segmented" id="billsFilter" role="group" aria-label="Filter bills">
-              <button class="is-selected" data-filter="unpaid" type="button">Unpaid</button>
-              <button data-filter="overdue" type="button">Overdue</button>
-              <button data-filter="paid" type="button">Paid</button>
-              <button data-filter="all" type="button">All</button>
-            </div>
+        <section class="screen" id="billsScreen">
+          <div class="seg-tabs" id="billsTabs" role="group" aria-label="Filter bills">
+            <button data-tab="all" class="is-selected" type="button">All</button>
+            <button data-tab="due" type="button">Due soon <span class="seg-badge" id="dueSoonBadge"></span></button>
+            <button data-tab="paid" type="button">Paid</button>
+            <button data-tab="upcoming" type="button">Upcoming</button>
           </div>
-          <div class="card"><div class="bill-rows" id="billsList"></div></div>
+          <div id="billsSummary"></div>
+          <div id="billsGroups"></div>
         </section>
 
         <!-- Calendar -->
-        <section class="view" id="calendarView">
-          <div class="card" id="calendarFull"></div>
+        <section class="screen" id="calendarScreen">
+          <div id="calendarFull"></div>
+          <div id="calendarDay"></div>
         </section>
 
-        <!-- Forecast -->
-        <section class="view" id="forecastView">
-          <div class="forecast-grid">
-            <div class="card" id="forecastChart"></div>
-            <div class="card" id="forecastCategory"></div>
-            <div class="card" id="forecastTable"></div>
-          </div>
-        </section>
-
-        <!-- Settings -->
-        <section class="view" id="settingsView">
-          <div class="settings-grid">
-            <article class="card settings-panel">
-              <h3>Account</h3>
-              <p id="accountStatus" class="muted">Not signed in.</p>
-              <button class="btn ghost" id="logoutButton" type="button">Log out</button>
-            </article>
-            <article class="card settings-panel">
-              <h3>Reminders</h3>
-              <label class="field">Remind me
-                <select id="reminderLeadSelect">
-                  <option value="0">On the due date</option>
-                  <option value="1">1 day before</option>
-                  <option value="3" selected>3 days before</option>
-                  <option value="7">7 days before</option>
-                </select>
-              </label>
-              <label class="toggle-row">
-                <span>Email reminders<small id="emailReminderHint"></small></span>
-                <input id="emailReminderToggle" type="checkbox">
-              </label>
-            </article>
-            <article class="card settings-panel">
-              <h3>Your data</h3>
-              <p class="muted">Bills live on this device and sync to your account. Export a backup anytime.</p>
-              <div class="btn-row">
-                <button class="btn ghost" id="exportButton" type="button">Export JSON</button>
-                <button class="btn ghost" id="importButton" type="button">Import JSON</button>
-                <button class="btn danger-text" id="clearBillsButton" type="button">Clear bills</button>
-              </div>
-              <input id="importInput" type="file" accept="application/json,.json" hidden>
-            </article>
-            <article class="card settings-panel">
-              <h3>Cloud sync</h3>
-              <p class="muted">Back up to your account and pull the latest on this device.</p>
-              <div class="btn-row">
-                <button class="btn primary" id="syncSupabaseButton" type="button">Sync now</button>
-                <button class="btn ghost" id="restoreSupabaseButton" type="button">Pull latest</button>
-              </div>
-              <p class="muted sync-status" id="syncStatus">Connected.</p>
-            </article>
-          </div>
+        <!-- More -->
+        <section class="screen" id="moreScreen">
+          <article class="panel settings-panel">
+            <h3>Reminders</h3>
+            <label class="field">Remind me
+              <select id="reminderLeadSelect">
+                <option value="0">On the due date</option>
+                <option value="1">1 day before</option>
+                <option value="3" selected>3 days before</option>
+                <option value="7">7 days before</option>
+              </select>
+            </label>
+            <label class="toggle-row">
+              <span>Email reminders<small id="emailReminderHint"></small></span>
+              <input id="emailReminderToggle" type="checkbox">
+            </label>
+          </article>
+          <article class="panel settings-panel">
+            <h3>Your data</h3>
+            <p class="muted">Bills live on this device and sync to your account. Export a backup anytime.</p>
+            <div class="btn-row">
+              <button class="btn ghost" id="exportButton" type="button">Export JSON</button>
+              <button class="btn ghost" id="importButton" type="button">Import JSON</button>
+              <button class="btn danger-text" id="clearBillsButton" type="button">Clear bills</button>
+            </div>
+            <input id="importInput" type="file" accept="application/json,.json" hidden>
+          </article>
+          <article class="panel settings-panel">
+            <h3>Cloud sync</h3>
+            <p class="muted">Back up to your account and pull the latest on this device.</p>
+            <div class="btn-row">
+              <button class="btn primary" id="syncSupabaseButton" type="button">Sync now</button>
+              <button class="btn ghost" id="restoreSupabaseButton" type="button">Pull latest</button>
+            </div>
+            <p class="muted sync-status" id="syncStatus">Connected.</p>
+          </article>
+          <article class="panel settings-panel">
+            <h3>Account</h3>
+            <p id="accountStatus" class="muted">Not signed in.</p>
+            <button class="btn ghost" id="logoutButton" type="button">Log out</button>
+          </article>
           <p class="app-tag">Cleared by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a></p>
         </section>
       </main>
 
-      <!-- Mobile bottom nav -->
-      <nav class="bottom-nav" aria-label="Views">
-        <button class="bn-item is-active" data-view="dashboard" type="button"><span>◧</span>Home</button>
-        <button class="bn-item" data-view="bills" type="button"><span>▤</span>Bills</button>
-        <button class="bn-add" id="topbarAddMobile" type="button" aria-label="Add bill">+</button>
-        <button class="bn-item" data-view="calendar" type="button"><span>▦</span>Calendar</button>
-        <button class="bn-item" data-view="settings" type="button"><span>⚙</span>More</button>
+      <!-- Bottom tab bar -->
+      <nav class="tabbar" aria-label="Sections">
+        <button class="tab is-active" data-view="overview" type="button">
+          <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 4l9 6.5"/><path d="M5 9.5V20h14V9.5"/></svg></span>Overview
+        </button>
+        <button class="tab" data-view="bills" type="button">
+          <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg></span>Bills
+        </button>
+        <button class="tab-fab" id="fabAdd" type="button" aria-label="Add bill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="tab" data-view="calendar" type="button">
+          <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v4M16 3v4"/></svg></span>Calendar
+        </button>
+        <button class="tab" data-view="more" type="button">
+          <span class="tab-ic"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span>More
+        </button>
       </nav>
     </div>
 
@@ -202,6 +183,7 @@
         <form id="billForm" novalidate>
           <div class="drop-zone" id="dropZone">
             <input id="pdfInput" name="pdf" type="file" accept="application/pdf">
+            <span class="extract-spin" id="extractSpin" hidden aria-hidden="true"><svg class="mark" viewBox="0 0 64 64"><use href="#clearedMark"/></svg></span>
             <strong>Drop a statement or bill PDF</strong>
             <span>or tap to choose a file — we'll pull out the details</span>
           </div>
@@ -281,6 +263,6 @@
       </form>
     </div>
 
-    <script src="app.js?v=cleared-1" defer></script>
+    <script src="app.js?v=cleared-2" defer></script>
   </body>
 </html>

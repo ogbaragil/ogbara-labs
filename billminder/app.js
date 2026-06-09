@@ -68,10 +68,17 @@ function init() {
   state.bills = readJson(STORE_KEY, []).map(normalizeBill);
   state.settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
   state.auth = readJson(AUTH_KEY, null);
+  state.view = "overview";
+  state.billsTab = "all";
+  state.selectedDate = null;
+  state.calendarMonth = startOfDay(new Date());
+  state.collapsed = {};
+  state.expanded = {};
   saveSettings();
 
   setupNavigation();
-  setupTopbar();
+  setupHeader();
+  setupBillsTabs();
   setupBillSheet();
   setupDetailSheet();
   setupModals();
@@ -83,10 +90,7 @@ function init() {
   updateAuthGate();
   render();
 
-  if (hasSyncConnection()) {
-    restoreReminderSettings();
-    restoreSupabase().catch(() => {});
-  }
+  if (hasSyncConnection()) { restoreReminderSettings(); restoreSupabase().catch(() => {}); }
   window.addEventListener("focus", () => { if (hasSyncConnection()) restoreSupabase().catch(() => {}); });
 }
 
@@ -98,27 +102,34 @@ function migrateLegacyKeys() {
   }
 }
 
-/* ---------------- navigation ---------------- */
 function setupNavigation() {
   $$("[data-view]").forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
 }
 
 function showView(view) {
   state.view = view;
-  $$(".view").forEach((v) => v.classList.toggle("is-visible", v.id === `${view}View`));
-  $$("[data-view]").forEach((btn) => {
-    const active = btn.dataset.view === view;
-    btn.classList.toggle("is-active", active);
-    btn.setAttribute("aria-current", active ? "page" : "false");
+  $$(".screen").forEach((sec) => sec.classList.toggle("is-visible", sec.id === `${view}Screen`));
+  $$("[data-view]").forEach((b) => {
+    const active = b.dataset.view === view;
+    b.classList.toggle("is-active", active);
+    b.setAttribute("aria-current", active ? "page" : "false");
   });
   render();
-  $(".main")?.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function setupTopbar() {
-  $("#addBillButton")?.addEventListener("click", () => openBillSheet());
-  $("#topbarAdd")?.addEventListener("click", () => openBillSheet());
-  $("#topbarAddMobile")?.addEventListener("click", () => openBillSheet());
+function setupHeader() {
+  $("#fabAdd")?.addEventListener("click", () => openBillSheet());
+  $("#remindersBtn")?.addEventListener("click", () => showView("more"));
+  $("#accountBtn")?.addEventListener("click", () => showView("more"));
+}
+
+function setupBillsTabs() {
+  $$("#billsTabs button").forEach((b) => b.addEventListener("click", () => {
+    state.billsTab = b.dataset.tab;
+    $$("#billsTabs button").forEach((x) => x.classList.toggle("is-selected", x === b));
+    renderBills();
+  }));
 }
 
 /* ---------------- formatting ---------------- */
@@ -312,295 +323,367 @@ function render() {
   $("#authScreen").hidden = signedIn;
   $("#appShell").hidden = !signedIn;
   if (!signedIn) return;
-
-  $("#greetingName").textContent = `${greeting()}, ${firstName()}`;
-  renderDashboard();
-  renderBillsView();
-  renderCalendarView();
-  renderForecastView();
+  const v = state.view;
+  const heads = {
+    overview: [`${greeting()}, ${firstName()} \u{1F44B}`, "Here's what's happening with your bills."],
+    bills: ["Bills", "Manage and track all your bills in one place."],
+    calendar: ["Calendar", "Tap a day to open its bills."],
+    more: ["More", "Settings, data, and your account."]
+  };
+  const head = heads[v] || heads.overview;
+  $("#greetingName").textContent = head[0];
+  const subEl = $(".appbar-sub"); if (subEl) subEl.textContent = head[1];
+  updateReminderBadge();
+  if (v === "overview") renderOverview();
+  else if (v === "bills") renderBills();
+  else if (v === "calendar") renderCalendarScreen();
+  else if (v === "more") renderMore();
   updateSyncChip();
 }
 
-function renderDashboard() {
-  if (state.view !== "dashboard") return;
-  renderStatusHero();
-  renderStatCards();
-  renderUpcoming("#dashUpcoming", 3);
-  renderForecastChart("#dashForecast", 4);
-  renderMiniCalendar("#dashCalendar");
-  renderCategoryDonut("#dashCategory");
-  renderActivity("#dashActivity");
-  renderInsights("#dashInsights");
+/* ---------------- shared helpers ---------------- */
+function sumAmt(list) { return list.reduce((t, b) => t + (Number(b.amount) || 0), 0); }
+function byDue(a, b) { return dateFromInput(a.dueDate) - dateFromInput(b.dueDate); }
+function dueTodayBills() { const t = startOfDay(new Date()); return state.bills.filter((b) => b.status === "unpaid" && dueOn(b, t)); }
+function paidThisMonth() {
+  const n = new Date();
+  return state.bills.filter((b) => {
+    if (b.status !== "paid" || !b.paidAt) return false;
+    const d = dateFromInput(b.paidAt);
+    return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
+  });
 }
-
-function renderStatusHero() {
-  const ratio = clearedRatio();
-  const overdue = overdueBills();
-  const onTrack = overdue.length === 0;
-  const pct = Math.round(ratio * 100);
-  const status = onTrack ? "On track" : "Action needed";
-  const sub = onTrack
-    ? (pct === 100 ? "Everything this month is cleared." : `${pct}% of this month is cleared.`)
-    : `${overdue.length} overdue \u2022 ${money(overdue.reduce((t, b) => t + b.amount, 0))}`;
-  const C = 2 * Math.PI * 52;
-  const dash = C * ratio;
-  const ring = onTrack ? "#16a34a" : "#dc2626";
-  const card = $("#dashStatus");
-  card.classList.toggle("has-warn", !onTrack);
-  card.innerHTML = `
-    <div class="status-hero ${onTrack ? "ok" : "warn"}">
-      <div class="status-gauge">
-        <svg viewBox="0 0 120 120" aria-hidden="true">
-          <circle cx="60" cy="60" r="52" class="gauge-track"></circle>
-          <circle cx="60" cy="60" r="52" class="gauge-fill" stroke="${ring}"
-            stroke-dasharray="${dash.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)"></circle>
-        </svg>
-        <div class="gauge-center">${onTrack ? "\u2713" : "!"}</div>
-      </div>
-      <div class="status-copy">
-        <p class="status-eyebrow">Financial status</p>
-        <h3>${status}</h3>
-        <p class="status-sub">${escapeHtml(sub)}</p>
-      </div>
-    </div>`;
+function billsThisMonthUnpaid() {
+  const t = startOfDay(new Date());
+  const end = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+  return state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) >= t && dateFromInput(b.dueDate) <= end).sort(byDue);
 }
+function billsLaterThanMonth() {
+  const t = startOfDay(new Date());
+  const end = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+  return state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > end).sort(byDue);
+}
+function unpaidSorted() { return state.bills.filter((b) => b.status === "unpaid").sort(byDue); }
+function updateReminderBadge() {
+  const n = overdueBills().length + dueTodayBills().length;
+  const b = $("#reminderBadge");
+  if (b) { b.hidden = n === 0; b.textContent = n > 9 ? "9+" : String(n); }
+}
+function billInitial(bill) { return (String(bill.biller).trim()[0] || "?").toUpperCase(); }
+function catOf(bill) { return CATEGORIES[bill.category] || CATEGORIES.other; }
+function billIcon(bill) { return `<span class="bill-ic" style="background:${catOf(bill).color}">${escapeHtml(billInitial(bill))}</span>`; }
+const CHEV = '<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></span>';
+const IC_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>';
+const IC_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
 
-function renderStatCards() {
-  const today = startOfDay(new Date());
-  const dueToday = state.bills.filter((b) => b.status === "unpaid" && dueOn(b, today));
-  const dueWeek = billsDueWithin(7);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const dueMonth = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) >= today && dateFromInput(b.dueDate) <= monthEnd);
-  const next30 = billsDueWithin(30);
-  const cards = [
-    { label: "Due today", value: money(dueToday.reduce((t, b) => t + b.amount, 0)), note: `${dueToday.length} bill${dueToday.length === 1 ? "" : "s"}`, tone: "amber" },
-    { label: "Due this week", value: money(dueWeek.reduce((t, b) => t + b.amount, 0)), note: `${dueWeek.length} bill${dueWeek.length === 1 ? "" : "s"}`, tone: "indigo" },
-    { label: "Due this month", value: money(dueMonth.reduce((t, b) => t + b.amount, 0)), note: `${dueMonth.length} bill${dueMonth.length === 1 ? "" : "s"}`, tone: "blue" },
-    { label: "Next 30 days", value: money(next30.reduce((t, b) => t + b.amount, 0)), note: `${next30.length} bill${next30.length === 1 ? "" : "s"}`, tone: "violet" }
-  ];
-  $("#dashStats").innerHTML = cards.map((c) => `
-    <article class="stat-card tone-${c.tone}">
-      <span class="stat-label">${c.label}</span>
-      <strong class="stat-value">${c.value}</strong>
-      <span class="stat-note">${c.note}</span>
-    </article>`).join("");
+function statusPill(bill) {
+  const st = billStatus(bill);
+  const txt = relativeDue(bill);
+  let cls = "pill-blue";
+  if (st === "overdue" || st === "due-today") cls = "pill-red";
+  else if (st === "paid") cls = "pill-green";
+  else if (st === "due-soon") cls = (txt === "Due tomorrow") ? "pill-orange" : "pill-blue";
+  return `<span class="bill-pill ${cls}">${escapeHtml(txt)}</span>`;
 }
 
 function billRow(bill) {
-  const cat = CATEGORIES[bill.category];
-  const st = billStatus(bill);
-  const meta = STATUS_META[st];
-  const due = relativeDue(bill);
+  return `<button class="bill-row" data-bill-open="${bill.id}" type="button">
+    ${billIcon(bill)}
+    <span class="bill-main">
+      <span class="bill-name">${escapeHtml(bill.biller)}</span>
+      <span class="bill-sub">${escapeHtml(catOf(bill).label)} \u00b7 ${escapeHtml(RECURRENCE[bill.recurrence].label)}</span>
+      ${statusPill(bill)}
+    </span>
+    <span class="bill-right"><span class="bill-amt">${money(bill.amount)}</span>${CHEV}</span>
+  </button>`;
+}
+
+function bindRows(root) {
+  $$("[data-bill-open]", root).forEach((r) => r.addEventListener("click", () => openDetailSheet(r.dataset.billOpen)));
+}
+
+/* extraction spinner */
+function setExtracting(on) {
+  const s = $("#extractSpin");
+  if (s) { s.hidden = !on; s.classList.toggle("spinning", on); }
+}
+
+/* ===================== OVERVIEW ===================== */
+function renderOverview() {
+  renderHero();
+  renderTiles();
+  renderOvUpcoming();
+  renderMonthOverview();
+  renderQuickActions();
+}
+
+function renderHero() {
+  const el = $("#ovHero");
+  const hero = unpaidSorted()[0];
+  if (!hero) {
+    el.innerHTML = `<div class="hero ok"><div class="hero-top">
+      <span class="hero-ring">\u2713</span>
+      <div class="hero-body"><p class="hero-eyebrow">ALL CLEAR</p>
+      <div class="hero-biller">You're all caught up</div>
+      <p class="hero-meta">No unpaid bills right now. Nicely cleared.</p></div></div></div>`;
+    return;
+  }
+  const st = billStatus(hero);
   const urgent = st === "overdue" || st === "due-today";
-  return `
-    <button class="bill-row" data-bill-open="${bill.id}" type="button">
-      <span class="bill-icon" style="background:${cat.color}1f;color:${cat.color}">${cat.glyph}</span>
-      <span class="bill-main">
-        <span class="bill-name">${escapeHtml(bill.biller)}</span>
-        <span class="bill-sub">${escapeHtml(CATEGORIES[bill.category].label)} \u2022 ${RECURRENCE[bill.recurrence].label}</span>
-        <span class="bill-pill" style="color:${meta.color};background:${meta.color}1a">${meta.label}</span>
-      </span>
-      <span class="bill-right">
-        <span class="bill-amount">${money(bill.amount)}</span>
-        <span class="bill-due ${urgent ? "urgent" : ""}">${escapeHtml(due)}</span>
-      </span>
-    </button>`;
-}
-
-function renderUpcoming(target, limit) {
-  const el = $(target);
-  if (!el) return;
-  const upcoming = state.bills
-    .filter((b) => b.status === "unpaid")
-    .sort((a, b) => dateFromInput(a.dueDate) - dateFromInput(b.dueDate))
-    .slice(0, limit);
-  const body = upcoming.length
-    ? upcoming.map(billRow).join("")
-    : `<div class="empty-inline">No unpaid bills. You're all cleared.</div>`;
-  el.innerHTML = `
-    <div class="panel-head"><h3>Upcoming bills</h3><button class="link" data-view="bills" type="button">View all</button></div>
-    <div class="bill-rows">${body}</div>`;
-  bindRows(el);
-  $("[data-view=bills]", el)?.addEventListener("click", () => showView("bills"));
-}
-
-function renderForecastChart(target, count) {
-  const el = $(target);
-  if (!el) return;
-  const months = forecastMonths(count);
-  const max = Math.max(1, ...months.map((m) => m.total));
-  const total3 = months.slice(0, 3).reduce((t, m) => t + m.total, 0);
-  const palette = ["#10b981", "#3b82f6", "#8b5cf6", "#94a3b8"];
-  const bars = months.map((m, i) => {
-    const h = Math.round((m.total / max) * 100);
-    const label = m.date.toLocaleDateString(undefined, { month: "short" });
-    return `<div class="bar-col">
-        <span class="bar-val">${m.total ? money0(m.total) : ""}</span>
-        <div class="bar" style="height:${Math.max(h, 3)}%;background:${palette[i % palette.length]}"></div>
-        <span class="bar-label">${label}</span>
-      </div>`;
-  }).join("");
-  el.innerHTML = `
-    <div class="panel-head"><h3>Cash flow forecast</h3><button class="link" data-view="forecast" type="button">Full forecast</button></div>
-    <div class="bar-chart">${bars}</div>
-    <div class="forecast-foot">
-      <div><span class="muted">Projected next 3 months</span><strong>${money(total3)}</strong></div>
-    </div>`;
-  $("[data-view=forecast]", el)?.addEventListener("click", () => showView("forecast"));
-}
-
-function renderCategoryDonut(target) {
-  const el = $(target);
-  if (!el) return;
-  const { rows, total } = categoryBreakdown(3);
-  let offset = 0;
-  const R = 52, C = 2 * Math.PI * R;
-  const segs = rows.map((r) => {
-    const len = C * r.pct;
-    const seg = `<circle cx="70" cy="70" r="${R}" fill="none" stroke="${CATEGORIES[r.cat].color}" stroke-width="16"
-      stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}" transform="rotate(-90 70 70)"></circle>`;
-    offset += len;
-    return seg;
-  }).join("");
-  const legend = rows.map((r) => `
-    <div class="legend-row">
-      <span class="legend-dot" style="background:${CATEGORIES[r.cat].color}"></span>
-      <span class="legend-name">${CATEGORIES[r.cat].label}</span>
-      <span class="legend-val">${money(r.value)}</span>
-    </div>`).join("");
-  el.innerHTML = `
-    <div class="panel-head"><h3>By category</h3><span class="muted">Next 3 months</span></div>
-    <div class="donut-wrap">
-      <div class="donut">
-        <svg viewBox="0 0 140 140" aria-hidden="true">
-          <circle cx="70" cy="70" r="52" fill="none" stroke="var(--line)" stroke-width="16"></circle>
-          ${segs}
-        </svg>
-        <div class="donut-center"><span class="muted">Total</span><strong>${money0(total)}</strong></div>
+  const cls = urgent ? "danger" : "calm";
+  const eyebrow = st === "overdue" ? "OVERDUE" : st === "due-today" ? "DUE TODAY" : "NEXT DUE";
+  el.innerHTML = `<div class="hero ${cls}">
+    <div class="hero-top">
+      <span class="hero-ring">${urgent ? "!" : "\u2022"}</span>
+      <div class="hero-body">
+        <p class="hero-eyebrow">${eyebrow}</p>
+        <div class="hero-biller">${escapeHtml(hero.biller)}</div>
+        <div class="hero-amount">${money(hero.amount)}</div>
+        <p class="hero-meta">${escapeHtml(RECURRENCE[hero.recurrence].label)} bill \u00b7 <b>${escapeHtml(relativeDue(hero))}</b></p>
       </div>
-      <div class="legend">${legend || '<div class="empty-inline">No data yet.</div>'}</div>
-    </div>`;
+      <span class="hero-chip" style="background:${catOf(hero).color}">${escapeHtml(billInitial(hero))}</span>
+    </div>
+    <div class="hero-actions">
+      <button class="btn ${urgent ? "danger" : "primary"}" data-hero-pay="${hero.id}" type="button">Mark paid</button>
+      <button class="btn outline" data-hero-view="${hero.id}" type="button">View bill</button>
+    </div>
+  </div>`;
+  $("[data-hero-pay]", el)?.addEventListener("click", () => { const b = state.bills.find((x) => x.id === hero.id); if (b) openPaidModal(b); });
+  $("[data-hero-view]", el)?.addEventListener("click", () => openDetailSheet(hero.id));
 }
 
-function renderActivity(target) {
-  const el = $(target);
-  if (!el) return;
-  const items = recentActivity(5);
-  const icon = { paid: "\u2713", added: "+", rescheduled: "\u21BB", reminded: "\uD83D\uDD14" };
-  const body = items.length ? items.map((it) => `
-    <div class="activity-row">
-      <span class="activity-icon kind-${it.kind}">${icon[it.kind] || "\u2022"}</span>
-      <span class="activity-main"><strong>${escapeHtml(it.text)}</strong><span class="muted">${escapeHtml(it.sub)}</span></span>
-    </div>`).join("") : `<div class="empty-inline">Activity will show here.</div>`;
-  el.innerHTML = `<div class="panel-head"><h3>Recent activity</h3></div><div class="activity">${body}</div>`;
+function renderTiles() {
+  const t = startOfDay(new Date());
+  const dt = dueTodayBills();
+  const wk = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > t && dateFromInput(b.dueDate) <= addDays(t, 7));
+  const mo = billsThisMonthUnpaid(), pd = paidThisMonth();
+  const tiles = [
+    { label: "Due today", amt: sumAmt(dt), n: dt.length, tone: "red", ic: IC_CAL },
+    { label: "Due this week", amt: sumAmt(wk), n: wk.length, tone: "orange", ic: IC_CAL },
+    { label: "Due this month", amt: sumAmt(mo), n: mo.length, tone: "blue", ic: IC_CAL },
+    { label: "Paid this month", amt: sumAmt(pd), n: pd.length, tone: "green", ic: IC_CHECK }
+  ];
+  const wrap = $("#ovStats");
+  wrap.className = "tiles";
+  wrap.innerHTML = tiles.map((t) => `<div class="tile tone-${t.tone}">
+    <span class="tile-ic">${t.ic}</span>
+    <span class="tile-label">${t.label}</span>
+    <span class="tile-amt">${money(t.amt)}</span>
+    <span class="tile-n">${t.n} bill${t.n === 1 ? "" : "s"}</span>
+  </div>`).join("");
 }
 
-function renderInsights(target) {
-  const el = $(target);
-  if (!el) return;
-  const body = insights().map((i) => `
-    <div class="insight-row tone-${i.tone}">
-      <span class="insight-dot"></span>
-      <span class="insight-main"><strong>${escapeHtml(i.title)}</strong><span class="muted">${escapeHtml(i.body)}</span></span>
-    </div>`).join("");
-  el.innerHTML = `<div class="panel-head"><h3>Smart insights</h3></div><div class="insights">${body}</div>`;
+function renderOvUpcoming() {
+  const el = $("#ovUpcoming");
+  el.className = "panel";
+  const unpaid = unpaidSorted();
+  const top = unpaid.slice(0, 3);
+  const body = top.length ? top.map(billRow).join("") : `<div class="empty-inline">No unpaid bills. You're all cleared.</div>`;
+  el.innerHTML = `<div class="panel-head"><h2>Upcoming bills</h2><button class="link" data-go="calendar" type="button">See calendar</button></div>
+    <div class="list">${body}</div>
+    ${unpaid.length > 3 ? `<div class="list-foot"><button class="link" data-go="bills" type="button">See all upcoming bills (${unpaid.length})</button></div>` : ""}`;
+  bindRows(el);
+  $$("[data-go]", el).forEach((b) => b.addEventListener("click", () => showView(b.dataset.go)));
 }
 
-/* ----- Bills view (full list + filter + history) ----- */
-function renderBillsView() {
-  if (state.view !== "bills") return;
-  const seg = $("#billsFilter");
-  if (seg) $$("button", seg).forEach((b) => b.classList.toggle("is-selected", b.dataset.filter === state.filter));
-  const list = $("#billsList");
-  const today = startOfDay(new Date());
-  let bills = state.bills.slice();
-  if (state.filter === "unpaid") bills = bills.filter((b) => b.status === "unpaid");
-  else if (state.filter === "paid") bills = bills.filter((b) => b.status === "paid");
-  else if (state.filter === "overdue") bills = bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) < today);
-  bills.sort((a, b) => {
-    if (a.status !== b.status) return a.status === "unpaid" ? -1 : 1;
-    return dateFromInput(a.dueDate) - dateFromInput(b.dueDate);
-  });
-  list.innerHTML = bills.length ? bills.map(billRow).join("") : `<div class="empty-state">
-      <h3>No bills here</h3>
-      <p>Add a statement or bill and Cleared will track the due date.</p>
-      <button class="btn primary" id="emptyAdd" type="button">Add a bill</button>
-    </div>`;
-  bindRows(list);
-  $("#emptyAdd")?.addEventListener("click", () => openBillSheet());
+function renderMonthOverview() {
+  const el = $("#ovMonth");
+  const ratio = clearedRatio();
+  const pct = Math.round(ratio * 100);
+  const remain = billsThisMonthUnpaid();
+  const onTrack = overdueBills().length === 0;
+  const C = 2 * Math.PI * 33;
+  const dash = (C * Math.max(0, Math.min(1, ratio)));
+  el.innerHTML = `<div class="panel-head" style="padding:0 2px 8px;margin:0"><h2>This month overview</h2></div>
+  <div class="month-card ${onTrack ? "" : "behind"}">
+    <div class="month-gauge">
+      <svg viewBox="0 0 76 76"><circle class="gtrack" cx="38" cy="38" r="33"/>
+      <circle class="gfill" cx="38" cy="38" r="33" stroke-dasharray="${dash.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 38 38)"/></svg>
+      <span>${pct}%</span>
+    </div>
+    <div class="month-copy">
+      <h3>${onTrack ? "You're on track!" : "Action needed"}</h3>
+      <p>${onTrack ? `You've paid ${pct}% of your bills this month.` : `${overdueBills().length} overdue \u2014 clear them to get back on track.`}</p>
+    </div>
+    <div class="month-remain">
+      <div class="rl">Remaining</div>
+      <div class="rv">${money(sumAmt(remain))}</div>
+      <div class="rn">${remain.length} bill${remain.length === 1 ? "" : "s"} left</div>
+    </div>
+  </div>`;
 }
 
-/* ----- Calendar view ----- */
-function renderCalendarView() {
-  if (state.view !== "calendar") return;
-  renderCalendar("#calendarFull", state.calendarMonth, true);
+function renderQuickActions() {
+  const el = $("#ovActions");
+  el.className = "actions";
+  const histIc = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l2.5 1.5"/></svg>';
+  const bellIc = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>';
+  const acts = [
+    { ic: IC_CAL, title: "Calendar", sub: "View due dates", go: "calendar" },
+    { ic: histIc, title: "Bill history", sub: "Past payments", tab: "paid" },
+    { ic: bellIc, title: "Reminders", sub: "Manage alerts", go: "more" }
+  ];
+  el.innerHTML = acts.map((a, i) => `<button class="action-tile" data-act="${i}" type="button">
+    <span class="action-ic">${a.ic}</span>
+    <span class="action-title">${a.title}</span>
+    <span class="action-sub">${a.sub}</span>
+  </button>`).join("");
+  $$("[data-act]", el).forEach((btn, i) => btn.addEventListener("click", () => {
+    const a = acts[i];
+    if (a.tab) { state.billsTab = a.tab; showView("bills"); } else { showView(a.go); }
+  }));
 }
 
-function renderMiniCalendar(target) {
-  renderCalendar(target, startOfDay(new Date()), false);
+/* ===================== BILLS ===================== */
+function renderBills() {
+  $$("#billsTabs button").forEach((b) => b.classList.toggle("is-selected", b.dataset.tab === state.billsTab));
+  const due = billsDueWithin(7);
+  const badge = $("#dueSoonBadge"); if (badge) badge.textContent = due.length ? String(due.length) : "";
+  renderBillsSummary();
+  const wrap = $("#billsGroups");
+  const tab = state.billsTab;
+
+  if (tab === "due") {
+    wrap.innerHTML = listOrEmpty(due.slice().sort(byDue), "Nothing due in the next 7 days.");
+  } else if (tab === "paid") {
+    const paid = state.bills.filter((b) => b.status === "paid").sort((a, b) => String(b.paidAt || "").localeCompare(String(a.paidAt || "")));
+    wrap.innerHTML = listOrEmpty(paid, "No paid bills yet.");
+  } else if (tab === "upcoming") {
+    wrap.innerHTML = listOrEmpty(billsLaterThanMonth(), "Nothing further out.");
+  } else {
+    const t = startOfDay(new Date());
+    const today = dueTodayBills();
+    const week = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > t && dateFromInput(b.dueDate) <= addDays(t, 7)).sort(byDue);
+    const monthEnd = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+    const month = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > addDays(t, 7) && dateFromInput(b.dueDate) <= monthEnd).sort(byDue);
+    const later = billsLaterThanMonth();
+    let html = "";
+    html += renderGroup("today", "Due today", today, "gh-red");
+    html += renderGroup("week", "Due this week", week, "gh-orange");
+    html += renderGroup("month", "Due this month", month, "gh-blue");
+    html += renderGroup("later", "Upcoming (later)", later, "gh-gray");
+    wrap.innerHTML = html || `<div class="empty-state"><h3>No bills yet</h3><p>Add a statement or bill and Cleared will track it.</p><button class="btn primary" id="emptyAdd" type="button">Add a bill</button></div>`;
+    bindGroups(wrap);
+  }
+  bindRows(wrap);
+  $("#emptyAdd", wrap)?.addEventListener("click", () => openBillSheet());
 }
 
-function renderCalendar(target, monthDate, big) {
-  const el = $(target);
-  if (!el) return;
+function listOrEmpty(bills, emptyMsg) {
+  if (!bills.length) return `<div class="empty-state"><h3>Nothing here</h3><p>${escapeHtml(emptyMsg)}</p></div>`;
+  return `<div class="group-body" style="margin-bottom:18px">${bills.map(billRow).join("")}</div>`;
+}
+
+function renderBillsSummary() {
+  const mo = billsThisMonthUnpaid(), pd = paidThisMonth(), due = billsDueWithin(7);
+  $("#billsSummary").innerHTML = `<div class="summary-card">
+    <div class="sum-col"><span class="sum-label">This month</span>
+      <span class="sum-amt blue">${money(sumAmt(mo))}</span>
+      <span class="sum-sub">${mo.length} bills ${due.length ? `<span class="sum-soon">${due.length} due soon</span>` : ""}</span></div>
+    <div class="sum-col"><span class="sum-label">Paid this month</span>
+      <span class="sum-amt green">${money(sumAmt(pd))}</span>
+      <span class="sum-sub">${pd.length} bills</span></div>
+  </div>`;
+}
+
+function renderGroup(key, label, bills, toneClass) {
+  if (!bills.length) return "";
+  const collapsed = !!state.collapsed[key];
+  const expanded = !!state.expanded[key];
+  const shown = expanded ? bills : bills.slice(0, 3);
+  const more = (bills.length > 3 && !expanded)
+    ? `<div class="group-more"><button class="link" data-expand="${key}" type="button">View all ${bills.length} bills</button></div>` : "";
+  return `<section class="group ${collapsed ? "collapsed" : ""}" data-group="${key}">
+    <div class="group-head" data-toggle="${key}">
+      <span class="gh-left ${toneClass}">${label} (${bills.length})</span>
+      <span class="gh-right"><span class="group-total">${money(sumAmt(bills))}</span>
+      <span class="gtoggle"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></span>
+    </div>
+    <div class="group-body">${shown.map(billRow).join("")}${more}</div>
+  </section>`;
+}
+
+function bindGroups(wrap) {
+  $$("[data-toggle]", wrap).forEach((h) => h.addEventListener("click", () => {
+    const k = h.dataset.toggle; state.collapsed[k] = !state.collapsed[k]; renderBills();
+  }));
+  $$("[data-expand]", wrap).forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation(); state.expanded[b.dataset.expand] = true; renderBills();
+  }));
+}
+
+/* ===================== CALENDAR ===================== */
+function renderCalendarScreen() {
+  renderCalendar("#calendarFull", state.calendarMonth);
+  renderCalendarDay();
+}
+
+function renderCalendar(target, monthDate) {
+  const el = $(target); if (!el) return;
   const year = monthDate.getFullYear(), month = monthDate.getMonth();
   const first = new Date(year, month, 1);
-  const startDow = (first.getDay() + 6) % 7; // Monday-first
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startDow = (first.getDay() + 6) % 7;
+  const days = new Date(year, month + 1, 0).getDate();
   const today = startOfDay(new Date());
   const title = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-
   const dows = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<span class="cal-dow">${d}</span>`).join("");
   let cells = "";
   for (let i = 0; i < startDow; i++) cells += `<span class="cal-cell empty"></span>`;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const cellDate = startOfDay(new Date(year, month, d));
-    const dayBills = state.bills.filter((b) => dueOn(b, cellDate));
-    const isToday = cellDate.getTime() === today.getTime();
+  for (let d = 1; d <= days; d++) {
+    const cd = startOfDay(new Date(year, month, d));
+    const dayBills = state.bills.filter((b) => dueOn(b, cd));
+    const isToday = cd.getTime() === today.getTime();
+    const isSel = state.selectedDate && cd.getTime() === state.selectedDate.getTime();
     let dot = "";
     if (dayBills.length) {
-      const st = billStatus(dayBills.find((b) => b.status === "unpaid") || dayBills[0]);
-      dot = `<span class="cal-dot" style="background:${STATUS_META[st].color}"></span>`;
+      const ref = dayBills.find((b) => b.status === "unpaid") || dayBills[0];
+      dot = `<span class="cal-dot" style="background:${STATUS_META[billStatus(ref)].color}"></span>`;
     }
-    const titleAttr = dayBills.length ? `title="${dayBills.map((b) => `${b.biller} ${money(b.amount)}`).join(", ").replace(/"/g, "")}"` : "";
-    cells += `<span class="cal-cell ${isToday ? "today" : ""}" ${titleAttr}><span class="cal-num">${d}</span>${dot}</span>`;
+    const cls = `cal-cell ${dayBills.length ? "has" : ""} ${isToday ? "today" : ""} ${isSel ? "selected" : ""}`;
+    cells += `<button class="${cls}" ${dayBills.length ? `data-cal-day="${cd.getTime()}"` : ""} type="button"><span class="cal-num">${d}</span>${dot}</button>`;
   }
-  const nav = big ? `<div class="cal-nav"><button class="icon-btn" id="calPrev" type="button" aria-label="Previous month">\u2039</button><button class="icon-btn" id="calNext" type="button" aria-label="Next month">\u203A</button></div>` : "";
-  const legend = `<div class="cal-legend">
-      <span><i style="background:#dc2626"></i>Overdue</span>
-      <span><i style="background:#f59e0b"></i>Due today</span>
-      <span><i style="background:#3b82f6"></i>Upcoming</span>
-      <span><i style="background:#16a34a"></i>Paid</span></div>`;
-  el.innerHTML = `
-    <div class="panel-head"><h3>${big ? "Calendar" : "Calendar overview"}</h3><div class="cal-head-right"><span class="muted">${title}</span>${nav}</div></div>
+  el.className = "cal";
+  el.innerHTML = `<div class="cal-head"><h3>${title}</h3><div class="cal-nav"><button class="icon-btn" id="calPrev" type="button" aria-label="Previous month">\u2039</button><button class="icon-btn" id="calNext" type="button" aria-label="Next month">\u203a</button></div></div>
     <div class="cal-grid">${dows}${cells}</div>
-    ${legend}`;
-  if (big) {
-    $("#calPrev")?.addEventListener("click", () => { state.calendarMonth = new Date(year, month - 1, 1); render(); });
-    $("#calNext")?.addEventListener("click", () => { state.calendarMonth = new Date(year, month + 1, 1); render(); });
+    <div class="cal-legend"><span><i style="background:#dc2626"></i>Overdue</span><span><i style="background:#f59e0b"></i>Due today</span><span><i style="background:#3b82f6"></i>Upcoming</span><span><i style="background:#16a34a"></i>Paid</span></div>`;
+  $("#calPrev", el)?.addEventListener("click", () => { state.calendarMonth = new Date(year, month - 1, 1); renderCalendarScreen(); });
+  $("#calNext", el)?.addEventListener("click", () => { state.calendarMonth = new Date(year, month + 1, 1); renderCalendarScreen(); });
+  $$("[data-cal-day]", el).forEach((c) => c.addEventListener("click", () => onDateClick(new Date(Number(c.dataset.calDay)))));
+}
+
+function onDateClick(date) {
+  state.selectedDate = startOfDay(date);
+  const dayBills = state.bills.filter((b) => dueOn(b, state.selectedDate)).sort(byDue);
+  renderCalendar("#calendarFull", state.calendarMonth);
+  renderCalendarDay();
+  if (!dayBills.length) return;
+  if (dayBills.length === 1) {
+    openDetailSheet(dayBills[0].id);
+  } else {
+    $("#calendarDay")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 }
 
-/* ----- Forecast view ----- */
-function renderForecastView() {
-  if (state.view !== "forecast") return;
-  renderForecastChart("#forecastChart", 6);
-  const months = forecastMonths(6);
-  const rows = months.map((m) => `
-    <div class="fc-row">
-      <span>${m.date.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
-      <strong>${money(m.total)}</strong>
-    </div>`).join("");
-  $("#forecastTable").innerHTML = `<div class="panel-head"><h3>Projected by month</h3></div><div class="fc-table">${rows}</div>`;
-  renderCategoryDonut("#forecastCategory");
+function renderCalendarDay() {
+  const el = $("#calendarDay"); if (!el) return;
+  if (!state.selectedDate) { el.innerHTML = ""; return; }
+  const label = formatDisplayDate(formatDatePartsFromDate(state.selectedDate));
+  const dayBills = state.bills.filter((b) => dueOn(b, state.selectedDate)).sort(byDue);
+  if (!dayBills.length) {
+    el.innerHTML = `<div class="day-card"><h3>${label}</h3><div class="empty-inline">Nothing due on this day.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="day-card"><h3>${label}</h3><div class="list">${dayBills.map(billRow).join("")}</div></div>`;
+  bindRows(el);
 }
 
-/* ---------------- row binding ---------------- */
-function bindRows(root) {
-  $$("[data-bill-open]", root).forEach((row) => row.addEventListener("click", () => openDetailSheet(row.dataset.billOpen)));
+/* ===================== MORE ===================== */
+function renderMore() {
+  const acct = $("#accountStatus");
+  if (acct) acct.textContent = hasActiveSession() ? `Signed in as ${state.auth.email}` : "Not signed in.";
+  updateEmailReminderHint();
 }
 
-/* ---------------- Add / Edit bill sheet ---------------- */
 function setupBillSheet() {
   const sheet = $("#billSheet");
   $("#closeBillSheet")?.addEventListener("click", closeBillSheet);
@@ -692,7 +775,7 @@ function saveBillFromForm(event) {
   }
   saveBills();
   closeBillSheet();
-  if (state.view !== "dashboard" && state.view !== "bills") showView("dashboard"); else render();
+  if (state.view !== "overview" && state.view !== "bills") showView("overview"); else render();
   pushBillsQuietly();
 }
 
@@ -702,6 +785,7 @@ async function handlePdf(file) {
   $("#extractStatus").textContent = `Reading ${file.name}\u2026`;
   $("#confidenceBadge").textContent = "Reading";
   $("#extractPreview").textContent = "";
+  setExtracting(true);
   try {
     const buffer = await file.arrayBuffer();
     const readable = await decodePdfText(buffer);
@@ -718,6 +802,8 @@ async function handlePdf(file) {
     $("#extractPreview").textContent = readable.slice(0, 3000) || "No readable text found.";
   } catch (err) {
     $("#extractStatus").textContent = "Could not read this PDF. Enter the details manually or try AI extract.";
+  } finally {
+    setExtracting(false);
   }
 }
 
@@ -727,6 +813,7 @@ async function extractWithAi() {
   $("#aiExtractButton").disabled = true;
   $("#extractStatus").textContent = "AI is reading the statement\u2026";
   $("#confidenceBadge").textContent = "AI";
+  setExtracting(true);
   try {
     const formData = new FormData();
     formData.append("pdf", state.currentPdfFile, state.currentPdfFile.name);
@@ -744,6 +831,7 @@ async function extractWithAi() {
     $("#extractStatus").textContent = "AI extract failed. You can still enter details manually.";
   } finally {
     $("#aiExtractButton").disabled = false;
+    setExtracting(false);
   }
 }
 
