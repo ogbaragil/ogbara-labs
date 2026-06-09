@@ -943,7 +943,7 @@ function renderProfile() {
   };
   actions.appendChild(resetRow);
   root.appendChild(actions);
-  root.appendChild(el("p","footer",`Life Grid · made with care by Ogbara Labs · <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a>`));
+  root.appendChild(el("p","footer",`Life Grid by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a>`));
 }
 
 /* ---- Memory view (v6): tap a memory to expand it; edit or delete from there ---- */
@@ -1044,7 +1044,7 @@ function renderGrid() {
   }
   scroll.appendChild(frag);
   root.appendChild(scroll);
-  root.appendChild(el("p","footer","Life Grid · made with care by Ogbara Labs · works offline · optional cloud backup"));
+  root.appendChild(el("p","footer","Life Grid by Ogbara · works offline · optional cloud backup"));
   // auto-scroll: to the tapped year (with a flash) when arriving via zoom, else to today
   const targetYear = detailTargetYear != null ? detailTargetYear : (cur != null ? Math.floor(cur/12) : null);
   const flash = detailTargetYear != null;
