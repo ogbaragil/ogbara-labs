@@ -11,15 +11,29 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=cleared-1">
+    <link rel="stylesheet" href="styles.css?v=cleared-2">
   </head>
   <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <symbol id="clearedMark" viewBox="0 0 64 64">
+        <defs>
+          <linearGradient id="clearedCheck" x1="22" y1="42" x2="52" y2="16" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#15a877"/>
+            <stop offset="1" stop-color="#74dd7e"/>
+          </linearGradient>
+        </defs>
+        <circle cx="32" cy="32" r="19" fill="none" stroke="currentColor" stroke-width="8.5"
+          stroke-linecap="round" stroke-dasharray="84 36" transform="rotate(-6 32 32)"/>
+        <path d="M22 33 L31 41 L52 16" fill="none" stroke="url(#clearedCheck)" stroke-width="8.5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+    </svg>
     <!-- ============ AUTH ============ -->
     <section class="auth-screen" id="authScreen" hidden>
       <div class="auth-card">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">C</span>
-          <span class="brand-name">Cleared<small>Bills, cleared.</small></span>
+          <span class="brand-mark" aria-hidden="true"><svg class="mark" viewBox="0 0 64 64"><use href="#clearedMark"/></svg></span>
+          <span class="brand-name">Cleared<small>Clear today. Move forward.</small></span>
         </div>
         <p class="eyebrow">Sign in</p>
         <h1 id="authHeadline">Welcome back to Cleared.</h1>
@@ -47,8 +61,8 @@
     <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">C</span>
-          <span class="brand-name">Cleared<small>Bills, cleared.</small></span>
+          <span class="brand-mark" aria-hidden="true"><svg class="mark" viewBox="0 0 64 64"><use href="#clearedMark"/></svg></span>
+          <span class="brand-name">Cleared<small>Clear today. Move forward.</small></span>
         </div>
         <nav class="nav" aria-label="Views">
           <button class="nav-item is-active" data-view="dashboard" type="button"><span class="nav-ic">◧</span>Dashboard</button>
