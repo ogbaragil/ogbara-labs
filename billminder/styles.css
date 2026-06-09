@@ -306,6 +306,9 @@ textarea { resize: vertical; }
 .empty-state { text-align: center; padding: 40px 20px; }
 .empty-state h3 { font-size: 18px; margin-bottom: 6px; }
 .empty-state p { color: var(--muted); margin: 0 0 16px; }
+.app-tag { text-align: center; color: var(--faint); font-size: 12.5px; margin: 22px 0 4px; }
+.app-tag a { color: var(--muted); text-decoration: none; font-weight: 600; }
+.app-tag a:hover { color: var(--ink); text-decoration: underline; }
 
 /* ---------- segmented ---------- */
 .segmented { display: inline-flex; background: #eef1f6; border-radius: 11px; padding: 3px; gap: 2px; }

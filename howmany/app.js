@@ -1379,7 +1379,7 @@ function Settings(root) {
   card.querySelector("#setReset").onclick = gatedReset;   // v2 #9
 }
 
-function Footer() { return el("p","footer",`Made with ❤️ for little learners · <a href="https://ogbaralabs.xyz/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbaralabs.xyz/terms" target="_blank" rel="noopener">Terms</a>`); }
+function Footer() { return el("p","footer",`How Many? by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a>`); }
 
 /* ---------------- Boot ---------------- */
 function unlockAudioOnce() {
