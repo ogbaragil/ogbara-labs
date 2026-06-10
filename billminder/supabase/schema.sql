@@ -58,6 +58,9 @@ alter table public.bills
 alter table public.bills
   add column if not exists anchor_day integer;
 
+alter table public.bills
+  add column if not exists series_id text;
+
 alter table public.user_settings
   add column if not exists first_name text;
 

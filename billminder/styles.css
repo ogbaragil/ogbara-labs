@@ -411,3 +411,7 @@ textarea { resize: vertical; }
 .round-btn.busy svg { animation: spin .9s linear infinite; }
 .badge-dot.ok { background: var(--green); }
 .badge-dot.err { background: var(--orange-d); }
+
+/* ---------------- delete confirm modal ---------------- */
+.delete-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.delete-actions .btn { width: 100%; }

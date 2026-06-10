@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=cleared-10">
+    <link rel="stylesheet" href="styles.css?v=cleared-11">
   </head>
   <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -284,6 +284,18 @@
       </form>
     </div>
 
-    <script src="app.js?v=cleared-9" defer></script>
+    <div class="modal-backdrop" id="deleteModal" hidden>
+      <div class="modal-card">
+        <div class="modal-head"><h2>Delete bill</h2><button class="icon-btn" id="closeDeleteButton" type="button" aria-label="Close">✕</button></div>
+        <p class="muted" id="deleteModalText">Delete this bill?</p>
+        <div class="delete-actions">
+          <button class="btn danger" id="deleteOneButton" type="button">Delete this one</button>
+          <button class="btn danger-text" id="deleteSeriesButton" type="button" hidden>Delete entire series</button>
+          <button class="btn ghost" id="cancelDeleteButton" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js?v=cleared-10" defer></script>
   </body>
 </html>
