@@ -68,6 +68,7 @@ const state = {
   paidBillId: null,
   deleteBillId: null,
   deleteSeriesId: null,
+  deleteMode: "single",
   rescheduleBillId: null,
   detailBillId: null,
   recoveryToken: "",
@@ -1301,7 +1302,27 @@ function relatedSeriesBills(bill) {
   return state.bills.filter((b) => b.seriesId === bill.seriesId);
 }
 
+// Delete just the current instance but keep the bill repeating: roll its due
+// date forward to the next occurrence.
+function skipOccurrence(id) {
+  const bill = state.bills.find((b) => b.id === id);
+  if (!bill) return;
+  if (bill.recurrence === "once") { deleteBill(id); return; }
+  const anchorDay = normalizeAnchorDay(bill.anchorDay, bill.dueDate);
+  const next = advance(dateFromInput(bill.dueDate), RECURRENCE[bill.recurrence], anchorDay);
+  bill.dueDate = formatDatePartsFromDate(next);
+  bill.status = "unpaid";
+  bill.paidAt = "";
+  bill.remindedFor = [];
+  bill.rescheduleNotes = "";
+  markBillDirty(bill);
+  closeDetailSheet();
+  render();
+  scheduleSync();
+}
+
 function deleteSeries(seriesId) {
+  if (!seriesId) return;
   const doomed = state.bills.filter((b) => b.seriesId === seriesId);
   doomed.forEach((b) => { addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id); });
   state.bills = state.bills.filter((b) => b.seriesId !== seriesId);
@@ -1314,35 +1335,35 @@ function deleteSeries(seriesId) {
 function openDeleteModal(bill) {
   state.deleteBillId = bill.id;
   state.deleteSeriesId = bill.seriesId || null;
-  const related = relatedSeriesBills(bill);
-  const others = related.filter((b) => b.id !== bill.id);
-  const pastPaid = others.filter((b) => b.status === "paid").length;
   const isRecurring = bill.recurrence !== "once";
-  const hasSeries = others.length > 0;
+  const related = relatedSeriesBills(bill);
+  const seriesCount = related.length;
+  const recurLabel = (RECURRENCE[bill.recurrence]?.label || "").toLowerCase();
 
+  const oneBtn = $("#deleteOneButton");
+  const seriesBtn = $("#deleteSeriesButton");
   let message;
-  if (isRecurring && hasSeries) {
-    message = `${escapeHtml(bill.biller)} repeats ${escapeHtml(RECURRENCE[bill.recurrence].label.toLowerCase())}. You can delete just this upcoming bill (which stops it repeating) or remove the whole series including ${others.length} past record${others.length === 1 ? "" : "s"}.`;
-  } else if (isRecurring) {
-    message = `${escapeHtml(bill.biller)} repeats ${escapeHtml(RECURRENCE[bill.recurrence].label.toLowerCase())}. Deleting it stops future ${escapeHtml(RECURRENCE[bill.recurrence].label.toLowerCase())} bills. This can't be undone.`;
-  } else if (hasSeries) {
-    message = `This is one of ${related.length} bills in the ${escapeHtml(bill.biller)} series. Delete just this one, or the whole series.`;
-  } else {
-    message = `Delete ${escapeHtml(bill.biller)}? This removes it from this device and your account. This can't be undone.`;
-  }
 
-  const primaryLabel = isRecurring ? "Delete & stop repeating" : "Delete this one";
-  const seriesLabel = pastPaid > 0
-    ? `Delete all, incl. ${pastPaid} past payment${pastPaid === 1 ? "" : "s"}`
-    : `Delete entire series (${related.length})`;
+  if (isRecurring) {
+    state.deleteMode = "recurring";
+    message = `${escapeHtml(bill.biller)} repeats ${escapeHtml(recurLabel)}. Delete just this occurrence and it keeps repeating, or delete every occurrence to stop it for good.`;
+    oneBtn.textContent = "Delete this occurrence";
+    seriesBtn.hidden = false;
+    seriesBtn.textContent = seriesCount > 1 ? `Delete all occurrences (${seriesCount})` : "Delete all occurrences";
+  } else if (seriesCount > 1) {
+    state.deleteMode = "single";
+    message = `This is one of ${seriesCount} ${escapeHtml(bill.biller)} bills. Delete just this one, or all of them.`;
+    oneBtn.textContent = "Delete this one";
+    seriesBtn.hidden = false;
+    seriesBtn.textContent = `Delete all (${seriesCount})`;
+  } else {
+    state.deleteMode = "single";
+    message = `Delete ${escapeHtml(bill.biller)}? This removes it from this device and your account, and can't be undone.`;
+    oneBtn.textContent = "Delete";
+    seriesBtn.hidden = true;
+  }
 
   $("#deleteModalText").innerHTML = message;
-  const seriesBtn = $("#deleteSeriesButton");
-  if (seriesBtn) {
-    seriesBtn.hidden = !hasSeries;
-    seriesBtn.textContent = seriesLabel;
-  }
-  $("#deleteOneButton").textContent = primaryLabel;
   $("#deleteModal").hidden = false;
 }
 
@@ -1350,6 +1371,7 @@ function closeDeleteModal() {
   $("#deleteModal").hidden = true;
   state.deleteBillId = null;
   state.deleteSeriesId = null;
+  state.deleteMode = "single";
 }
 
 function addTombstone(clientBillId) {
@@ -1419,8 +1441,15 @@ function setupModals() {
   $("#cancelResetPasswordButton")?.addEventListener("click", closeResetPasswordModal);
   $("#nameForm")?.addEventListener("submit", (e) => { e.preventDefault(); saveFirstName(false); });
   $("#skipNameButton")?.addEventListener("click", () => saveFirstName(true));
-  $("#deleteOneButton")?.addEventListener("click", () => { const id = state.deleteBillId; closeDeleteModal(); if (id) deleteBill(id); });
-  $("#deleteSeriesButton")?.addEventListener("click", () => { const sid = state.deleteSeriesId; closeDeleteModal(); if (sid) deleteSeries(sid); });
+  $("#deleteOneButton")?.addEventListener("click", () => {
+    const id = state.deleteBillId;
+    const mode = state.deleteMode;
+    closeDeleteModal();
+    if (!id) return;
+    if (mode === "recurring") skipOccurrence(id);
+    else deleteBill(id);
+  });
+  $("#deleteSeriesButton")?.addEventListener("click", () => { const sid = state.deleteSeriesId; const id = state.deleteBillId; closeDeleteModal(); if (sid) deleteSeries(sid); else if (id) deleteBill(id); });
   $("#cancelDeleteButton")?.addEventListener("click", closeDeleteModal);
   $("#closeDeleteButton")?.addEventListener("click", closeDeleteModal);
 }

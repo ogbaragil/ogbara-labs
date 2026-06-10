@@ -29,7 +29,7 @@
     --display:"Baloo 2", system-ui, sans-serif; --body:"Nunito", system-ui, sans-serif;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;}
+  html{height:100%;}
   body{margin:0; font-family:var(--body); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column; user-select:none;
        background:
          radial-gradient(900px 520px at 50% 16%, rgba(46,139,87,.28), transparent 60%),
@@ -63,7 +63,7 @@
   /* Board */
   .board-frame{background:linear-gradient(180deg,#fffefa,#f3e9cf); border-radius:18px; padding:5px;
                box-shadow:0 16px 40px rgba(4,24,16,.5), inset 0 0 0 2px rgba(255,255,255,.6); align-self:center;
-               width:100%; max-width:min(98vw, calc(100dvh - 250px), 590px);}
+               width:100%; max-width:min(96vw, 560px);}
   .board{position:relative; width:100%; aspect-ratio:1; border-radius:12px; overflow:hidden;
          display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);}
   .tile{position:relative;}
@@ -164,8 +164,8 @@
   .die-label{font-family:var(--display); font-weight:800; font-size:11px; letter-spacing:.8px; text-transform:uppercase; color:var(--gold);}
 
   /* Modals */
-  .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.82); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; padding:18px;}
-  .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px; width:100%; max-width:430px; max-height:92dvh; overflow-y:auto; text-align:center;
+  .modal-back{position:fixed; inset:0; background:rgba(5,25,18,.82); backdrop-filter:blur(4px); display:flex; align-items:flex-start; justify-content:center; z-index:50; padding:18px; overflow-y:auto;}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:24px; width:100%; max-width:430px; margin:auto; text-align:center;
          animation:popUp .3s cubic-bezier(.34,1.56,.64,1);}
   @keyframes popUp{from{transform:translateY(26px) scale(.96); opacity:0;} to{transform:none; opacity:1;}}
   .modal h2{font-family:var(--display); font-weight:800; margin:0 0 4px; font-size:25px;}
@@ -210,12 +210,8 @@
   }
 
 
-  @media (max-height:760px){
+  @media (max-height:680px){
     .wrap{gap:5px; padding-top:6px;}
-    .subtitle{display:none;}
-    .info .isub{display:none;}
-    .footer{display:none;}
-    .board-frame{max-width:min(99vw, calc(100dvh - 185px), 610px);}
     .icon-btn{width:34px;height:34px;border-radius:11px;font-size:16px;}
     h1{font-size:clamp(17px,5vw,23px);}
   }
@@ -297,6 +293,8 @@
 const BOARD_SIZE = 10, FINAL_TILE = 100;
 const SNAKES  = { 98:79, 95:75, 92:88, 83:61, 69:48, 64:60, 59:39, 52:33, 46:25, 29:9 };
 const LADDERS = { 3:22, 8:30, 15:37, 21:42, 28:49, 36:57, 50:67, 63:81, 71:90, 80:99 };
+/* Star tiles that draw a quest — chosen to avoid every snake/ladder start & end and tile 100 */
+const QUEST_TILES = new Set([5, 13, 26, 34, 44, 56, 66, 77, 86, 94]);
 
 const QUESTS = [
   { title:"Dino Stomp",        text:"Stomp around like a T-rex and do your biggest ROAR!", easy:"Easy version: one tiny roar.", reward:"Earth-shaking! Stomp forward 1 extra step.", type:"bonus", amount:1 },
@@ -426,7 +424,7 @@ const Sound = (()=>{ let ctx=null, music=null;
 
 /* ---------- Board ---------- */
 const boardEl = document.getElementById("board");
-function tileType(n){ if(LADDERS[n])return"ladder"; if(SNAKES[n])return"snake"; return"plain"; }
+function tileType(n){ if(LADDERS[n])return"ladder"; if(SNAKES[n])return"snake"; if(QUEST_TILES.has(n))return"quest"; return"plain"; }
 function cellCenter(n){ const z=n-1, rb=Math.floor(z/10), rowTop=9-rb, pos=z%10, col=(rb%2===0)?pos:9-pos; return { x:(col+0.5)*10, y:(rowTop+0.5)*10 }; }
 function cubic(a,c1,c2,b,t){ const u=1-t;
   return { x:u*u*u*a.x+3*u*u*t*c1.x+3*u*t*t*c2.x+t*t*t*b.x,
@@ -558,8 +556,20 @@ function paintTurn(){
   roundNumEl.textContent = roundNum;
   turnInfoEl.textContent = winner ? `${winner.name} wins! 🏆` : `${players[currentTurn].name}'s turn`;
   if (dieBtn) dieBtn.classList.toggle("done", !!winner);
+  syncDockSpace();
 }
 const setStatus=(t)=>statusEl.textContent=t;
+
+/* Reserve exactly enough room below the scrolling page for the fixed dock,
+   so the footer and last content are never hidden behind it. */
+function syncDockSpace(){
+  const dock=document.querySelector(".dock");
+  if(!dock) return;
+  document.body.style.paddingBottom=(dock.offsetHeight+14)+"px";
+}
+addEventListener("resize", syncDockSpace);
+addEventListener("orientationchange", ()=>setTimeout(syncDockSpace,180));
+addEventListener("load", syncDockSpace);
 
 /* ---------- Game logic ---------- */
 async function animateAlong(playerIdx, from, to){
@@ -663,6 +673,22 @@ async function runTurn(rolled){
 
   if (target===FINAL_TILE){ moving=false; showWin(me); return; }
 
+  // Landed on a star tile → draw a quest, show it, apply its reward on confirm
+  if (QUEST_TILES.has(target)){
+    const q = randomQuest();
+    setStatus(`${message} ⭐ ${me.name} landed on a star — quest time!`);
+    paintPawns(); paintTurn();
+    showQuest(q, ()=>{
+      applyQuestReward(q, idx);
+      moving=false;
+      if (players[idx].position>=FINAL_TILE){ players[idx].position=FINAL_TILE; showWin(players[idx]); return; }
+      const next=players[(idx+1)%players.length];
+      setStatus(`🎁 ${q.reward} Now it's ${next.name}'s turn.`);
+      advanceTurn(); paintPawns(); paintTurn();
+    }, me.name);
+    return;   // turn pauses here until the quest card is dismissed
+  }
+
   const upcoming=players[(idx+1)%players.length];
   setStatus(`${message} Now it's ${upcoming.name}'s turn.`);
   advanceTurn(); moving=false; paintPawns(); paintTurn();
@@ -757,6 +783,7 @@ function openHelp(){
   simpleModal(`<h2>How to play 🎲</h2>
     <ul class="info-list">
       <li><span class="ico">🎲</span><span>Take turns tapping the dice. Climb 🪜 ladders, slide down 🐍 snakes.</span></li>
+      <li><span class="ico">⭐</span><span>Land on a <b>gold star</b> tile to draw a fun family quest — finish it for a reward!</span></li>
       <li><span class="ico">📊</span><span>Use the player bars beside the dice to track everyone’s progress to 100.</span></li>
       <li><span class="ico">🏁</span><span>You need an <b>exact roll</b> to land on 100.</span></li>
     </ul>`);
