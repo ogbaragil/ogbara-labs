@@ -26,14 +26,14 @@ http://127.0.0.1:4173/
 - Recurring bills (weekly to yearly) that roll the schedule forward when marked paid, powering the forecast.
 - Bills, calendar, and forecast views; a bill detail sheet with mark paid / reschedule / edit / delete and payment history.
 - Local browser storage with optional cloud sync for bills and reminder settings.
-- Email/password login, account signup, and password reset through Supabase Auth.
+- Email/password login, account signup, and password reset through Supabase Auth, with a "stay signed in" option and automatic session refresh.
 - JSON export and import for backups and device transfers.
 - Synced email reminder settings per signed-in user.
 - Scheduled email reminders through a Cloudflare Worker Cron Trigger and Resend.
 
 ## Supabase
 
-Run `supabase/schema.sql` in a Supabase project SQL editor. Re-run it after this update so the new `category` and `recurrence` columns (plus `user_settings`, payment note fields, `user_id`, `client_bill_id`, indexes, and authenticated policies) are created. The statements are idempotent, so re-running is safe.
+Run `supabase/schema.sql` in a Supabase project SQL editor. Re-run it after this update so the new `category`, `recurrence`, and `anchor_day` columns (plus `user_settings`, payment note fields, `user_id`, `client_bill_id`, indexes, and authenticated policies) are created. The statements are idempotent, so re-running is safe.
 
 The MVP policy allows anon sync only when the request includes the browser's generated sync secret. Add Supabase Auth and per-user row-level security before using this for real shared or sensitive production data.
 Logged-in users sync through Supabase Auth and `user_id`. The hosted app requires sign-in before the dashboard can be used.
@@ -55,7 +55,7 @@ Add this Cloudflare Pages secret:
 
 Supabase Auth must have email/password signups enabled. For password reset links, add your Cloudflare Pages URL to the Supabase Auth redirect URLs.
 
-The hosted app uses `functions/api/bills.js` for bill sync and `functions/api/settings.js` for reminder settings sync.
+The hosted app uses `functions/api/bills.js` for bill sync (GET to load, POST to upsert, DELETE to remove) and `functions/api/settings.js` for reminder settings sync. `functions/api/auth/refresh.js` exchanges a refresh token for a new session so logins survive past the access-token expiry.
 
 The included `_headers`, `wrangler.toml`, and `functions/` directory are ready for Cloudflare Pages.
 

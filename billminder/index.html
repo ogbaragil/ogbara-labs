@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=cleared-4">
+    <link rel="stylesheet" href="styles.css?v=cleared-5">
   </head>
   <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -48,6 +48,10 @@
           </label>
           <label id="authConfirmRow" hidden>Confirm password
             <input id="authConfirm" type="password" placeholder="Re-enter password" autocomplete="new-password">
+          </label>
+          <label class="auth-remember">
+            <input id="authRemember" type="checkbox" checked>
+            <span>Stay signed in</span>
           </label>
           <button class="btn primary block" id="authPrimary" type="submit">Log in</button>
         </form>
@@ -263,6 +267,6 @@
       </form>
     </div>
 
-    <script src="app.js?v=cleared-3" defer></script>
+    <script src="app.js?v=cleared-4" defer></script>
   </body>
 </html>

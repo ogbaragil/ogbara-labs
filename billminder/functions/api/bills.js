@@ -81,6 +81,50 @@ export async function onRequestPost({ request, env }) {
   return jsonResponse({ ok: true, synced: rows.length });
 }
 
+export async function onRequestDelete({ request, env }) {
+  const configError = validateConfig(env);
+  if (configError) return configError;
+
+  const syncSecret = request.headers.get("x-sync-secret");
+  const payload = await request.json().catch(() => null);
+  const appInstanceId = payload?.appInstanceId;
+  const clientBillIds = Array.isArray(payload?.clientBillIds)
+    ? payload.clientBillIds.map((id) => String(id)).filter(Boolean)
+    : [];
+  const authToken = getBearerToken(request);
+  const user = authToken ? await getSupabaseUser(env, authToken) : null;
+
+  if (!user) {
+    const identityError = validateIdentity(appInstanceId, syncSecret);
+    if (identityError) return identityError;
+  }
+
+  if (!clientBillIds.length) {
+    return jsonResponse({ ok: true, deleted: 0 });
+  }
+
+  const inList = `(${clientBillIds.map((id) => `"${encodeURIComponent(id)}"`).join(",")})`;
+  const scope = user
+    ? `user_id=eq.${encodeURIComponent(user.id)}`
+    : `app_instance_id=eq.${encodeURIComponent(appInstanceId)}`;
+  const query = `/rest/v1/bills?${scope}&client_bill_id=in.${inList}`;
+
+  const response = await supabaseFetch(env, query, {
+    method: "DELETE",
+    headers: {
+      Prefer: "return=minimal",
+      "x-sync-secret": syncSecret || "",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+    }
+  });
+
+  if (!response.ok) {
+    return errorResponse(await response.text(), response.status);
+  }
+
+  return jsonResponse({ ok: true, deleted: clientBillIds.length });
+}
+
 function validateConfig(env) {
   if (!getSupabaseAnonKey(env)) {
     return errorResponse("Cloud sync is not configured. Add VITE_SUPABASE_ANON_KEY as a Cloudflare Pages secret.", 500);
@@ -139,34 +183,43 @@ function getBearerToken(request) {
 }
 
 async function syncUserBills(env, rows, userId, authToken, syncSecret) {
-  let synced = 0;
+  if (!rows.length) return { synced: 0 };
 
-  for (const row of rows) {
-    const existing = await findUserBill(env, userId, row.client_bill_id, authToken, syncSecret);
-    if (existing.error) return existing;
+  // One request to map existing client_bill_id -> remote id, instead of a
+  // per-bill lookup (the old N+1 pattern blew through Workers subrequest limits).
+  const existing = await fetchUserBillIdMap(env, userId, rows, authToken, syncSecret);
+  if (existing.error) return existing;
 
-    const remoteId = existing.id || crypto.randomUUID();
-    const response = await supabaseFetch(env, existing.id ? `/rest/v1/bills?id=eq.${encodeURIComponent(remoteId)}` : "/rest/v1/bills", {
-      method: existing.id ? "PATCH" : "POST",
-      headers: {
-        "x-sync-secret": syncSecret,
-        Authorization: `Bearer ${authToken}`
-      },
-      body: JSON.stringify({ ...row, id: remoteId })
-    });
+  const prepared = rows.map((row) => {
+    const remoteId = existing.map.get(row.client_bill_id) || (isUuid(row.id) ? row.id : crypto.randomUUID());
+    return { ...row, id: remoteId, user_id: userId };
+  });
 
-    if (!response.ok) {
-      return { error: errorResponse(await response.text(), response.status) };
-    }
+  // One bulk upsert (merge-duplicates on the primary key) for every bill.
+  const response = await supabaseFetch(env, "/rest/v1/bills", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=merge-duplicates,return=minimal",
+      "x-sync-secret": syncSecret,
+      Authorization: `Bearer ${authToken}`
+    },
+    body: JSON.stringify(prepared)
+  });
 
-    synced += 1;
+  if (!response.ok) {
+    return { error: errorResponse(await response.text(), response.status) };
   }
 
-  return { synced };
+  return { synced: prepared.length };
 }
 
-async function findUserBill(env, userId, clientBillId, authToken, syncSecret) {
-  const query = `/rest/v1/bills?user_id=eq.${encodeURIComponent(userId)}&client_bill_id=eq.${encodeURIComponent(clientBillId)}&select=id&limit=1`;
+async function fetchUserBillIdMap(env, userId, rows, authToken, syncSecret) {
+  const clientIds = rows.map((row) => row.client_bill_id).filter(Boolean);
+  const map = new Map();
+  if (!clientIds.length) return { map };
+
+  const inList = `(${clientIds.map((id) => `"${encodeURIComponent(id)}"`).join(",")})`;
+  const query = `/rest/v1/bills?user_id=eq.${encodeURIComponent(userId)}&client_bill_id=in.${inList}&select=id,client_bill_id`;
   const response = await supabaseFetch(env, query, {
     headers: {
       "x-sync-secret": syncSecret,
@@ -178,8 +231,11 @@ async function findUserBill(env, userId, clientBillId, authToken, syncSecret) {
     return { error: errorResponse(await response.text(), response.status) };
   }
 
-  const rows = await response.json();
-  return { id: rows[0]?.id || null };
+  const existingRows = await response.json();
+  for (const existing of existingRows) {
+    if (existing.client_bill_id) map.set(existing.client_bill_id, existing.id);
+  }
+  return { map };
 }
 
 function toSupabaseRow(bill, appInstanceId, syncSecret, userId) {
@@ -195,6 +251,7 @@ function toSupabaseRow(bill, appInstanceId, syncSecret, userId) {
     due_date: bill.dueDate,
     category: bill.category || "other",
     recurrence: bill.recurrence || "once",
+    anchor_day: Number.isInteger(bill.anchorDay) ? bill.anchorDay : null,
     reference: bill.reference || null,
     notes: bill.notes || null,
     file_name: bill.fileName || null,
@@ -218,6 +275,7 @@ function fromSupabaseRow(row) {
     dueDate: row.due_date,
     category: row.category || "other",
     recurrence: row.recurrence || "once",
+    anchorDay: Number.isInteger(row.anchor_day) ? row.anchor_day : null,
     reference: row.reference || "",
     notes: row.notes || "",
     fileName: row.file_name || "",

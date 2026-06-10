@@ -103,6 +103,9 @@ textarea { resize: vertical; }
 .auth-card h1 { font-size: 23px; margin-bottom: 14px; }
 .auth-status { font-size: 13px; color: var(--muted); margin: 0 0 18px; min-height: 18px; }
 .auth-links { display: flex; justify-content: space-between; margin-top: 16px; gap: 10px; }
+.auth-remember { display: flex; align-items: center; gap: 9px; margin: 4px 0 14px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.auth-remember input { width: 18px; height: 18px; flex: none; margin: 0; accent-color: var(--green); cursor: pointer; }
+.auth-remember span { font-weight: 500; }
 
 /* ===================== APP SHELL (mobile column) ===================== */
 .app { max-width: var(--maxw); margin: 0 auto; min-height: 100vh; padding: 0 16px calc(96px + env(safe-area-inset-bottom)); }

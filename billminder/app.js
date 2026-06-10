@@ -11,6 +11,9 @@
 const STORE_KEY = "cleared:bills";
 const SETTINGS_KEY = "cleared:settings";
 const AUTH_KEY = "cleared:auth";
+const TOMB_KEY = "cleared:tombstones";
+const REMEMBER_KEY = "cleared:remember";
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const LEGACY = { bills: "bill-minder:bills", settings: "bill-minder:settings", auth: "bill-minder:auth" };
 
 const CURRENCY = "AUD";
@@ -45,6 +48,7 @@ const DEFAULT_SETTINGS = {
 
 const state = {
   bills: [],
+  tombstones: [],
   settings: {},
   auth: null,
   view: "dashboard",
@@ -66,8 +70,10 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 function init() {
   migrateLegacyKeys();
   state.bills = readJson(STORE_KEY, []).map(normalizeBill);
+  state.tombstones = pruneTombstones(readJson(TOMB_KEY, []));
+  saveTombstones();
   state.settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
-  state.auth = readJson(AUTH_KEY, null);
+  state.auth = readAuth();
   state.view = "overview";
   state.billsTab = "all";
   state.selectedDate = null;
@@ -90,8 +96,17 @@ function init() {
   updateAuthGate();
   render();
 
+  bootSession();
+}
+
+async function bootSession() {
+  await ensureFreshSession();
+  updateAuthGate();
   if (hasSyncConnection()) { restoreReminderSettings(); restoreSupabase().catch(() => {}); }
-  window.addEventListener("focus", () => { if (hasSyncConnection()) restoreSupabase().catch(() => {}); });
+  window.addEventListener("focus", async () => {
+    await ensureFreshSession();
+    if (hasSyncConnection()) restoreSupabase().catch(() => {});
+  });
 }
 
 function migrateLegacyKeys() {
@@ -174,6 +189,7 @@ function normalizeBill(bill) {
     dueDate: bill.dueDate || formatDatePartsFromDate(new Date()),
     category: CATEGORIES[bill.category] ? bill.category : "other",
     recurrence: RECURRENCE[bill.recurrence] ? bill.recurrence : "once",
+    anchorDay: normalizeAnchorDay(bill.anchorDay, bill.dueDate),
     reference: bill.reference || "",
     notes: bill.notes || "",
     fileName: bill.fileName || "",
@@ -262,6 +278,7 @@ function forecastMonths(count = 4) {
 function projectOccurrences(bill, from, to) {
   const dates = [];
   const rec = RECURRENCE[bill.recurrence] || RECURRENCE.once;
+  const anchorDay = normalizeAnchorDay(bill.anchorDay, bill.dueDate);
   let cursor = dateFromInput(bill.dueDate);
   // Skip already-paid one-offs from forecast; recurring keep projecting future copies.
   if (bill.recurrence === "once") {
@@ -270,15 +287,37 @@ function projectOccurrences(bill, from, to) {
   }
   // Advance cursor to >= from
   let guard = 0;
-  while (cursor < startOfDay(from) && guard < 500) { cursor = advance(cursor, rec); guard++; }
+  while (cursor < startOfDay(from) && guard < 500) { cursor = advance(cursor, rec, anchorDay); guard++; }
   guard = 0;
-  while (cursor < to && guard < 500) { dates.push(cursor); cursor = advance(cursor, rec); guard++; }
+  while (cursor < to && guard < 500) { dates.push(cursor); cursor = advance(cursor, rec, anchorDay); guard++; }
   return dates;
 }
 
-function advance(date, rec) {
+// Advance a due date by one recurrence step. For month-based cadences the
+// series stays anchored to its original day-of-month and is clamped to the last
+// valid day of short months, so a "31st" bill goes 31 Jan -> 28 Feb -> 31 Mar
+// instead of overflowing into March and permanently drifting.
+function advance(date, rec, anchorDay) {
   if (rec.days) return addDays(date, rec.days);
-  return startOfDay(new Date(date.getFullYear(), date.getMonth() + rec.months, date.getDate()));
+  const anchor = clampDay(anchorDay) || date.getDate();
+  const target = new Date(date.getFullYear(), date.getMonth() + rec.months, 1);
+  const daysInMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  return startOfDay(new Date(target.getFullYear(), target.getMonth(), Math.min(anchor, daysInMonth)));
+}
+
+function clampDay(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 && n <= 31 ? n : 0;
+}
+
+function normalizeAnchorDay(value, dueDate) {
+  const clamped = clampDay(value);
+  if (clamped) return clamped;
+  if (dueDate) {
+    const parts = String(dueDate).split("-").map(Number);
+    if (parts.length === 3 && clampDay(parts[2])) return parts[2];
+  }
+  return startOfDay(new Date()).getDate();
 }
 
 function categoryBreakdown(months = 3) {
@@ -761,6 +800,7 @@ function saveBillFromForm(event) {
         amount, dueDate,
         category: $("#categoryInput").value,
         recurrence: $("#recurrenceInput").value,
+        anchorDay: normalizeAnchorDay(null, dueDate),
         reference: $("#referenceInput").value.trim(),
         notes: $("#notesInput").value.trim()
       });
@@ -905,11 +945,32 @@ function closeDetailSheet() {
 function deleteBill(id) {
   const bill = state.bills.find((b) => b.id === id);
   state.bills = state.bills.filter((b) => b.id !== id);
+  if (bill) addTombstone(bill.clientBillId || bill.id);
   saveBills();
   closeDetailSheet();
   render();
-  if (bill?.remoteId) deleteRemoteBill(bill).catch(() => {});
+  if (bill) deleteRemoteBill(bill).catch(() => {});
 }
+
+function addTombstone(clientBillId) {
+  if (!clientBillId) return;
+  const key = String(clientBillId);
+  state.tombstones = pruneTombstones(state.tombstones.filter((t) => t.clientBillId !== key));
+  state.tombstones.push({ clientBillId: key, deletedAt: Date.now() });
+  saveTombstones();
+}
+
+function pruneTombstones(list) {
+  const now = Date.now();
+  return (Array.isArray(list) ? list : [])
+    .filter((t) => t && t.clientBillId && (!t.deletedAt || now - Number(t.deletedAt) < TOMBSTONE_TTL_MS));
+}
+
+function tombstonedIds() {
+  return new Set(state.tombstones.map((t) => t.clientBillId));
+}
+
+function saveTombstones() { localStorage.setItem(TOMB_KEY, JSON.stringify(state.tombstones)); }
 
 /* ---------------- modals (paid / reschedule / reset) ---------------- */
 function setupModals() {
@@ -941,10 +1002,12 @@ function savePaidBill() {
   // Recurring bills: spawn the next occurrence as unpaid so the schedule
   // continues, and demote this paid one to a one-off so it isn't projected twice.
   if (bill.recurrence !== "once") {
-    const next = advance(dateFromInput(bill.dueDate), RECURRENCE[bill.recurrence]);
+    const anchorDay = normalizeAnchorDay(bill.anchorDay, bill.dueDate);
+    const next = advance(dateFromInput(bill.dueDate), RECURRENCE[bill.recurrence], anchorDay);
     state.bills.push(normalizeBill({
       biller: bill.biller, amount: bill.amount, dueDate: formatDatePartsFromDate(next),
-      category: bill.category, recurrence: bill.recurrence, reference: bill.reference, notes: bill.notes
+      category: bill.category, recurrence: bill.recurrence, anchorDay,
+      reference: bill.reference, notes: bill.notes
     }));
     bill.recurrence = "once";
   }
@@ -1046,6 +1109,8 @@ function setupAuth() {
   $("#authForm")?.addEventListener("submit", (e) => { e.preventDefault(); state.signupMode ? createAccount() : authenticate("login"); });
   $("#authToggleSignup")?.addEventListener("click", toggleSignup);
   $("#authForgotButton")?.addEventListener("click", () => recoverPassword());
+  const remember = $("#authRemember");
+  if (remember) remember.checked = localStorage.getItem(REMEMBER_KEY) === null ? true : rememberMe();
   updateAuthStatus();
 }
 
@@ -1081,6 +1146,7 @@ async function authenticate(mode) {
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new Error(payload?.error || "Sign in failed.");
     if (!payload?.accessToken) { updateAuthStatus(payload?.message || "Check your email to confirm your account, then log in."); return; }
+    setRememberMe($("#authRemember")?.checked !== false);
     state.auth = payload; saveAuth();
     $("#authPassword").value = "";
     updateAuthGate(); render();
@@ -1110,6 +1176,7 @@ async function createAccount() {
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new Error(payload?.error || "Sign up failed.");
     if (!payload?.accessToken) { updateAuthStatus(payload?.message || "Check your email to confirm your account, then log in."); toggleSignup(); return; }
+    setRememberMe($("#authRemember")?.checked !== false);
     state.auth = payload; saveAuth();
     updateAuthGate(); render();
     await syncReminderSettings().catch(() => {});
@@ -1187,11 +1254,63 @@ async function updatePassword() {
 function logout() {
   state.auth = null;
   localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(REMEMBER_KEY);
+  try { sessionStorage.removeItem(AUTH_KEY); } catch { /* ignore */ }
   updateAuthGate();
   render();
 }
 
-function saveAuth() { localStorage.setItem(AUTH_KEY, JSON.stringify(state.auth)); }
+// "Stay signed in": when checked, the session lives in localStorage (survives
+// browser restarts). When unchecked, it lives in sessionStorage and is dropped
+// when the tab/window closes.
+function rememberMe() { return localStorage.getItem(REMEMBER_KEY) === "1"; }
+
+function setRememberMe(remember) {
+  if (remember) localStorage.setItem(REMEMBER_KEY, "1");
+  else localStorage.removeItem(REMEMBER_KEY);
+}
+
+function readAuth() {
+  const fromLocal = readJson(AUTH_KEY, null);
+  if (fromLocal) return fromLocal;
+  try {
+    const raw = sessionStorage.getItem(AUTH_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveAuth() {
+  const value = JSON.stringify(state.auth);
+  if (rememberMe()) {
+    localStorage.setItem(AUTH_KEY, value);
+    try { sessionStorage.removeItem(AUTH_KEY); } catch { /* ignore */ }
+  } else {
+    try { sessionStorage.setItem(AUTH_KEY, value); } catch { localStorage.setItem(AUTH_KEY, value); }
+    localStorage.removeItem(AUTH_KEY);
+  }
+}
+
+// Refresh the access token when it is missing/expired but we still hold a
+// refresh token, so sessions no longer silently die after ~1 hour.
+async function ensureFreshSession(force = false) {
+  if (!state.auth?.refreshToken) return hasActiveSession();
+  if (!force && hasActiveSession()) return true;
+  if (!useCloudflareSync()) return false;
+  try {
+    const response = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: state.auth.refreshToken })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.accessToken) { logout(); return false; }
+    state.auth = payload;
+    saveAuth();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function updateAuthGate() {
   const signedIn = hasActiveSession();
@@ -1238,8 +1357,8 @@ function hasActiveSession() {
 }
 function hasSyncConnection() { return useCloudflareSync() && hasActiveSession(); }
 
-function cloudflareSyncRequest(path, options = {}) {
-  return fetch(path, {
+async function cloudflareSyncRequest(path, options = {}) {
+  const send = () => fetch(path, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -1248,6 +1367,13 @@ function cloudflareSyncRequest(path, options = {}) {
       ...(options.headers || {})
     }
   });
+
+  let response = await send();
+  if (response.status === 401 && state.auth?.refreshToken) {
+    const refreshed = await ensureFreshSession(true);
+    if (refreshed) response = await send();
+  }
+  return response;
 }
 
 async function syncSupabase() {
@@ -1295,9 +1421,19 @@ async function upsertRemoteBills(bills) {
 }
 
 async function deleteRemoteBill(bill) {
-  // Best-effort: a future server endpoint will handle hard deletes. For now,
-  // dropping it locally and re-pushing keeps this device authoritative.
-  return pushBillsQuietly();
+  if (!hasSyncConnection()) return;
+  const clientBillId = bill.clientBillId || bill.id;
+  const response = await cloudflareSyncRequest("/api/bills", {
+    method: "DELETE",
+    body: JSON.stringify({ appInstanceId: state.settings.appInstanceId, clientBillIds: [clientBillId] })
+  });
+  if (response.ok) {
+    // Server no longer has it, so the local tombstone can be dropped.
+    state.tombstones = state.tombstones.filter((t) => t.clientBillId !== String(clientBillId));
+    saveTombstones();
+  } else {
+    throw new Error(await response.text());
+  }
 }
 
 async function fetchRemoteBills() {
@@ -1354,8 +1490,13 @@ function applyRemoteSettings(settings) {
 }
 
 function mergeBills(localBills, remoteBills) {
+  const dead = tombstonedIds();
   const byKey = new Map();
-  [...remoteBills, ...localBills].forEach((bill) => { byKey.set(bill.clientBillId || bill.id, normalizeBill(bill)); });
+  [...remoteBills, ...localBills].forEach((bill) => {
+    const key = bill.clientBillId || bill.id;
+    if (dead.has(String(key))) return; // deleted on this device; don't resurrect
+    byKey.set(key, normalizeBill(bill));
+  });
   return Array.from(byKey.values());
 }
 

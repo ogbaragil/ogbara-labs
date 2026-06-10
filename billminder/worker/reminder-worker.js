@@ -48,9 +48,16 @@ async function runReminders(env, runDate) {
           continue;
         }
 
-        await sendReminderEmail(env, setting.email, bill, leadDays);
+        // Mark first so a crash/retry between send and mark can never double-send.
         await markBillReminded(env, bill, reminderKey);
-        sent += 1;
+        try {
+          await sendReminderEmail(env, setting.email, bill, leadDays);
+          sent += 1;
+        } catch (sendError) {
+          // Send failed: undo the mark so the next run retries this bill.
+          await unmarkBillReminded(env, bill, reminderKey).catch(() => {});
+          throw sendError;
+        }
       }
     } catch (error) {
       errors.push({
@@ -115,6 +122,27 @@ async function sendReminderEmail(env, to, bill, leadDays) {
 
 async function markBillReminded(env, bill, reminderKey) {
   const remindedFor = Array.from(new Set([...(bill.reminded_for || []), reminderKey]));
+  bill.reminded_for = remindedFor;
+  const response = await supabaseFetch(env, `/rest/v1/bills?id=eq.${encodeURIComponent(bill.id)}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${getServiceRoleKey(env)}`,
+      Prefer: "return=minimal"
+    },
+    body: JSON.stringify({
+      reminded_for: remindedFor,
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+async function unmarkBillReminded(env, bill, reminderKey) {
+  const remindedFor = (bill.reminded_for || []).filter((key) => key !== reminderKey);
+  bill.reminded_for = remindedFor;
   const response = await supabaseFetch(env, `/rest/v1/bills?id=eq.${encodeURIComponent(bill.id)}`, {
     method: "PATCH",
     headers: {

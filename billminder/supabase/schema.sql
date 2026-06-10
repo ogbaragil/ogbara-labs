@@ -55,6 +55,9 @@ alter table public.bills
 alter table public.bills
   add column if not exists recurrence text not null default 'once';
 
+alter table public.bills
+  add column if not exists anchor_day integer;
+
 update public.bills
 set client_bill_id = id::text
 where client_bill_id is null;
