@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS = {
   emailReminders: false,
   firstName: "",
   namePrompted: false,
+  lastSyncedAt: 0,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Melbourne",
   appInstanceId: crypto.randomUUID(),
   syncSecret: crypto.randomUUID()
@@ -428,7 +429,7 @@ function render() {
     overview: [`${greeting()}, ${firstName()} \u{1F44B}`, "Here's what's happening with your bills."],
     bills: ["Bills", "Manage and track all your bills in one place."],
     calendar: ["Calendar", "Tap a day to open its bills."],
-    more: ["More", "Settings, data, and your account."]
+    more: ["Settings", ""]
   };
   const head = heads[v] || heads.overview;
   $("#greetingName").textContent = head[0];
@@ -832,12 +833,100 @@ function renderCalendarDay() {
 
 /* ===================== MORE ===================== */
 function renderMore() {
-  const acct = $("#accountStatus");
-  if (acct) acct.textContent = accountLabel();
-  const nameInput = $("#accountNameInput");
-  if (nameInput && document.activeElement !== nameInput) nameInput.value = state.settings.firstName || "";
+  const name = firstName();
+  const avatar = $("#setAvatar"); if (avatar) avatar.textContent = (name[0] || "\u00b7").toUpperCase();
+  const greet = $("#setGreetTitle"); if (greet) greet.textContent = `${greeting()}, ${name}`;
+
+  const leadMap = { 0: "On the due date", 1: "1 day before", 3: "3 days before", 7: "7 days before" };
+  const rv = $("#reminderValue");
+  if (rv) rv.textContent = leadMap[state.settings.reminderLeadDays] || `${state.settings.reminderLeadDays} days before`;
+  if ($("#reminderLeadSelect")) $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
+  if ($("#emailReminderToggle")) $("#emailReminderToggle").checked = !!state.settings.emailReminders;
+
+  const an = $("#accountName"); if (an) an.textContent = hasActiveSession() ? name : "Account";
+  const ae = $("#accountEmail"); if (ae) ae.textContent = hasActiveSession() ? `Signed in as ${state.auth.email}` : "Not signed in.";
+  const ani = $("#accountNameInput");
+  if (ani && document.activeElement !== ani) ani.value = state.settings.firstName || "";
+
+  const hs = $("#householdSub");
+  if (hs) {
+    const hh = state.household;
+    if (hh && Array.isArray(hh.members) && hh.members.length >= 2) {
+      const me = (state.auth?.email || "").toLowerCase();
+      const partner = hh.members.find((m) => (m.email || "").toLowerCase() !== me) || hh.members[0];
+      hs.textContent = `Connected with ${partner?.email || "your partner"}`;
+    } else if ((state.sentInvites && state.sentInvites[0]) || state.lastInvite) {
+      hs.textContent = "Invitation pending";
+    } else {
+      hs.textContent = "Invite a partner";
+    }
+  }
+
+  updateBackupRow();
   updateEmailReminderHint();
+}
+
+function updateBackupRow() {
+  const timeEl = $("#backupTime");
+  const pill = $("#backupPill");
+  const line = $("#setSyncLine");
+  const ok = $("#setSyncOk");
+  if (!timeEl || !pill) return;
+
+  if (!hasSyncConnection()) {
+    const localOnly = !useCloudflareSync();
+    timeEl.textContent = localOnly ? "Saved on this device" : "Sign in to back up";
+    pill.hidden = true;
+    if (ok) ok.hidden = true;
+    if (line) line.textContent = localOnly ? "Bills are saved on this device." : "Sign in to back up your bills.";
+    return;
+  }
+
+  const cls = state.syncState || "idle";
+  pill.hidden = false;
+  pill.className = "set-pill" + (cls === "sync" ? " sync" : cls === "err" ? " err" : "");
+  pill.textContent = cls === "sync" ? "Syncing\u2026" : cls === "err" ? "Issue" : "Synced";
+  timeEl.textContent = state.settings.lastSyncedAt
+    ? `Last synced ${formatSyncTime(state.settings.lastSyncedAt)}`
+    : "Not backed up yet";
+  if (ok) ok.hidden = cls !== "idle";
+  if (line) line.textContent = cls === "idle"
+    ? "Everything is synced and up to date."
+    : cls === "sync" ? "Syncing your bills\u2026" : "Will sync when online.";
+}
+
+function formatSyncTime(ts) {
+  const d = new Date(ts);
+  const todayMs = startOfDay(new Date()).getTime();
+  const dayMs = startOfDay(d).getTime();
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (dayMs === todayMs) return `today at ${time}`;
+  if (dayMs === todayMs - 86400000) return `yesterday at ${time}`;
+  return `${formatDisplayDate(formatDatePartsFromDate(d))} at ${time}`;
+}
+
+function openHouseholdModal() {
   renderHousehold();
+  $("#householdModal").hidden = false;
+}
+function closeHouseholdModal() {
+  $("#householdModal").hidden = true;
+  renderMore();
+}
+function openAccountModal() {
+  const ani = $("#accountNameInput"); if (ani) ani.value = state.settings.firstName || "";
+  const ae = $("#accountEmail"); if (ae) ae.textContent = hasActiveSession() ? `Signed in as ${state.auth.email}` : "Not signed in.";
+  $("#accountModal").hidden = false;
+}
+function closeAccountModal() {
+  const ani = $("#accountNameInput");
+  if (ani) {
+    state.settings.firstName = ani.value.trim().slice(0, 40);
+    state.settings.namePrompted = true;
+    saveSettings(); scheduleSync(200);
+  }
+  $("#accountModal").hidden = true;
+  renderMore();
 }
 
 /* ---------------- household / partner sharing ---------------- */
@@ -860,7 +949,8 @@ async function loadHousehold() {
     const payload = await response.json();
     state.household = payload.household || null;
     state.sentInvites = payload.sentInvites || [];
-    if (state.view === "more") renderHousehold();
+    renderHousehold();
+    if (state.view === "more") renderMore();
   } catch { /* ignore */ }
 }
 
@@ -907,6 +997,7 @@ async function sendHouseholdInvite() {
     state.lastInvite = { email: payload.email, link: payload.link };
     await loadHousehold();
     renderHousehold();
+    renderMore();
   } catch (err) {
     if (status) status.textContent = err.message || "Could not create the invitation.";
   } finally {
@@ -922,6 +1013,8 @@ async function leaveHousehold() {
     state.household = null; state.lastInvite = null; state.sentInvites = [];
     await restoreSupabase().catch(() => {});
     renderHousehold();
+    renderMore();
+    closeHouseholdModal();
   } catch (err) {
     const status = $("#householdStatus"); if (status) status.textContent = err.message || "Could not leave the household.";
   }
@@ -1396,31 +1489,35 @@ function saveRescheduledBill() {
 function setupSettings() {
   $("#reminderLeadSelect")?.addEventListener("change", (e) => {
     state.settings.reminderLeadDays = Number(e.target.value);
-    saveSettings(); render(); scheduleSync(200);
+    saveSettings(); renderMore(); scheduleSync(200);
   });
   $("#emailReminderToggle")?.addEventListener("change", (e) => {
     state.settings.emailReminders = e.target.checked;
     saveSettings(); updateEmailReminderHint(); scheduleSync(200);
   });
-  $("#exportButton")?.addEventListener("click", exportBills);
-  $("#importButton")?.addEventListener("click", () => $("#importInput").click());
+  $("#rowSyncNow")?.addEventListener("click", () => syncSupabase());
+  $("#rowExport")?.addEventListener("click", exportBills);
+  $("#rowImport")?.addEventListener("click", () => $("#importInput").click());
   $("#importInput")?.addEventListener("change", importBills);
+  $("#rowHousehold")?.addEventListener("click", openHouseholdModal);
+  $("#closeHouseholdButton")?.addEventListener("click", closeHouseholdModal);
+  $("#rowAccount")?.addEventListener("click", openAccountModal);
+  $("#closeAccountButton")?.addEventListener("click", closeAccountModal);
+  $("#saveAccountButton")?.addEventListener("click", closeAccountModal);
+  $("#rowLogout")?.addEventListener("click", () => { closeAccountModal(); logout(); });
   $("#clearBillsButton")?.addEventListener("click", () => {
     if (!confirm("Clear all bills? This removes them from this device and, once synced, your account.")) return;
     state.bills.forEach((b) => { addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id); });
-    state.bills = []; saveBills(); render(); scheduleSync(200);
+    state.bills = []; saveBills(); closeAccountModal(); render(); scheduleSync(200);
   });
-  $("#logoutButton")?.addEventListener("click", logout);
   $("#accountNameInput")?.addEventListener("change", (e) => {
     state.settings.firstName = e.target.value.trim().slice(0, 40);
     state.settings.namePrompted = true;
-    saveSettings(); render(); scheduleSync(200);
+    saveSettings(); renderMore(); scheduleSync(200);
   });
-  $("#syncSupabaseButton")?.addEventListener("click", () => syncSupabase());
-  $("#restoreSupabaseButton")?.addEventListener("click", () => restoreSupabase());
 
-  $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
-  $("#emailReminderToggle").checked = !!state.settings.emailReminders;
+  if ($("#reminderLeadSelect")) $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
+  if ($("#emailReminderToggle")) $("#emailReminderToggle").checked = !!state.settings.emailReminders;
   updateEmailReminderHint();
 }
 
@@ -1825,6 +1922,7 @@ async function runSync() {
     const remoteSettings = await fetchRemoteSettings();
     if (remoteSettings) applyRemoteSettings(remoteSettings);
     state.bills = mergeBills(state.bills, remote.map(normalizeBill));
+    state.settings.lastSyncedAt = Date.now();
     saveBills(); saveSettings();
     render();
     updateSyncStatus("All data synced", "idle");
@@ -1929,6 +2027,7 @@ function updateSyncStatus(message, statusClass) {
   if (el) el.textContent = message;
   if (statusClass) state.syncState = statusClass;
   updateSyncChip(message, statusClass);
+  if (state.view === "more") updateBackupRow();
 }
 
 function updateSyncChip(message, statusClass) {

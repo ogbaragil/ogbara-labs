@@ -1,11 +1,11 @@
 // Cleared service worker — network-first so deploys always serve fresh files.
 // Falls back to cache only when offline. Bumping CACHE_NAME drops old caches.
-const CACHE_NAME = "cleared-v14";
+const CACHE_NAME = "cleared-v15";
 const PRECACHE = [
   "./",
   "./index.html",
-  "./styles.css?v=cleared-11",
-  "./app.js?v=cleared-11",
+  "./styles.css?v=cleared-12",
+  "./app.js?v=cleared-12",
   "./manifest.webmanifest",
   "./icons/icon.svg"
 ];
