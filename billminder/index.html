@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=cleared-12">
+    <link rel="stylesheet" href="styles.css?v=cleared-14">
   </head>
   <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -241,12 +241,14 @@
         </div>
         <form id="billForm" novalidate>
           <div class="drop-zone" id="dropZone">
-            <input id="pdfInput" name="pdf" type="file" accept="application/pdf">
+            <input id="pdfInput" name="pdf" type="file" accept="application/pdf,image/*">
             <span class="extract-spin" id="extractSpin" hidden aria-hidden="true"><svg class="mark" viewBox="0 0 64 64"><use href="#clearedMark"/></svg></span>
-            <strong>Drop a statement or bill PDF</strong>
-            <span>or tap to choose a file — we'll pull out the details</span>
+            <strong>Drop a statement, or tap to upload</strong>
+            <span>PDF or photo — we'll pull out the details</span>
           </div>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
           <div class="extract-row">
+            <button class="btn ghost sm" id="scanButton" type="button">Scan with camera</button>
             <button class="btn ghost sm" id="aiExtractButton" type="button" disabled>AI extract</button>
             <span class="badge" id="confidenceBadge">Waiting</span>
           </div>
@@ -365,6 +367,6 @@
       </div>
     </div>
 
-    <script src="app.js?v=cleared-14" defer></script>
+    <script src="app.js?v=cleared-17" defer></script>
   </body>
 </html>

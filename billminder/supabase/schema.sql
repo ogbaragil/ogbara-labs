@@ -64,6 +64,9 @@ alter table public.bills
 alter table public.user_settings
   add column if not exists first_name text;
 
+alter table public.user_settings
+  add column if not exists custom_categories jsonb default '[]'::jsonb;
+
 update public.bills
 set client_bill_id = id::text
 where client_bill_id is null;

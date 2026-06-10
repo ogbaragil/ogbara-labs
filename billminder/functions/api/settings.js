@@ -42,6 +42,7 @@ export async function onRequestPost({ request, env }) {
     email_reminders: Boolean(payload?.emailReminders),
     timezone: normalizeTimezone(payload?.timezone),
     first_name: normalizeName(payload?.firstName),
+    custom_categories: normalizeCustomCategories(payload?.customCategories),
     updated_at: new Date().toISOString()
   };
 
@@ -82,12 +83,21 @@ function normalizeName(value) {
   return String(value || "").trim().slice(0, 40) || null;
 }
 
+function normalizeCustomCategories(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((c) => c && typeof c.id === "string" && typeof c.label === "string")
+    .slice(0, 50)
+    .map((c) => ({ id: c.id.slice(0, 40), label: c.label.slice(0, 30), color: String(c.color || "#64748b").slice(0, 9), glyph: String(c.glyph || "\u2022").slice(0, 4) }));
+}
+
 function fromSupabaseRow(row) {
   return {
     reminderLeadDays: Number(row.reminder_lead_days ?? 3),
     emailReminders: Boolean(row.email_reminders),
     timezone: row.timezone || "Australia/Melbourne",
     firstName: row.first_name || "",
+    customCategories: Array.isArray(row.custom_categories) ? row.custom_categories : [],
     email: row.email || ""
   };
 }

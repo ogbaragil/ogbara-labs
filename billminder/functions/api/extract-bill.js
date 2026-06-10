@@ -12,16 +12,21 @@ export async function onRequestPost({ request, env }) {
   const formData = await request.formData();
   const file = formData.get("pdf");
   if (!file || typeof file.arrayBuffer !== "function") {
-    return jsonResponse({ error: "Upload a PDF file." }, 400);
+    return jsonResponse({ error: "Upload a PDF or photo of the bill." }, 400);
   }
 
   if (file.size > 50 * 1024 * 1024) {
-    return jsonResponse({ error: "PDF is larger than the 50 MB OpenAI file input limit." }, 400);
+    return jsonResponse({ error: "File is larger than the 50 MB OpenAI input limit." }, 400);
   }
 
   const bytes = await file.arrayBuffer();
   const base64 = arrayBufferToBase64(bytes);
   const model = env.OPENAI_MODEL || DEFAULT_MODEL;
+  const mime = file.type || "application/pdf";
+  const isImage = mime.startsWith("image/");
+  const fileContent = isImage
+    ? { type: "input_image", image_url: `data:${mime};base64,${base64}` }
+    : { type: "input_file", filename: file.name || "bill.pdf", file_data: `data:application/pdf;base64,${base64}` };
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -35,14 +40,10 @@ export async function onRequestPost({ request, env }) {
         {
           role: "user",
           content: [
-            {
-              type: "input_file",
-              filename: file.name || "bill.pdf",
-              file_data: `data:application/pdf;base64,${base64}`
-            },
+            fileContent,
             {
               type: "input_text",
-              text: "Extract bill payment details from this PDF. Return JSON only. Use an empty string for missing text fields, amount_due 0 if missing, due_date as YYYY-MM-DD if present, and confidence from 0 to 1."
+              text: "Extract bill payment details from this document or photo. Return JSON only. Use an empty string for missing text fields, amount_due 0 if missing, due_date as YYYY-MM-DD if present, and confidence from 0 to 1."
             }
           ]
         }

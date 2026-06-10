@@ -21,7 +21,9 @@ const LEGACY = { bills: "bill-minder:bills", settings: "bill-minder:settings", a
 const CURRENCY = "AUD";
 
 const CATEGORIES = {
-  utilities:     { label: "Utilities",     color: "#f59e0b", glyph: "\u26A1" },
+  utilities:       { label: "Utility - Electricity", color: "#f59e0b", glyph: "\u26A1" },
+  utilities_water: { label: "Utility - Water",       color: "#06b6d4", glyph: "\uD83D\uDCA7" },
+  utilities_gas:   { label: "Utility - Gas",         color: "#f97316", glyph: "\uD83D\uDD25" },
   telecom:       { label: "Telecom",       color: "#0ea5e9", glyph: "\uD83D\uDCF6" },
   insurance:     { label: "Insurance",     color: "#6366f1", glyph: "\uD83D\uDEE1\uFE0F" },
   subscriptions: { label: "Subscriptions", color: "#8b5cf6", glyph: "\u25B6\uFE0F" },
@@ -29,7 +31,31 @@ const CATEGORIES = {
   health:        { label: "Health",        color: "#f43f5e", glyph: "\u2795" },
   other:         { label: "Other",         color: "#64748b", glyph: "\u2022" }
 };
-const CATEGORY_ORDER = ["utilities", "telecom", "insurance", "subscriptions", "housing", "health", "other"];
+const CATEGORY_ORDER = ["utilities", "utilities_water", "utilities_gas", "telecom", "insurance", "subscriptions", "housing", "health", "other"];
+const CUSTOM_CAT_COLORS = ["#0891b2", "#db2777", "#65a30d", "#ca8a04", "#7c3aed", "#dc2626", "#2563eb", "#0d9488"];
+
+function customCategories() { return Array.isArray(state.settings?.customCategories) ? state.settings.customCategories : []; }
+function isValidCategory(id) { return !!CATEGORIES[id] || customCategories().some((c) => c.id === id); }
+function catMeta(id) {
+  if (CATEGORIES[id]) return CATEGORIES[id];
+  const c = customCategories().find((x) => x.id === id);
+  return c ? { label: c.label, color: c.color || "#64748b", glyph: c.glyph || "\u2022" } : CATEGORIES.other;
+}
+function categoryIds() { return [...CATEGORY_ORDER.filter((c) => c !== "other"), ...customCategories().map((c) => c.id), "other"]; }
+function addCustomCategory(label) {
+  const name = String(label || "").trim().slice(0, 30);
+  if (!name) return null;
+  const existing = [...Object.values(CATEGORIES), ...customCategories()].find((c) => c.label.toLowerCase() === name.toLowerCase());
+  if (existing) { const hit = customCategories().find((c) => c.label.toLowerCase() === name.toLowerCase()); return hit ? hit.id : Object.keys(CATEGORIES).find((k) => CATEGORIES[k].label.toLowerCase() === name.toLowerCase()); }
+  const list = customCategories();
+  const id = "custom_" + crypto.randomUUID().slice(0, 8);
+  const color = CUSTOM_CAT_COLORS[list.length % CUSTOM_CAT_COLORS.length];
+  list.push({ id, label: name, color, glyph: "\u2022" });
+  state.settings.customCategories = list;
+  saveSettings();
+  scheduleSync(200);
+  return id;
+}
 
 const RECURRENCE = {
   once:        { label: "One-off",     months: 0 },
@@ -45,6 +71,7 @@ const DEFAULT_SETTINGS = {
   emailReminders: false,
   firstName: "",
   namePrompted: false,
+  customCategories: [],
   lastSyncedAt: 0,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Melbourne",
   appInstanceId: crypto.randomUUID(),
@@ -95,6 +122,7 @@ function init() {
   state.auth = readAuth();
   state.view = "overview";
   state.billsTab = "all";
+  state.billsFocus = null;
   state.selectedDate = null;
   state.calendarMonth = startOfDay(new Date());
   state.collapsed = {};
@@ -145,7 +173,7 @@ function migrateLegacyKeys() {
 }
 
 function setupNavigation() {
-  $$("[data-view]").forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
+  $$("[data-view]").forEach((btn) => btn.addEventListener("click", () => { state.billsFocus = null; showView(btn.dataset.view); }));
 }
 
 function showView(view) {
@@ -194,6 +222,7 @@ function flashBackup(btn, badge, kind) {
 function setupBillsTabs() {
   $$("#billsTabs button").forEach((b) => b.addEventListener("click", () => {
     state.billsTab = b.dataset.tab;
+    state.billsFocus = null;
     $$("#billsTabs button").forEach((x) => x.classList.toggle("is-selected", x === b));
     renderBills();
   }));
@@ -249,7 +278,7 @@ function normalizeBill(bill) {
     biller: bill.biller || "Untitled bill",
     amount: Number(bill.amount) || 0,
     dueDate: bill.dueDate || formatDatePartsFromDate(new Date()),
-    category: CATEGORIES[bill.category] ? bill.category : "other",
+    category: isValidCategory(bill.category) ? bill.category : "other",
     recurrence: RECURRENCE[bill.recurrence] ? bill.recurrence : "once",
     anchorDay: normalizeAnchorDay(bill.anchorDay, bill.dueDate),
     reference: bill.reference || "",
@@ -316,23 +345,78 @@ function clearedRatio() {
   return cleared / month.length;
 }
 
-// Project unpaid + recurring bills forward into N calendar months from current month.
-function forecastMonths(count = 4) {
+function monthBucketKey(d) { return `${d.getFullYear()}-${d.getMonth()}`; }
+
+// Per-category average monthly spend, learned from the trailing window of real
+// bills (paid + unpaid) by their due date. Averaged over the months in which the
+// category was actually active, so a category that bills every month predicts at
+// roughly its real monthly amount rather than being diluted by quiet months.
+function categoryMonthlyRates(windowMonths = 6) {
   const today = startOfDay(new Date());
+  const start = new Date(today.getFullYear(), today.getMonth() - (windowMonths - 1), 1);
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const sums = {};
+  const activeMonths = {};
+  state.bills.forEach((b) => {
+    const d = dateFromInput(b.dueDate);
+    if (d < start || d > end) return;
+    sums[b.category] = (sums[b.category] || 0) + b.amount;
+    (activeMonths[b.category] = activeMonths[b.category] || new Set()).add(monthBucketKey(d));
+  });
+  const rates = {};
+  Object.keys(sums).forEach((c) => { rates[c] = sums[c] / Math.max(1, activeMonths[c].size); });
+  return rates;
+}
+
+// Predicted spend for the next `count` months, per category. Known commitments
+// (recurring projections + scheduled unpaid bills, plus what's already been paid
+// this month) are used where they exist; otherwise each category is predicted
+// from its learned monthly rate. This forecasts likely future spend even for
+// months you haven't entered bills for yet.
+function forecastMonths(count = 6) {
+  const today = startOfDay(new Date());
+  const rates = categoryMonthlyRates(6);
   const out = [];
   for (let i = 0; i < count; i++) {
     const ref = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    out.push({ key: `${ref.getFullYear()}-${ref.getMonth()}`, date: ref, total: 0, byCategory: {} });
+    out.push({ key: monthBucketKey(ref), date: ref, total: 0, byCategory: {}, predicted: {} });
   }
   const horizon = new Date(today.getFullYear(), today.getMonth() + count, 1);
+  const byKey = Object.fromEntries(out.map((m) => [m.key, m]));
 
+  // Known/scheduled amounts from real bills.
+  const scheduled = {};
+  out.forEach((m) => (scheduled[m.key] = {}));
   state.bills.forEach((bill) => {
-    const occurrences = projectOccurrences(bill, today, horizon);
-    occurrences.forEach((d) => {
-      const bucket = out.find((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
-      if (!bucket) return;
-      bucket.total += bill.amount;
-      bucket.byCategory[bill.category] = (bucket.byCategory[bill.category] || 0) + bill.amount;
+    if (bill.recurrence !== "once") {
+      projectOccurrences(bill, today, horizon).forEach((d) => {
+        const k = monthBucketKey(new Date(d.getFullYear(), d.getMonth(), 1));
+        if (scheduled[k]) scheduled[k][bill.category] = (scheduled[k][bill.category] || 0) + bill.amount;
+      });
+    } else {
+      const d = dateFromInput(bill.dueDate);
+      const k = monthBucketKey(new Date(d.getFullYear(), d.getMonth(), 1));
+      if (!scheduled[k]) return;
+      const isCurrent = k === out[0].key;
+      if (bill.status === "unpaid" || (bill.status === "paid" && isCurrent)) {
+        scheduled[k][bill.category] = (scheduled[k][bill.category] || 0) + bill.amount;
+      }
+    }
+  });
+
+  const cats = new Set(Object.keys(rates));
+  out.forEach((m) => Object.keys(scheduled[m.key]).forEach((c) => cats.add(c)));
+
+  out.forEach((m) => {
+    const sched = scheduled[m.key] || {};
+    cats.forEach((c) => {
+      const known = sched[c] || 0;
+      const val = known > 0 ? known : (rates[c] || 0);
+      if (val > 0) {
+        m.byCategory[c] = (m.byCategory[c] || 0) + val;
+        m.predicted[c] = known <= 0; // true when this figure is modelled, not scheduled
+        m.total += val;
+      }
     });
   });
   return out;
@@ -390,7 +474,8 @@ function categoryBreakdown(months = 3) {
     Object.entries(m.byCategory).forEach(([cat, val]) => { totals[cat] = (totals[cat] || 0) + val; });
   });
   const grand = Object.values(totals).reduce((a, b) => a + b, 0);
-  const rows = CATEGORY_ORDER.filter((c) => totals[c]).map((c) => ({ cat: c, value: totals[c], pct: grand ? totals[c] / grand : 0 }));
+  const ordered = [...categoryIds(), ...Object.keys(totals)].filter((c, i, a) => a.indexOf(c) === i);
+  const rows = ordered.filter((c) => totals[c]).map((c) => ({ cat: c, value: totals[c], pct: grand ? totals[c] / grand : 0 }));
   return { rows: rows.sort((a, b) => b.value - a.value), total: grand };
 }
 
@@ -414,7 +499,7 @@ function insights() {
   const breakdown = categoryBreakdown(3);
   if (breakdown.rows.length) {
     const top = breakdown.rows[0];
-    out.push({ tone: "info", title: `${CATEGORIES[top.cat].label} is your biggest category`, body: `${money(top.value)} projected over 3 months.` });
+    out.push({ tone: "info", title: `${catMeta(top.cat).label} is your biggest category`, body: `${money(top.value)} projected over 3 months.` });
   }
   return out.slice(0, 3);
 }
@@ -472,7 +557,7 @@ function updateReminderBadge() {
   if (b) { b.hidden = n === 0; b.textContent = n > 9 ? "9+" : String(n); }
 }
 function billInitial(bill) { return (String(bill.biller).trim()[0] || "?").toUpperCase(); }
-function catOf(bill) { return CATEGORIES[bill.category] || CATEGORIES.other; }
+function catOf(bill) { return catMeta(bill.category); }
 function billIcon(bill) { return `<span class="bill-ic" style="background:${catOf(bill).color}">${escapeHtml(billInitial(bill))}</span>`; }
 const CHEV = '<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></span>';
 const IC_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>';
@@ -532,7 +617,7 @@ function renderForecast() {
 
   if (total <= 0) {
     el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2></div>
-      <div class="empty-inline">Add bills with a due date and your projected spend for the next 6 months will appear here. Recurring bills are projected forward automatically.</div>`;
+      <div class="empty-inline">Add a few bills and Cleared will learn your spending per category and predict the next 6 months \u2014 even for months you haven't entered yet.</div>`;
     return;
   }
 
@@ -548,10 +633,10 @@ function renderForecast() {
 
   const breakdown = categoryBreakdown(6);
   const legend = breakdown.rows.slice(0, 3).map((r) =>
-    `<span class="fc-leg"><i style="background:${(CATEGORIES[r.cat] || CATEGORIES.other).color}"></i>${escapeHtml((CATEGORIES[r.cat] || CATEGORIES.other).label)} ${Math.round(r.pct * 100)}%</span>`
+    `<span class="fc-leg"><i style="background:${catMeta(r.cat).color}"></i>${escapeHtml(catMeta(r.cat).label)} ${Math.round(r.pct * 100)}%</span>`
   ).join("");
 
-  el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2><span class="fc-total">${money0(total)} <small>next 6 mo</small></span></div>
+  el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2><span class="fc-total">${money0(total)} <small>predicted, 6 mo</small></span></div>
     <div class="fc-chart">${bars}</div>
     ${legend ? `<div class="fc-legend">${legend}</div>` : ""}
     <div class="fc-detail" id="fcDetail"></div>`;
@@ -563,7 +648,7 @@ function renderForecast() {
     const cats = Object.entries(m.byCategory).sort((a, b) => b[1] - a[1]);
     detail.innerHTML = cats.length
       ? `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 ${money(m.total)}</div>` +
-        cats.map(([c, v]) => `<div class="fc-detail-row"><span><i style="background:${(CATEGORIES[c] || CATEGORIES.other).color}"></i>${escapeHtml((CATEGORIES[c] || CATEGORIES.other).label)}</span><strong>${money(v)}</strong></div>`).join("")
+        cats.map(([c, v]) => `<div class="fc-detail-row"><span><i style="background:${catMeta(c).color}"></i>${escapeHtml(catMeta(c).label)}</span><strong>${money(v)}</strong></div>`).join("")
       : `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 nothing projected</div>`;
     $$(".fc-col", el).forEach((c) => c.classList.toggle("sel", c === btn));
   }));
@@ -610,19 +695,23 @@ function renderTiles() {
   const wk = state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > t && dateFromInput(b.dueDate) <= addDays(t, 7));
   const mo = billsThisMonthUnpaid(), pd = paidThisMonth();
   const tiles = [
-    { label: "Due today", amt: sumAmt(dt), n: dt.length, tone: "red", ic: IC_CAL },
-    { label: "Due this week", amt: sumAmt(wk), n: wk.length, tone: "orange", ic: IC_CAL },
-    { label: "Due this month", amt: sumAmt(mo), n: mo.length, tone: "blue", ic: IC_CAL },
-    { label: "Paid this month", amt: sumAmt(pd), n: pd.length, tone: "green", ic: IC_CHECK }
+    { focus: "today", label: "Due today", amt: sumAmt(dt), n: dt.length, tone: "red", ic: IC_CAL },
+    { focus: "week", label: "Due this week", amt: sumAmt(wk), n: wk.length, tone: "orange", ic: IC_CAL },
+    { focus: "month", label: "Due this month", amt: sumAmt(mo), n: mo.length, tone: "blue", ic: IC_CAL },
+    { focus: "paidmonth", label: "Paid this month", amt: sumAmt(pd), n: pd.length, tone: "green", ic: IC_CHECK }
   ];
   const wrap = $("#ovStats");
   wrap.className = "tiles";
-  wrap.innerHTML = tiles.map((t) => `<div class="tile tone-${t.tone}">
+  wrap.innerHTML = tiles.map((t) => `<button class="tile tone-${t.tone}" data-focus="${t.focus}" type="button">
     <span class="tile-ic">${t.ic}</span>
     <span class="tile-label">${t.label}</span>
     <span class="tile-amt">${money(t.amt)}</span>
     <span class="tile-n">${t.n} bill${t.n === 1 ? "" : "s"}</span>
-  </div>`).join("");
+  </button>`).join("");
+  $$("[data-focus]", wrap).forEach((b) => b.addEventListener("click", () => {
+    state.billsFocus = b.dataset.focus;
+    showView("bills");
+  }));
 }
 
 function renderOvUpcoming() {
@@ -635,7 +724,7 @@ function renderOvUpcoming() {
     <div class="list">${body}</div>
     ${unpaid.length > 3 ? `<div class="list-foot"><button class="link" data-go="bills" type="button">See all upcoming bills (${unpaid.length})</button></div>` : ""}`;
   bindRows(el);
-  $$("[data-go]", el).forEach((b) => b.addEventListener("click", () => showView(b.dataset.go)));
+  $$("[data-go]", el).forEach((b) => b.addEventListener("click", () => { state.billsFocus = null; showView(b.dataset.go); }));
 }
 
 function renderMonthOverview() {
@@ -687,6 +776,15 @@ function renderQuickActions() {
 }
 
 /* ===================== BILLS ===================== */
+function focusCollection(key) {
+  const t = startOfDay(new Date());
+  if (key === "today") return { title: "Due today", bills: dueTodayBills().slice().sort(byDue) };
+  if (key === "week") return { title: "Due this week", bills: state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > t && dateFromInput(b.dueDate) <= addDays(t, 7)).sort(byDue) };
+  if (key === "month") return { title: "Due this month", bills: billsThisMonthUnpaid() };
+  if (key === "paidmonth") return { title: "Paid this month", bills: paidThisMonth().slice().sort((a, b) => String(b.paidAt || "").localeCompare(String(a.paidAt || ""))) };
+  return null;
+}
+
 function renderBills() {
   $$("#billsTabs button").forEach((b) => b.classList.toggle("is-selected", b.dataset.tab === state.billsTab));
   const due = billsDueWithin(7);
@@ -695,6 +793,19 @@ function renderBills() {
   renderBillsSummary();
   const wrap = $("#billsGroups");
   const tab = state.billsTab;
+
+  if (state.billsFocus) {
+    const coll = focusCollection(state.billsFocus);
+    if (coll) {
+      const body = coll.bills.length
+        ? `<div class="group-body" style="margin-bottom:18px">${coll.bills.map(billRow).join("")}</div>`
+        : `<div class="empty-state"><h3>Nothing here</h3><p>No bills in this group right now.</p></div>`;
+      wrap.innerHTML = `<div class="focus-head"><div><span class="focus-title">${escapeHtml(coll.title)}</span> <span class="focus-count">${coll.bills.length}</span></div><button class="link" id="focusClear" type="button">Show all bills</button></div>${body}`;
+      bindRows(wrap);
+      $("#focusClear", wrap)?.addEventListener("click", () => { state.billsFocus = null; state.billsTab = "all"; renderBills(); });
+      return;
+    }
+  }
 
   if (tab === "due") {
     wrap.innerHTML = listOrEmpty([...overdue, ...due.slice().sort(byDue)], "Nothing overdue or due soon.");
@@ -1078,15 +1189,31 @@ function setupBillSheet() {
 
   const drop = $("#dropZone");
   const input = $("#pdfInput");
-  input?.addEventListener("change", () => input.files[0] && handlePdf(input.files[0]));
+  input?.addEventListener("change", () => input.files[0] && handleBillFile(input.files[0]));
   ["dragover", "dragenter"].forEach((e) => drop?.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add("drag"); }));
   ["dragleave", "drop"].forEach((e) => drop?.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.remove("drag"); }));
-  drop?.addEventListener("drop", (ev) => { const f = ev.dataTransfer?.files?.[0]; if (f) handlePdf(f); });
+  drop?.addEventListener("drop", (ev) => { const f = ev.dataTransfer?.files?.[0]; if (f) handleBillFile(f); });
+  const cam = $("#cameraInput");
+  $("#scanButton")?.addEventListener("click", () => cam?.click());
+  cam?.addEventListener("change", () => cam.files[0] && handleScan(cam.files[0]));
 
   const catSel = $("#categoryInput");
-  if (catSel && !catSel.children.length) {
-    catSel.innerHTML = CATEGORY_ORDER.map((c) => `<option value="${c}">${CATEGORIES[c].label}</option>`).join("");
+  if (catSel) {
+    fillCategorySelect(catSel, "other");
+    catSel.addEventListener("change", () => {
+      if (catSel.value !== "__new__") { catSel.dataset.prev = catSel.value; return; }
+      const name = prompt("Name your category");
+      const id = name ? addCustomCategory(name) : null;
+      fillCategorySelect(catSel, id || catSel.dataset.prev || "other");
+    });
   }
+}
+
+function fillCategorySelect(sel, value) {
+  const opts = categoryIds().map((c) => `<option value="${c}">${escapeHtml(catMeta(c).label)}</option>`).join("");
+  sel.innerHTML = opts + `<option value="__new__">+ New category…</option>`;
+  sel.value = isValidCategory(value) ? value : "other";
+  sel.dataset.prev = sel.value;
 }
 
 function openBillSheet(billId) {
@@ -1100,7 +1227,7 @@ function openBillSheet(billId) {
       $("#billerInput").value = bill.biller;
       $("#amountInput").value = bill.amount;
       $("#dueDateInput").value = bill.dueDate;
-      $("#categoryInput").value = bill.category;
+      fillCategorySelect($("#categoryInput"), bill.category);
       $("#recurrenceInput").value = bill.recurrence;
       $("#referenceInput").value = bill.reference;
       $("#notesInput").value = bill.notes;
@@ -1120,7 +1247,7 @@ function closeBillSheet() {
 
 function resetBillForm() {
   $("#billForm").reset();
-  $("#categoryInput").value = "other";
+  if ($("#categoryInput")) fillCategorySelect($("#categoryInput"), "other");
   $("#recurrenceInput").value = "once";
   $("#extractStatus").textContent = "Upload a statement or bill PDF and Cleared will pull out the amount, due date, biller and reference.";
   $("#extractPreview").textContent = "";
@@ -1167,6 +1294,73 @@ function saveBillFromForm(event) {
   scheduleSync();
 }
 
+function handleBillFile(file) {
+  if (!file) return;
+  const isImage = (file.type || "").startsWith("image/");
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  if (isImage && !isPdf) return handleScan(file);
+  return handlePdf(file);
+}
+
+// Lazy-load the on-device OCR engine only when someone actually scans a photo,
+// so it never affects normal load. Cross-origin, so the service worker ignores it.
+let _ocrPromise = null;
+function loadOcr() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (_ocrPromise) return _ocrPromise;
+  _ocrPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    s.async = true;
+    s.onload = () => (window.Tesseract ? resolve(window.Tesseract) : reject(new Error("ocr")));
+    s.onerror = () => { _ocrPromise = null; reject(new Error("ocr")); };
+    document.head.appendChild(s);
+  });
+  return _ocrPromise;
+}
+
+async function ocrImageText(file) {
+  const T = await loadOcr();
+  const result = await T.recognize(file, "eng");
+  return (result && result.data && result.data.text) || "";
+}
+
+async function handleScan(file) {
+  state.currentPdfFile = file;
+  $("#aiExtractButton").disabled = false;
+  $("#confidenceBadge").textContent = "Scanning";
+  $("#extractStatus").textContent = "Reading your photo on-device\u2026 this can take a few seconds.";
+  $("#extractPreview").textContent = "";
+  setExtracting(true);
+  try {
+    const text = await ocrImageText(file);
+    if (text && text.replace(/\s/g, "").length > 20) {
+      const details = extractBillDetails(text, file.name || "photo");
+      fillIfFound($("#billerInput"), details.biller);
+      fillIfFound($("#amountInput"), details.amount);
+      fillIfFound($("#dueDateInput"), details.dueDate);
+      fillIfFound($("#referenceInput"), details.reference);
+      if (details.category && $("#categoryInput")) fillCategorySelect($("#categoryInput"), details.category);
+      const conf = details.confidence || 0;
+      $("#confidenceBadge").textContent = conf >= 0.75 ? "Strong" : conf >= 0.5 ? "Good" : conf >= 0.25 ? "Partial" : "Manual";
+      $("#extractStatus").textContent = conf >= 0.5
+        ? "Read your photo and filled in the details \u2014 double-check and save."
+        : "Read some text from the photo. Add anything missing, or try AI extract.";
+      $("#extractPreview").textContent = text.slice(0, 3000);
+    } else {
+      $("#confidenceBadge").textContent = "Manual";
+      $("#extractStatus").textContent = "Couldn't read much from that photo. Try a clearer, well-lit shot, tap AI extract, or enter details manually.";
+    }
+  } catch (err) {
+    $("#confidenceBadge").textContent = "Manual";
+    $("#extractStatus").textContent = navigator.onLine
+      ? "On-device scan isn't available right now. Tap AI extract to read this photo, or enter details manually."
+      : "Photo scanning needs a connection the first time it's used. Tap AI extract when you're online, or enter details manually.";
+  } finally {
+    setExtracting(false);
+  }
+}
+
 async function handlePdf(file) {
   state.currentPdfFile = file;
   $("#aiExtractButton").disabled = false;
@@ -1182,11 +1376,14 @@ async function handlePdf(file) {
     fillIfFound($("#amountInput"), details.amount);
     fillIfFound($("#dueDateInput"), details.dueDate);
     fillIfFound($("#referenceInput"), details.reference);
-    const found = ["biller", "amount", "dueDate", "reference"].filter((k) => details[k]).length;
-    $("#confidenceBadge").textContent = found >= 3 ? "Good" : found >= 2 ? "Partial" : "Manual";
-    $("#extractStatus").textContent = found
-      ? "Found a few likely details. Check them before saving."
-      : "This looks scanned or compressed. Try AI extract, or enter details manually.";
+    if (details.category && $("#categoryInput")) fillCategorySelect($("#categoryInput"), details.category);
+    const conf = details.confidence || 0;
+    $("#confidenceBadge").textContent = conf >= 0.75 ? "Strong" : conf >= 0.5 ? "Good" : conf >= 0.25 ? "Partial" : "Manual";
+    $("#extractStatus").textContent = conf >= 0.5
+      ? "Filled in the details below from your statement \u2014 double-check and save."
+      : conf > 0
+        ? "Found some details below. Add anything missing, or try AI extract."
+        : "This looks scanned or compressed. Try AI extract, or enter details manually.";
     $("#extractPreview").textContent = readable.slice(0, 3000) || "No readable text found.";
   } catch (err) {
     $("#extractStatus").textContent = "Could not read this PDF. Enter the details manually or try AI extract.";
@@ -1212,6 +1409,9 @@ async function extractWithAi() {
     fillIfFound($("#amountInput"), result.amountDue);
     fillIfFound($("#dueDateInput"), result.dueDate);
     fillIfFound($("#referenceInput"), result.reference || result.invoiceNumber);
+    const aiCat = (result.category && isValidCategory(result.category)) ? result.category
+      : findBillerSmart([], `${result.biller || ""} ${result.notes || ""}`, "").category || inferCategory(`${result.biller || ""} ${result.notes || ""}`);
+    if (aiCat && $("#categoryInput")) fillCategorySelect($("#categoryInput"), aiCat);
     if (result.notes) $("#notesInput").value = result.notes;
     $("#extractStatus").textContent = "AI found likely details. Check them before saving.";
     $("#confidenceBadge").textContent = `${Math.round(Number(result.confidence || 0) * 100)}%`;
@@ -1238,7 +1438,7 @@ function openDetailSheet(billId) {
   const bill = state.bills.find((b) => b.id === billId);
   if (!bill) return;
   state.detailBillId = billId;
-  const cat = CATEGORIES[bill.category];
+  const cat = catMeta(bill.category);
   const st = billStatus(bill);
   const meta = STATUS_META[st];
   const body = $("#detailBody");
@@ -1591,6 +1791,11 @@ async function importBills(event) {
     if (data.settings) {
       if (data.settings.reminderLeadDays != null) state.settings.reminderLeadDays = Number(data.settings.reminderLeadDays);
       if (data.settings.emailReminders != null) state.settings.emailReminders = !!data.settings.emailReminders;
+      if (Array.isArray(data.settings.customCategories)) {
+        const byId = new Map(customCategories().map((c) => [c.id, c]));
+        data.settings.customCategories.forEach((c) => { if (c && c.id && !byId.has(c.id)) byId.set(c.id, c); });
+        state.settings.customCategories = Array.from(byId.values());
+      }
       saveSettings();
     }
     saveBills(); saveSyncQueues(); render(); scheduleSync();
@@ -1998,6 +2203,7 @@ async function syncReminderSettings() {
       reminderLeadDays: state.settings.reminderLeadDays,
       emailReminders: state.settings.emailReminders,
       firstName: state.settings.firstName || "",
+      customCategories: customCategories(),
       timezone: state.settings.timezone
     })
   });
@@ -2033,6 +2239,11 @@ function applyRemoteSettings(settings) {
     state.settings.namePrompted = true;
   }
   state.settings.timezone = settings.timezone || state.settings.timezone || getBrowserTimezone();
+  if (Array.isArray(settings.customCategories)) {
+    const byId = new Map(customCategories().map((c) => [c.id, c]));
+    settings.customCategories.forEach((c) => { if (c && c.id && !byId.has(c.id)) byId.set(c.id, c); });
+    state.settings.customCategories = Array.from(byId.values());
+  }
   if ($("#reminderLeadSelect")) $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
   if ($("#emailReminderToggle")) $("#emailReminderToggle").checked = state.settings.emailReminders;
   updateEmailReminderHint();
@@ -2371,16 +2582,171 @@ function normalizeExtractedText(text) {
 function extractBillDetails(text, fileName) {
   const normalized = text.replace(/\s+/g, " ");
   const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  const amountMatch = normalized.match(/(?:amount due|total due|balance due|payable|total)\D{0,20}([$]?\s?\d{1,4}(?:,\d{3})*(?:\.\d{2})?)/i);
-  const dateMatch = normalized.match(/(?:due date|payment due|pay by|due)\D{0,24}(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{4})/i);
-  const referenceMatch = normalized.match(/(?:account|reference|invoice|bill)\s*(?:number|no|#)?\D{0,12}([A-Z0-9][A-Z0-9 -]{4,24})/i);
 
-  return {
-    biller: findBiller(lines) || cleanupBiller(fileName.replace(/\.pdf$/i, "")),
-    amount: findAmount(lines) || (amountMatch ? amountMatch[1].replace(/[$,\s]/g, "") : ""),
-    dueDate: findDueDate(lines) || (dateMatch ? toDateInputValue(dateMatch[1]) : ""),
-    reference: findReference(lines) || (referenceMatch ? referenceMatch[1].trim() : "")
-  };
+  const billerHit = findBillerSmart(lines, normalized, fileName);
+  const amount = findAmountSmart(lines);
+  const dueDate = findDueDateSmart(lines);
+  const reference = findReferenceSmart(lines);
+  const category = billerHit.category || inferCategory(normalized) || "";
+
+  const confidence =
+    (amount ? 0.4 : 0) + (dueDate ? 0.35 : 0) + (billerHit.known ? 0.15 : billerHit.biller ? 0.05 : 0) + (reference ? 0.1 : 0);
+
+  return { biller: billerHit.biller, amount, dueDate, reference, category, confidence };
+}
+
+// Known billers — recognising these gives an exact name AND the right category,
+// which is what lets most statements skip the AI step entirely.
+const BILLER_DICTIONARY = [
+  { rx: /\bAGL\b/i, name: "AGL", cat: "utilities" },
+  { rx: /origin energy/i, name: "Origin Energy", cat: "utilities" },
+  { rx: /energy ?australia/i, name: "EnergyAustralia", cat: "utilities" },
+  { rx: /\bred energy\b/i, name: "Red Energy", cat: "utilities" },
+  { rx: /\balinta\b/i, name: "Alinta Energy", cat: "utilities" },
+  { rx: /momentum energy/i, name: "Momentum Energy", cat: "utilities" },
+  { rx: /powershop/i, name: "Powershop", cat: "utilities" },
+  { rx: /simply energy/i, name: "Simply Energy", cat: "utilities" },
+  { rx: /\bjemena\b/i, name: "Jemena", cat: "utilities_gas" },
+  { rx: /australian gas networks|\bAGN\b/i, name: "Australian Gas Networks", cat: "utilities_gas" },
+  { rx: /sydney water/i, name: "Sydney Water", cat: "utilities_water" },
+  { rx: /yarra valley water/i, name: "Yarra Valley Water", cat: "utilities_water" },
+  { rx: /south east water/i, name: "South East Water", cat: "utilities_water" },
+  { rx: /greater western water|city west water/i, name: "Greater Western Water", cat: "utilities_water" },
+  { rx: /\bunitywater\b/i, name: "Unitywater", cat: "utilities_water" },
+  { rx: /\bsa water\b/i, name: "SA Water", cat: "utilities_water" },
+  { rx: /telstra/i, name: "Telstra", cat: "telecom" },
+  { rx: /optus/i, name: "Optus", cat: "telecom" },
+  { rx: /vodafone/i, name: "Vodafone", cat: "telecom" },
+  { rx: /\bTPG\b/i, name: "TPG", cat: "telecom" },
+  { rx: /aussie ?broadband/i, name: "Aussie Broadband", cat: "telecom" },
+  { rx: /\biinet\b/i, name: "iiNet", cat: "telecom" },
+  { rx: /\bbelong\b/i, name: "Belong", cat: "telecom" },
+  { rx: /\bdodo\b/i, name: "Dodo", cat: "telecom" },
+  { rx: /amaysim/i, name: "amaysim", cat: "telecom" },
+  { rx: /netflix/i, name: "Netflix", cat: "subscriptions" },
+  { rx: /spotify/i, name: "Spotify", cat: "subscriptions" },
+  { rx: /disney ?\+|disneyplus/i, name: "Disney+", cat: "subscriptions" },
+  { rx: /\bstan\b/i, name: "Stan", cat: "subscriptions" },
+  { rx: /amazon prime|prime video/i, name: "Amazon Prime", cat: "subscriptions" },
+  { rx: /youtube premium/i, name: "YouTube Premium", cat: "subscriptions" },
+  { rx: /apple\.com\/bill|apple music|icloud/i, name: "Apple", cat: "subscriptions" },
+  { rx: /\bbinge\b/i, name: "Binge", cat: "subscriptions" },
+  { rx: /\bkayo\b/i, name: "Kayo Sports", cat: "subscriptions" },
+  { rx: /audible/i, name: "Audible", cat: "subscriptions" },
+  { rx: /\bfoxtel\b/i, name: "Foxtel", cat: "subscriptions" },
+  { rx: /microsoft 365|office 365/i, name: "Microsoft 365", cat: "subscriptions" },
+  { rx: /\badobe\b/i, name: "Adobe", cat: "subscriptions" },
+  { rx: /\bnib\b/i, name: "nib", cat: "insurance" },
+  { rx: /\bbupa\b/i, name: "Bupa", cat: "insurance" },
+  { rx: /medibank/i, name: "Medibank", cat: "insurance" },
+  { rx: /\bahm\b/i, name: "ahm", cat: "insurance" },
+  { rx: /\bnrma\b/i, name: "NRMA", cat: "insurance" },
+  { rx: /\baami\b/i, name: "AAMI", cat: "insurance" },
+  { rx: /\bracv\b/i, name: "RACV", cat: "insurance" },
+  { rx: /\bracq\b/i, name: "RACQ", cat: "insurance" },
+  { rx: /budget direct/i, name: "Budget Direct", cat: "insurance" },
+  { rx: /allianz/i, name: "Allianz", cat: "insurance" },
+  { rx: /\bqbe\b/i, name: "QBE", cat: "insurance" },
+  { rx: /\bhcf\b/i, name: "HCF", cat: "insurance" },
+  { rx: /rates notice|city council|shire council/i, name: "Council Rates", cat: "housing" },
+  { rx: /strata|owners corporation|body corporate/i, name: "Strata", cat: "housing" }
+];
+
+const CATEGORY_KEYWORDS = [
+  { cat: "utilities_water", rx: /\b(water usage|water charges|water account|sewerage|drainage|kilolitre|\bkL\b)/i },
+  { cat: "utilities_gas", rx: /\b(natural gas|gas usage|gas charges|gas supply|megajoule|\bMJ\b)/i },
+  { cat: "utilities", rx: /\b(electricity|\bkWh\b|kilowatt|energy charges|usage charges|peak usage|solar feed)/i },
+  { cat: "telecom", rx: /\b(broadband|\bnbn\b|data allowance|mobile plan|sim card|internet plan)/i },
+  { cat: "insurance", rx: /\b(premium|policy number|policy period|sum insured|excess|cover note)/i },
+  { cat: "subscriptions", rx: /\b(subscription|monthly plan|renews on|membership)/i },
+  { cat: "housing", rx: /\b(rent|mortgage|strata|body corporate|rates notice)/i },
+  { cat: "health", rx: /\b(medical|dental|pharmacy|clinic|hospital)/i }
+];
+
+function inferCategory(normalized) {
+  const hit = CATEGORY_KEYWORDS.find((k) => k.rx.test(normalized));
+  return hit ? hit.cat : "";
+}
+
+function findBillerSmart(lines, normalized, fileName) {
+  const known = BILLER_DICTIONARY.find((b) => b.rx.test(normalized));
+  if (known) return { biller: known.name, category: known.cat, known: true };
+  const biller = findBiller(lines) || cleanupBiller(fileName.replace(/\.pdf$/i, ""));
+  return { biller, category: "", known: false };
+}
+
+const AMOUNT_LABELS = [
+  { rx: /total amount (?:due|payable)/i, w: 100 },
+  { rx: /amount due/i, w: 95 },
+  { rx: /balance due/i, w: 92 },
+  { rx: /please pay/i, w: 90 },
+  { rx: /amount payable|total payable/i, w: 88 },
+  { rx: /total due/i, w: 84 },
+  { rx: /total \(inc/i, w: 78 },
+  { rx: /new charges/i, w: 70 },
+  { rx: /\btotal\b/i, w: 50 }
+];
+
+// Pull every money-looking token out of a string, flagging cents and credits.
+function moneyTokens(str) {
+  if (!str) return [];
+  const out = [];
+  const rx = /(?:AUD|A\$|\$)?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2}|\d{2,7})(\s?(?:CR|cr))?/g;
+  let m;
+  while ((m = rx.exec(str))) {
+    const value = Number(m[1].replace(/,/g, ""));
+    if (!Number.isFinite(value)) continue;
+    out.push({ value, hasCents: /\.\d{2}/.test(m[1]), credit: !!m[2] });
+  }
+  return out;
+}
+
+function findAmountSmart(lines) {
+  let best = null;
+  lines.forEach((line, i) => {
+    for (const lbl of AMOUNT_LABELS) {
+      if (!lbl.rx.test(line)) continue;
+      const after = line.slice(line.search(lbl.rx));
+      const cands = [...moneyTokens(after), ...moneyTokens(lines[i + 1] || ""), ...moneyTokens(lines[i + 2] || "")];
+      const pick = cands.filter((c) => !c.credit && (c.hasCents || c.value >= 5))
+        .sort((a, b) => (b.hasCents - a.hasCents) || (b.value - a.value))[0];
+      if (pick) {
+        const score = lbl.w + (pick.hasCents ? 5 : 0);
+        if (!best || score > best.score) best = { value: pick.value, score };
+      }
+      break;
+    }
+  });
+  if (best) return best.value.toFixed(2);
+  // Fallback: the largest cents-bearing amount anywhere is usually the total.
+  const all = [];
+  lines.forEach((l) => moneyTokens(l).forEach((t) => { if (t.hasCents && !t.credit) all.push(t.value); }));
+  return all.length ? Math.max(...all).toFixed(2) : "";
+}
+
+const DUE_LABELS = [
+  /total amount due by/i, /payment due (?:date|by)/i, /due date/i, /please pay by/i,
+  /pay by/i, /due by/i, /due on/i, /\bdue\b/i
+];
+
+function findDueDateSmart(lines) {
+  for (const rx of DUE_LABELS) {
+    for (let i = 0; i < lines.length; i++) {
+      if (!rx.test(lines[i])) continue;
+      const scope = [lines[i].slice(lines[i].search(rx)), lines[i + 1] || "", lines[i + 2] || ""].join("  ");
+      const d = extractDate(scope);
+      if (d) return d;
+    }
+  }
+  return "";
+}
+
+function findReferenceSmart(lines) {
+  return valueNearLabel(lines, /account number/i)
+    || valueNearLabel(lines, /customer (?:number|reference|ref)/i)
+    || valueNearLabel(lines, /reference (?:number|no)/i)
+    || valueNearLabel(lines, /invoice (?:number|no)/i)
+    || valueNearLabel(lines, /\bbiller code\b/i);
 }
 
 function findBiller(lines) {
@@ -2474,7 +2840,8 @@ function toDateInputValue(value) {
     const first = Number(slashMatch[1]);
     const second = Number(slashMatch[2]);
     const year = normalizeYear(slashMatch[3]);
-    const dayFirst = first > 12 || navigator.language.toLowerCase().includes("au");
+    const auStyle = navigator.language.toLowerCase().includes("au") || /Australia|Pacific\/Auckland|Europe\/London/.test(state.settings?.timezone || "");
+    const dayFirst = first > 12 || (second <= 12 && auStyle);
     const day = dayFirst ? first : second;
     const month = dayFirst ? second : first;
     return formatDateParts(year, month, day);

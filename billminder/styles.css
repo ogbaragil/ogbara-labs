@@ -322,7 +322,8 @@ textarea { resize: vertical; }
 .extract-spin .mark { width: 100%; height: 100%; display: block; }
 .extract-spin.spinning { animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.extract-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.extract-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.extract-row .badge { margin-left: auto; }
 .badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #eef1f6; color: var(--muted); }
 .extract-status { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
 .extract-preview { max-height: 96px; overflow: auto; background: var(--line-soft); border-radius: 10px; padding: 10px; font-size: 11px; color: var(--ink-soft); white-space: pre-wrap; margin: 0 0 16px; }
@@ -452,3 +453,11 @@ a.set-row { text-decoration: none; }
 .set-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; margin: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
 .set-footer { text-align: center; color: var(--faint); font-size: 13px; margin: 22px 0 8px; }
 .set-footer a { color: var(--muted); font-weight: 600; text-decoration: none; }
+
+/* ---------------- dashboard tile buttons + focused bill collection ---------------- */
+button.tile { width: 100%; text-align: left; background: var(--card); border: 0; border-left: 1px solid var(--line-soft); font: inherit; cursor: pointer; -webkit-appearance: none; appearance: none; }
+button.tile:first-child { border-left: 0; }
+button.tile:active { transform: scale(.985); }
+.focus-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 2px 12px; }
+.focus-title { font-size: 18px; font-weight: 800; color: var(--ink); }
+.focus-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 12px; font-weight: 700; margin-left: 4px; }
