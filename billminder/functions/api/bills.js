@@ -18,8 +18,11 @@ export async function onRequestGet({ request, env }) {
     if (identityError) return identityError;
   }
 
+  const householdId = user ? await getUserHouseholdId(env, user.id, authToken) : null;
   const query = user
-    ? `/rest/v1/bills?user_id=eq.${encodeURIComponent(user.id)}&select=*`
+    ? (householdId
+        ? `/rest/v1/bills?household_id=eq.${encodeURIComponent(householdId)}&select=*`
+        : `/rest/v1/bills?user_id=eq.${encodeURIComponent(user.id)}&select=*`)
     : `/rest/v1/bills?app_instance_id=eq.${encodeURIComponent(appInstanceId)}&select=*`;
   const response = await supabaseFetch(env, query, {
     headers: {
@@ -54,10 +57,11 @@ export async function onRequestPost({ request, env }) {
   }
 
   const bills = Array.isArray(payload?.bills) ? payload.bills : [];
-  const rows = bills.map((bill) => toSupabaseRow(bill, appInstanceId, syncSecret, user?.id || null));
+  const householdId = user ? await getUserHouseholdId(env, user.id, authToken) : null;
+  const rows = bills.map((bill) => toSupabaseRow(bill, appInstanceId, syncSecret, user?.id || null, householdId));
 
   if (user) {
-    const result = await syncUserBills(env, rows, user.id, authToken, syncSecret || "");
+    const result = await syncUserBills(env, rows, user.id, authToken, syncSecret || "", householdId);
     if (result.error) return result.error;
     return jsonResponse({ ok: true, synced: result.synced });
   }
@@ -103,9 +107,12 @@ export async function onRequestDelete({ request, env }) {
     return jsonResponse({ ok: true, deleted: 0 });
   }
 
+  const householdId = user ? await getUserHouseholdId(env, user.id, authToken) : null;
   const inList = `(${clientBillIds.map((id) => `"${encodeURIComponent(id)}"`).join(",")})`;
   const scope = user
-    ? `user_id=eq.${encodeURIComponent(user.id)}`
+    ? (householdId
+        ? `household_id=eq.${encodeURIComponent(householdId)}`
+        : `user_id=eq.${encodeURIComponent(user.id)}`)
     : `app_instance_id=eq.${encodeURIComponent(appInstanceId)}`;
   const query = `/rest/v1/bills?${scope}&client_bill_id=in.${inList}`;
 
@@ -182,20 +189,28 @@ function getBearerToken(request) {
   return header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
 }
 
-async function syncUserBills(env, rows, userId, authToken, syncSecret) {
+async function syncUserBills(env, rows, userId, authToken, syncSecret, householdId) {
   if (!rows.length) return { synced: 0 };
 
-  // One request to map existing client_bill_id -> remote id, instead of a
+  // One request to map existing client_bill_id -> { id, user_id }, instead of a
   // per-bill lookup (the old N+1 pattern blew through Workers subrequest limits).
-  const existing = await fetchUserBillIdMap(env, userId, rows, authToken, syncSecret);
+  // In a household we look up across the whole household so a partner's edits
+  // update the existing row instead of creating duplicates.
+  const existing = await fetchBillIdMap(env, { userId, householdId }, rows, authToken, syncSecret);
   if (existing.error) return existing;
 
   const prepared = rows.map((row) => {
-    const remoteId = existing.map.get(row.client_bill_id) || (isUuid(row.id) ? row.id : crypto.randomUUID());
-    return { ...row, id: remoteId, user_id: userId };
+    const match = existing.map.get(row.client_bill_id);
+    const remoteId = match?.id || (isUuid(row.id) ? row.id : crypto.randomUUID());
+    return {
+      ...row,
+      id: remoteId,
+      // Preserve the original author on existing rows; new rows are authored by the syncing user.
+      user_id: match?.user_id || userId,
+      household_id: householdId || null
+    };
   });
 
-  // One bulk upsert (merge-duplicates on the primary key) for every bill.
   const response = await supabaseFetch(env, "/rest/v1/bills", {
     method: "POST",
     headers: {
@@ -213,13 +228,16 @@ async function syncUserBills(env, rows, userId, authToken, syncSecret) {
   return { synced: prepared.length };
 }
 
-async function fetchUserBillIdMap(env, userId, rows, authToken, syncSecret) {
+async function fetchBillIdMap(env, scope, rows, authToken, syncSecret) {
   const clientIds = rows.map((row) => row.client_bill_id).filter(Boolean);
   const map = new Map();
   if (!clientIds.length) return { map };
 
   const inList = `(${clientIds.map((id) => `"${encodeURIComponent(id)}"`).join(",")})`;
-  const query = `/rest/v1/bills?user_id=eq.${encodeURIComponent(userId)}&client_bill_id=in.${inList}&select=id,client_bill_id`;
+  const filter = scope.householdId
+    ? `household_id=eq.${encodeURIComponent(scope.householdId)}`
+    : `user_id=eq.${encodeURIComponent(scope.userId)}`;
+  const query = `/rest/v1/bills?${filter}&client_bill_id=in.${inList}&select=id,client_bill_id,user_id`;
   const response = await supabaseFetch(env, query, {
     headers: {
       "x-sync-secret": syncSecret,
@@ -233,12 +251,23 @@ async function fetchUserBillIdMap(env, userId, rows, authToken, syncSecret) {
 
   const existingRows = await response.json();
   for (const existing of existingRows) {
-    if (existing.client_bill_id) map.set(existing.client_bill_id, existing.id);
+    if (existing.client_bill_id) map.set(existing.client_bill_id, { id: existing.id, user_id: existing.user_id });
   }
   return { map };
 }
 
-function toSupabaseRow(bill, appInstanceId, syncSecret, userId) {
+// Returns the household id the user belongs to, or null. Uses the user's own
+// token; RLS lets a member read their own membership row.
+async function getUserHouseholdId(env, userId, authToken) {
+  const response = await supabaseFetch(env, `/rest/v1/household_members?user_id=eq.${encodeURIComponent(userId)}&select=household_id&limit=1`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+  });
+  if (!response.ok) return null;
+  const rows = await response.json().catch(() => []);
+  return rows[0]?.household_id || null;
+}
+
+function toSupabaseRow(bill, appInstanceId, syncSecret, userId, householdId) {
   const clientBillId = String(bill.clientBillId || bill.id || crypto.randomUUID());
   return {
     id: userId ? (isUuid(bill.remoteId) ? bill.remoteId : crypto.randomUUID()) : bill.id,
@@ -246,6 +275,7 @@ function toSupabaseRow(bill, appInstanceId, syncSecret, userId) {
     app_instance_id: appInstanceId,
     sync_secret: syncSecret || crypto.randomUUID(),
     user_id: userId,
+    household_id: householdId || null,
     biller: bill.biller,
     amount: bill.amount,
     due_date: bill.dueDate,
@@ -276,6 +306,7 @@ function fromSupabaseRow(row) {
     category: row.category || "other",
     recurrence: row.recurrence || "once",
     anchorDay: Number.isInteger(row.anchor_day) ? row.anchor_day : null,
+    householdId: row.household_id || null,
     reference: row.reference || "",
     notes: row.notes || "",
     fileName: row.file_name || "",

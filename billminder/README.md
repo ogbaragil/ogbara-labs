@@ -27,6 +27,7 @@ http://127.0.0.1:4173/
 - Bills, calendar, and forecast views; a bill detail sheet with mark paid / reschedule / edit / delete and payment history.
 - Local browser storage with optional cloud sync for bills and reminder settings.
 - Email/password login, account signup, and password reset through Supabase Auth, with a "stay signed in" option and automatic session refresh.
+- Shared households: invite a partner by email; once they accept, both people see and edit one pooled set of bills and both receive reminders.
 - JSON export and import for backups and device transfers.
 - Synced email reminder settings per signed-in user.
 - Scheduled email reminders through a Cloudflare Worker Cron Trigger and Resend.
@@ -50,12 +51,13 @@ Add this Cloudflare Pages secret:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `OPENAI_API_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-`OPENAI_MODEL` is optional and defaults to `gpt-4.1-mini`.
+`OPENAI_MODEL` is optional and defaults to `gpt-4.1-mini`. `SUPABASE_SERVICE_ROLE_KEY` is required only for the shared-household (partner) feature; the invite/accept/leave functions use it to make the cross-user changes that row-level security deliberately blocks for normal users. Keep it server-side only.
 
 Supabase Auth must have email/password signups enabled. For password reset links, add your Cloudflare Pages URL to the Supabase Auth redirect URLs.
 
-The hosted app uses `functions/api/bills.js` for bill sync (GET to load, POST to upsert, DELETE to remove) and `functions/api/settings.js` for reminder settings sync. `functions/api/auth/refresh.js` exchanges a refresh token for a new session so logins survive past the access-token expiry.
+The hosted app uses `functions/api/bills.js` for bill sync (GET to load, POST to upsert, DELETE to remove) and `functions/api/settings.js` for reminder settings sync. `functions/api/auth/refresh.js` exchanges a refresh token for a new session so logins survive past the access-token expiry. `functions/api/household.js`, `functions/api/household/invite.js`, and `functions/api/household/accept.js` power partner sharing.
 
 The included `_headers`, `wrangler.toml`, and `functions/` directory are ready for Cloudflare Pages.
 

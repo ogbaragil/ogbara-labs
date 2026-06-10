@@ -42,7 +42,9 @@ async function runReminders(env, runDate) {
       const bills = await fetchDueBills(env, setting.user_id, targetDate);
 
       for (const bill of bills) {
-        const reminderKey = `email:${bill.due_date}:${leadDays}`;
+        // Per-recipient key so each partner in a shared household gets their own
+        // reminder for the same bill rather than one suppressing the other.
+        const reminderKey = `email:${(setting.email || "").toLowerCase()}:${bill.due_date}:${leadDays}`;
         if ((bill.reminded_for || []).includes(reminderKey)) {
           skipped += 1;
           continue;
@@ -77,7 +79,18 @@ async function runReminders(env, runDate) {
 }
 
 async function fetchDueBills(env, userId, dueDate) {
-  const query = `/rest/v1/bills?user_id=eq.${encodeURIComponent(userId)}&status=eq.unpaid&due_date=eq.${encodeURIComponent(dueDate)}&select=*`;
+  // If the user is in a shared household, remind on every household bill;
+  // otherwise just their own.
+  const memberResp = await supabaseFetch(env, `/rest/v1/household_members?user_id=eq.${encodeURIComponent(userId)}&select=household_id&limit=1`, {
+    headers: { Authorization: `Bearer ${getServiceRoleKey(env)}` }
+  });
+  const memberRows = memberResp.ok ? await memberResp.json().catch(() => []) : [];
+  const householdId = memberRows[0]?.household_id || null;
+
+  const scope = householdId
+    ? `household_id=eq.${encodeURIComponent(householdId)}`
+    : `user_id=eq.${encodeURIComponent(userId)}`;
+  const query = `/rest/v1/bills?${scope}&status=eq.unpaid&due_date=eq.${encodeURIComponent(dueDate)}&select=*`;
   return supabaseFetch(env, query, {
     headers: { Authorization: `Bearer ${getServiceRoleKey(env)}` }
   }).then(readJsonResponse);

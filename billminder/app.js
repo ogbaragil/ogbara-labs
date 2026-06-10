@@ -49,6 +49,8 @@ const DEFAULT_SETTINGS = {
 const state = {
   bills: [],
   tombstones: [],
+  household: null,
+  inviteToken: "",
   settings: {},
   auth: null,
   view: "dashboard",
@@ -93,6 +95,7 @@ function init() {
   setupInstall();
 
   handleRecoveryRedirect();
+  handleInviteRedirect();
   updateAuthGate();
   render();
 
@@ -102,7 +105,12 @@ function init() {
 async function bootSession() {
   await ensureFreshSession();
   updateAuthGate();
-  if (hasSyncConnection()) { restoreReminderSettings(); restoreSupabase().catch(() => {}); }
+  if (hasSyncConnection()) {
+    restoreReminderSettings();
+    await loadHousehold();
+    restoreSupabase().catch(() => {});
+    maybeAcceptInvite();
+  }
   window.addEventListener("focus", async () => {
     await ensureFreshSession();
     if (hasSyncConnection()) restoreSupabase().catch(() => {});
@@ -453,7 +461,57 @@ function renderOverview() {
   renderTiles();
   renderOvUpcoming();
   renderMonthOverview();
-  renderQuickActions();
+  renderForecast();
+}
+
+function renderForecast() {
+  const el = $("#ovForecast");
+  if (!el) return;
+  el.className = "panel forecast-card";
+  const now = new Date();
+  const months = forecastMonths(6);
+  const max = Math.max(1, ...months.map((m) => m.total));
+  const total = months.reduce((s, m) => s + m.total, 0);
+  const shortMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
+  const fullMonth = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+
+  if (total <= 0) {
+    el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2></div>
+      <div class="empty-inline">Add bills with a due date and your projected spend for the next 6 months will appear here. Recurring bills are projected forward automatically.</div>`;
+    return;
+  }
+
+  const bars = months.map((m) => {
+    const isNow = m.date.getFullYear() === now.getFullYear() && m.date.getMonth() === now.getMonth();
+    const h = m.total ? Math.max(Math.round((m.total / max) * 100), 6) : 2;
+    return `<button class="fc-col" data-fc="${m.key}" type="button" aria-label="${escapeHtml(fullMonth.format(m.date))}: ${money(m.total)}">
+      <span class="fc-amt">${m.total ? money0(m.total) : ""}</span>
+      <span class="fc-bar-wrap"><span class="fc-bar ${isNow ? "now" : ""}" style="height:${h}%"></span></span>
+      <span class="fc-month">${escapeHtml(shortMonth.format(m.date))}</span>
+    </button>`;
+  }).join("");
+
+  const breakdown = categoryBreakdown(6);
+  const legend = breakdown.rows.slice(0, 3).map((r) =>
+    `<span class="fc-leg"><i style="background:${(CATEGORIES[r.cat] || CATEGORIES.other).color}"></i>${escapeHtml((CATEGORIES[r.cat] || CATEGORIES.other).label)} ${Math.round(r.pct * 100)}%</span>`
+  ).join("");
+
+  el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2><span class="fc-total">${money0(total)} <small>next 6 mo</small></span></div>
+    <div class="fc-chart">${bars}</div>
+    ${legend ? `<div class="fc-legend">${legend}</div>` : ""}
+    <div class="fc-detail" id="fcDetail"></div>`;
+
+  $$("[data-fc]", el).forEach((btn) => btn.addEventListener("click", () => {
+    const m = months.find((x) => x.key === btn.dataset.fc);
+    const detail = $("#fcDetail", el);
+    if (!m || !detail) return;
+    const cats = Object.entries(m.byCategory).sort((a, b) => b[1] - a[1]);
+    detail.innerHTML = cats.length
+      ? `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 ${money(m.total)}</div>` +
+        cats.map(([c, v]) => `<div class="fc-detail-row"><span><i style="background:${(CATEGORIES[c] || CATEGORIES.other).color}"></i>${escapeHtml((CATEGORIES[c] || CATEGORIES.other).label)}</span><strong>${money(v)}</strong></div>`).join("")
+      : `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 nothing projected</div>`;
+    $$(".fc-col", el).forEach((c) => c.classList.toggle("sel", c === btn));
+  }));
 }
 
 function renderHero() {
@@ -724,6 +782,141 @@ function renderMore() {
   const acct = $("#accountStatus");
   if (acct) acct.textContent = hasActiveSession() ? `Signed in as ${state.auth.email}` : "Not signed in.";
   updateEmailReminderHint();
+  renderHousehold();
+}
+
+/* ---------------- household / partner sharing ---------------- */
+function handleInviteRedirect() {
+  const params = new URLSearchParams(location.search);
+  const token = params.get("invite");
+  if (token) {
+    state.inviteToken = token;
+    const url = new URL(location.href);
+    url.searchParams.delete("invite");
+    history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+  }
+}
+
+async function loadHousehold() {
+  if (!hasSyncConnection()) { state.household = null; return; }
+  try {
+    const response = await cloudflareSyncRequest("/api/household");
+    if (!response.ok) return;
+    const payload = await response.json();
+    state.household = payload.household || null;
+    state.sentInvites = payload.sentInvites || [];
+    if (state.view === "more") renderHousehold();
+  } catch { /* ignore */ }
+}
+
+function maybeAcceptInvite() {
+  if (state.inviteToken && hasActiveSession()) promptAcceptInvite();
+}
+
+function promptAcceptInvite() {
+  const token = state.inviteToken;
+  if (!token) return;
+  const go = confirm("Accept this invitation to share bills with your partner? Your existing bills will be merged into the shared household.");
+  if (!go) { state.inviteToken = ""; return; }
+  acceptInvite(token);
+}
+
+async function acceptInvite(token) {
+  if (!hasSyncConnection()) { alert("Sign in first, then open the invite link again."); return; }
+  try {
+    const response = await cloudflareSyncRequest("/api/household/accept", { method: "POST", body: JSON.stringify({ token }) });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "Could not accept the invitation.");
+    state.inviteToken = "";
+    state.household = payload.household || null;
+    await restoreSupabase().catch(() => {});
+    showView("more");
+    alert("You're linked. Bills are now shared with your partner.");
+  } catch (err) {
+    state.inviteToken = "";
+    alert(err.message || "Could not accept the invitation.");
+  }
+}
+
+async function sendHouseholdInvite() {
+  const email = ($("#inviteEmailInput")?.value || "").trim();
+  const status = $("#householdStatus");
+  if (!email) { if (status) status.textContent = "Enter your partner's email."; return; }
+  const btn = $("#sendInviteButton");
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = "Creating invitation\u2026";
+  try {
+    const response = await cloudflareSyncRequest("/api/household/invite", { method: "POST", body: JSON.stringify({ email }) });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "Could not create the invitation.");
+    state.lastInvite = { email: payload.email, link: payload.link };
+    await loadHousehold();
+    renderHousehold();
+  } catch (err) {
+    if (status) status.textContent = err.message || "Could not create the invitation.";
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function leaveHousehold() {
+  if (!confirm("Leave this shared household? Bills you added return to your account; shared bills stay with your partner.")) return;
+  try {
+    const response = await cloudflareSyncRequest("/api/household", { method: "DELETE", body: JSON.stringify({}) });
+    if (!response.ok) { const p = await response.json().catch(() => null); throw new Error(p?.error || "Could not leave the household."); }
+    state.household = null; state.lastInvite = null; state.sentInvites = [];
+    await restoreSupabase().catch(() => {});
+    renderHousehold();
+  } catch (err) {
+    const status = $("#householdStatus"); if (status) status.textContent = err.message || "Could not leave the household.";
+  }
+}
+
+function renderHousehold() {
+  const body = $("#householdBody");
+  if (!body) return;
+  if (!hasSyncConnection()) { body.innerHTML = `<p class="muted">Sign in to invite a partner.</p>`; return; }
+
+  const hh = state.household;
+  const myEmail = (state.auth?.email || "").toLowerCase();
+
+  if (hh && Array.isArray(hh.members) && hh.members.length >= 2) {
+    const partner = hh.members.find((m) => (m.email || "").toLowerCase() !== myEmail) || hh.members[0];
+    body.innerHTML = `<div class="hh-linked"><span class="hh-ic" aria-hidden="true">\u{1F46B}</span>
+        <div><div class="hh-title">Shared with ${escapeHtml(partner?.email || "your partner")}</div>
+        <div class="muted">Bills, edits and reminders are shared between you both.</div></div></div>
+      <button class="btn danger-text" id="leaveHouseholdButton" type="button">Leave household</button>
+      <p class="muted sync-status" id="householdStatus"></p>`;
+    $("#leaveHouseholdButton")?.addEventListener("click", leaveHousehold);
+    return;
+  }
+
+  const pending = (state.sentInvites && state.sentInvites[0]) || state.lastInvite;
+  const link = state.lastInvite?.link || "";
+  if (pending) {
+    body.innerHTML = `<div class="hh-pending">Invitation pending for <strong>${escapeHtml(pending.email || pending.invite_email || "")}</strong></div>
+      ${link
+        ? `<label class="field">Share this link with your partner
+            <input id="inviteLinkInput" type="text" readonly value="${escapeHtml(link)}"></label>
+          <div class="btn-row"><button class="btn ghost" id="copyInviteButton" type="button">Copy link</button>
+          <button class="btn ghost" id="newInviteButton" type="button">Cancel / start over</button></div>`
+        : `<p class="muted">They need to sign in with that email and open your invite link to join.</p>
+          <button class="btn ghost" id="newInviteButton" type="button">Send a new invite</button>`}
+      <p class="muted sync-status" id="householdStatus"></p>`;
+    $("#copyInviteButton")?.addEventListener("click", () => {
+      const el = $("#inviteLinkInput"); if (!el) return;
+      el.select();
+      navigator.clipboard?.writeText(el.value).then(() => { const s = $("#householdStatus"); if (s) s.textContent = "Link copied."; }).catch(() => {});
+    });
+    $("#newInviteButton")?.addEventListener("click", () => { state.lastInvite = null; state.sentInvites = []; renderHousehold(); });
+    return;
+  }
+
+  body.innerHTML = `<label class="field">Partner's email
+      <input id="inviteEmailInput" type="email" placeholder="partner@example.com" autocomplete="off"></label>
+    <button class="btn primary" id="sendInviteButton" type="button">Send invite</button>
+    <p class="muted sync-status" id="householdStatus"></p>`;
+  $("#sendInviteButton")?.addEventListener("click", sendHouseholdInvite);
 }
 
 function setupBillSheet() {
@@ -1151,7 +1344,9 @@ async function authenticate(mode) {
     $("#authPassword").value = "";
     updateAuthGate(); render();
     await restoreReminderSettings();
+    await loadHousehold();
     await restoreSupabase().catch(() => {});
+    maybeAcceptInvite();
   } catch (err) {
     updateAuthStatus(err.message || "Sign in failed.");
   } finally {
@@ -1253,6 +1448,9 @@ async function updatePassword() {
 
 function logout() {
   state.auth = null;
+  state.household = null;
+  state.lastInvite = null;
+  state.sentInvites = [];
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(REMEMBER_KEY);
   try { sessionStorage.removeItem(AUTH_KEY); } catch { /* ignore */ }
