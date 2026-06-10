@@ -598,7 +598,7 @@ function renderHero() {
       <button class="btn outline" data-hero-view="${hero.id}" type="button">View bill</button>
     </div>
   </div>`;
-  $("[data-hero-pay]", el)?.addEventListener("click", () => markBillPaidNow(hero.id));
+  $("[data-hero-pay]", el)?.addEventListener("click", () => { const b = state.bills.find((x) => x.id === hero.id); if (b) openPaidModal(b); });
   $("[data-hero-view]", el)?.addEventListener("click", () => openDetailSheet(hero.id));
 }
 
@@ -1169,15 +1169,13 @@ function openDetailSheet(billId) {
     <div class="dt-actions">
       ${bill.status === "unpaid"
         ? `<button class="btn primary" id="dtMarkPaid" type="button">Mark as paid</button>
-           <button class="btn ghost" id="dtMarkPaidDate" type="button">Paid on another date…</button>
            <button class="btn ghost" id="dtReschedule" type="button">Reschedule</button>`
         : `<button class="btn ghost" id="dtMarkUnpaid" type="button">Mark as unpaid</button>`}
       <button class="btn ghost" id="dtEdit" type="button">Edit</button>
       <button class="btn danger-text" id="dtDelete" type="button">Delete</button>
     </div>
     ${historyRows.length ? `<div class="dt-history"><h4>History</h4>${historyRows.join("")}</div>` : ""}`;
-  $("#dtMarkPaid")?.addEventListener("click", () => { closeDetailSheet(); markBillPaidNow(bill.id); });
-  $("#dtMarkPaidDate")?.addEventListener("click", () => { closeDetailSheet(); openPaidModal(bill); });
+  $("#dtMarkPaid")?.addEventListener("click", () => { closeDetailSheet(); openPaidModal(bill); });
   $("#dtReschedule")?.addEventListener("click", () => { closeDetailSheet(); openRescheduleModal(bill); });
   $("#dtMarkUnpaid")?.addEventListener("click", () => { bill.status = "unpaid"; bill.paidAt = ""; markBillDirty(bill); closeDetailSheet(); render(); scheduleSync(); });
   $("#dtEdit")?.addEventListener("click", () => { closeDetailSheet(); openBillSheet(bill.id); });
@@ -1338,17 +1336,10 @@ function openPaidModal(bill) {
   state.paidBillId = bill.id;
   $("#paidDateInput").value = formatDatePartsFromDate(new Date());
   $("#paymentNotesInput").value = "";
-  $("#paidStatus").textContent = `Mark ${bill.biller} as paid.`;
+  $("#paidStatus").textContent = `Confirm the date you paid ${bill.biller}.`;
   $("#paidModal").hidden = false;
 }
 function closePaidModal() { $("#paidModal").hidden = true; state.paidBillId = null; }
-
-// One-tap: mark paid with today's date and no notes.
-function markBillPaidNow(id) {
-  const bill = state.bills.find((b) => b.id === id);
-  if (!bill || bill.status === "paid") return;
-  applyPaid(bill, formatDatePartsFromDate(new Date()), "");
-}
 
 function savePaidBill() {
   const bill = state.bills.find((b) => b.id === state.paidBillId);
