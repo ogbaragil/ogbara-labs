@@ -1297,9 +1297,18 @@ function deleteBill(id) {
   scheduleSync();
 }
 
-function relatedSeriesBills(bill) {
-  if (!bill?.seriesId) return [bill].filter(Boolean);
-  return state.bills.filter((b) => b.seriesId === bill.seriesId);
+// All real rows that belong to the same recurring bill. We match on seriesId
+// AND on a biller+category signature, because seriesId can get reset to a row's
+// own id after a sync if the server hasn't stored series_id — signature matching
+// keeps "delete all occurrences" working regardless.
+function billSignature(b) {
+  return `${(b.biller || "").trim().toLowerCase()}|${b.category || ""}`;
+}
+function seriesMembers(bill) {
+  if (!bill) return [];
+  const sid = bill.seriesId;
+  const sig = billSignature(bill);
+  return state.bills.filter((b) => (sid && b.seriesId === sid) || billSignature(b) === sig);
 }
 
 // Delete just the current instance but keep the bill repeating: roll its due
@@ -1321,11 +1330,15 @@ function skipOccurrence(id) {
   scheduleSync();
 }
 
-function deleteSeries(seriesId) {
-  if (!seriesId) return;
-  const doomed = state.bills.filter((b) => b.seriesId === seriesId);
+// Delete every occurrence of this recurring bill (past, present and future).
+function deleteOccurrences(id) {
+  const bill = state.bills.find((b) => b.id === id);
+  if (!bill) return;
+  const doomed = seriesMembers(bill);
+  if (!doomed.length) { deleteBill(id); return; }
+  const ids = new Set(doomed.map((b) => b.id));
   doomed.forEach((b) => { addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id); });
-  state.bills = state.bills.filter((b) => b.seriesId !== seriesId);
+  state.bills = state.bills.filter((b) => !ids.has(b.id));
   saveBills();
   closeDetailSheet();
   render();
@@ -1334,10 +1347,9 @@ function deleteSeries(seriesId) {
 
 function openDeleteModal(bill) {
   state.deleteBillId = bill.id;
-  state.deleteSeriesId = bill.seriesId || null;
   const isRecurring = bill.recurrence !== "once";
-  const related = relatedSeriesBills(bill);
-  const seriesCount = related.length;
+  const members = seriesMembers(bill);
+  const seriesCount = members.length;
   const recurLabel = (RECURRENCE[bill.recurrence]?.label || "").toLowerCase();
 
   const oneBtn = $("#deleteOneButton");
@@ -1449,7 +1461,7 @@ function setupModals() {
     if (mode === "recurring") skipOccurrence(id);
     else deleteBill(id);
   });
-  $("#deleteSeriesButton")?.addEventListener("click", () => { const sid = state.deleteSeriesId; const id = state.deleteBillId; closeDeleteModal(); if (sid) deleteSeries(sid); else if (id) deleteBill(id); });
+  $("#deleteSeriesButton")?.addEventListener("click", () => { const id = state.deleteBillId; closeDeleteModal(); if (id) deleteOccurrences(id); });
   $("#cancelDeleteButton")?.addEventListener("click", closeDeleteModal);
   $("#closeDeleteButton")?.addEventListener("click", closeDeleteModal);
 }
