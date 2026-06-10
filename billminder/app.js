@@ -143,8 +143,33 @@ function showView(view) {
 
 function setupHeader() {
   $("#fabAdd")?.addEventListener("click", () => openBillSheet());
-  $("#remindersBtn")?.addEventListener("click", () => showView("more"));
+  $("#backupBtn")?.addEventListener("click", () => backupNow());
   $("#accountBtn")?.addEventListener("click", () => showView("more"));
+}
+
+async function backupNow() {
+  const btn = $("#backupBtn");
+  const badge = $("#backupBadge");
+  if (!hasSyncConnection()) {
+    updateSyncStatus(hasActiveSession() ? "Backup runs on the hosted app." : "Sign in to back up.", "err");
+    flashBackup(btn, badge, "err");
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.classList.add("busy"); }
+  updateSyncStatus("Backing up\u2026", "sync");
+  await syncSupabase();
+  const ok = state.syncState !== "err";
+  if (btn) { btn.disabled = false; btn.classList.remove("busy"); }
+  flashBackup(btn, badge, ok ? "ok" : "err");
+}
+
+function flashBackup(btn, badge, kind) {
+  if (!btn || !badge) return;
+  badge.hidden = false;
+  badge.textContent = kind === "ok" ? "\u2713" : "!";
+  badge.className = `badge-dot ${kind === "ok" ? "ok" : "err"}`;
+  clearTimeout(btn._flashTimer);
+  btn._flashTimer = setTimeout(() => { badge.hidden = true; }, 2200);
 }
 
 function setupBillsTabs() {
