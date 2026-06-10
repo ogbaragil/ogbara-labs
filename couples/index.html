@@ -199,6 +199,30 @@
   .dock-side .dic{width:34px; height:34px; border-radius:11px; display:grid; place-items:center; font-size:17px; flex:none;
     background:rgba(255,143,177,.16); border:1px solid rgba(255,143,177,.3);}
   .dock-side:active{transform:scale(.97);}
+  /* Player cards flanking the die (the die sits between the two players) */
+  .dock-player{display:flex; align-items:center; gap:9px; height:62px; padding:0 12px; border-radius:20px;
+    background:linear-gradient(160deg, rgba(82,34,64,.85), rgba(52,20,42,.9)); border:1px solid var(--panel-edge);
+    box-shadow:0 10px 24px rgba(15,4,12,.5), inset 0 1px 0 rgba(255,200,222,.1);
+    min-width:0; overflow:hidden;}
+  .dock-player.p2{flex-direction:row-reverse; text-align:right;}
+  .dock-player .dp-av{flex:none; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font-size:21px;
+    background:#fff; overflow:hidden; border:2.5px solid;}
+  .dock-player.p1 .dp-av{border-color:var(--p1);} .dock-player.p2 .dp-av{border-color:var(--p2);}
+  .dock-player .dp-av img{width:100%; height:100%; object-fit:cover;}
+  .dock-player .dp-info{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center;}
+  .dock-player .dp-name{display:block; font-size:14.5px; font-weight:800; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff;}
+  .dock-player .dp-sq{display:block; font-size:11.5px; color:var(--muted); font-weight:700; margin-top:3px; white-space:nowrap;}
+  .dock-player .dp-bar{display:block; height:5px; border-radius:999px; margin-top:6px; overflow:hidden;
+    background:rgba(255,255,255,.10); box-shadow:inset 0 1px 1px rgba(0,0,0,.25);}
+  .dock-player .dp-fill{display:block; height:100%; border-radius:999px; transition:width .35s cubic-bezier(.34,1.1,.64,1);}
+  .dock-player.p1 .dp-fill{background:linear-gradient(90deg,var(--p1),var(--rose));}
+  .dock-player.p2 .dp-fill{background:linear-gradient(90deg,var(--p2),var(--plum));}
+  .dock-player.active .dp-fill{box-shadow:0 0 8px rgba(255,210,125,.55);}
+  /* Cloud account/sync is reached from Settings now, so hide the floating chip */
+  #cloudChip{display:none !important;}
+  .dock-player.active{border-color:rgba(255,210,125,.7); box-shadow:0 0 0 2px rgba(255,210,125,.45), 0 10px 24px rgba(15,4,12,.5);}
+  .dock-player.active .dp-av{box-shadow:0 0 0 3px rgba(255,210,125,.55), 0 0 14px rgba(255,210,125,.4);}
+  .dock-player.active .dp-sq{color:var(--gold);}
   .die-col{display:flex; flex-direction:column; align-items:center; gap:6px; padding-bottom:2px;}
   .die-btn{position:relative; width:78px; height:78px; border-radius:20px; background:linear-gradient(150deg,#fff,#f1e7ee);
     display:grid; place-items:center;
@@ -285,28 +309,22 @@
     </div>
   </section>
 
-  <div class="two-col">
-    <section class="panel log-card">
-      <p class="ptitle">Game Log</p>
-      <div class="log-list" id="gameLog"></div>
-    </section>
-    <section class="panel players-card">
-      <div class="prow one" id="slotP1"></div>
-      <div class="prow two" id="slotP2"></div>
-    </section>
-  </div>
+  <section class="panel log-card">
+    <p class="ptitle">Game Log</p>
+    <div class="log-list" id="gameLog"></div>
+  </section>
 
   <p class="footer">Couples Snakes &amp; Ladders by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a></p>
 </div>
 
 <div class="dock">
   <div class="dock-inner">
-    <button class="dock-side" id="challengesBtn"><span class="dic">💬</span> Challenges</button>
+    <div class="dock-player p1" id="dockP1"></div>
     <div class="die-col">
       <button class="die-btn" id="die" aria-label="Tap to roll"><div class="pips" id="pips"></div></button>
       <span class="roll-label">Tap to roll</span>
     </div>
-    <button class="dock-side" id="surprisesBtn"><span class="dic">🎁</span> Surprises</button>
+    <div class="dock-player p2" id="dockP2"></div>
   </div>
 </div>
 <div id="overlay"></div>
@@ -696,6 +714,24 @@ function clearQuest(){ S.activeQuest=null; questIntro(); }
 function startRule(){ return S.difficulty==="Hard" ? "spin a 6 to start" : "spin anything to start"; }
 function name(i){ return (i===1?S.p1.name:S.p2.name) || ("Player "+i); }
 function setHint(t){ const up=document.getElementById("upPill"); if(up) up.innerHTML=`<span class="ic">✦</span> ${esc(t)}`; }
+function paintDock(){
+  for (const i of [1,2]){
+    const pl=i===1?S.p1:S.p2;
+    const slot=document.getElementById("dockP"+i); if(!slot) continue;
+    const isTurn = S.current===i && !S.winner;
+    const won = S.winner===i;
+    const sq = Math.max(0, pl.position||0);
+    const pct = Math.max(0, Math.min(100, sq));
+    slot.className = `dock-player p${i}${isTurn?" active":""}`;
+    slot.innerHTML = `
+      <span class="dp-av">${pawnFace(i)}</span>
+      <span class="dp-info">
+        <span class="dp-name">${esc(name(i))}</span>
+        <span class="dp-sq">${won ? "🏆 Winner" : isTurn ? "Your turn" : "Square "+sq}</span>
+        <span class="dp-bar"><span class="dp-fill" style="width:${pct}%"></span></span>
+      </span>`;
+  }
+}
 function paintStatus(){
   for (const i of [1,2]){
     const pl=i===1?S.p1:S.p2;
@@ -709,6 +745,7 @@ function paintStatus(){
       <span class="psquare"><small>Square</small>
         <span class="snum">${sq} <span class="pinmark ${i===1?"one":"two"}">📍</span></span></span>`;
   }
+  paintDock();
   if (typeof dieEl !== "undefined" && dieEl) dieEl.classList.toggle("done", !!S.winner);
   renderPills();
 }
@@ -884,6 +921,17 @@ function openSetup(firstRun=false){
   tog.onclick=()=>{ S.musicEnabled=!S.musicEnabled; tog.classList.toggle("on",S.musicEnabled); tog.textContent=S.musicEnabled?"On":"Off"; Music.setOn(S.musicEnabled); };
   musicRow.append(tog); fields.append(musicRow);
 
+  // Cloud account & sync — opens the shared account panel (only when sync is available)
+  const chip = document.getElementById("cloudChip");
+  if (!firstRun && chip){
+    fields.append(el("label",null,"Account"));
+    const acct=el("button","reset-row", (window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn())
+      ? "☁️ Account & sync now" : "☁️ Sign in to sync");
+    acct.style.marginTop="6px";
+    acct.onclick=()=>{ back.remove(); S.setupOpen=false; chip.click(); };
+    fields.append(acct);
+  }
+
   if (!firstRun){
     const rr = el("button","reset-row","↺ Reset game — positions start over");
     rr.onclick = () => { if (confirm("Reset positions and start over?")){ resetGame(); S.setupOpen=false; back.remove(); } };
@@ -936,18 +984,6 @@ document.getElementById("qcDone").onclick = ()=>{
   clearQuest();
 };
 document.getElementById("qcPass").onclick = ()=>{ clearQuest(); };
-
-document.getElementById("challengesBtn").onclick = ()=>{
-  if (S.winner) return;
-  Music.unlock(); if (S.musicEnabled) Music.start();
-  showQuest(drawQuest(S.loveMode), "challenge", name(S.current));
-};
-document.getElementById("surprisesBtn").onclick = ()=>{
-  Music.unlock(); if (S.musicEnabled) Music.start();
-  const s = SURPRISES[Math.floor(Math.random()*SURPRISES.length)];
-  logEvent("surprise", `${name(S.current)} drew a surprise`, "");
-  showQuest(s, "surprise", name(S.current));
-};
 
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=S.musicEnabled?1:0.45;
