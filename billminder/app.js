@@ -12,6 +12,8 @@ const STORE_KEY = "cleared:bills";
 const SETTINGS_KEY = "cleared:settings";
 const AUTH_KEY = "cleared:auth";
 const TOMB_KEY = "cleared:tombstones";
+const DIRTY_KEY = "cleared:dirty";
+const DELQ_KEY = "cleared:delqueue";
 const REMEMBER_KEY = "cleared:remember";
 const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const LEGACY = { bills: "bill-minder:bills", settings: "bill-minder:settings", auth: "bill-minder:auth" };
@@ -51,6 +53,8 @@ const DEFAULT_SETTINGS = {
 const state = {
   bills: [],
   tombstones: [],
+  dirtyBills: [],
+  pendingDeletes: [],
   household: null,
   inviteToken: "",
   settings: {},
@@ -76,6 +80,13 @@ function init() {
   state.bills = readJson(STORE_KEY, []).map(normalizeBill);
   state.tombstones = pruneTombstones(readJson(TOMB_KEY, []));
   saveTombstones();
+  state.dirtyBills = readJson(DIRTY_KEY, []).map(String);
+  state.pendingDeletes = readJson(DELQ_KEY, []).map(String);
+  // First run on this version: make sure existing local bills get pushed once.
+  if (localStorage.getItem(DIRTY_KEY) === null && state.bills.length) {
+    state.dirtyBills = state.bills.map((b) => String(b.clientBillId || b.id));
+  }
+  saveSyncQueues();
   state.settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
   state.auth = readAuth();
   state.view = "overview";
@@ -116,8 +127,9 @@ async function bootSession() {
   }
   window.addEventListener("focus", async () => {
     await ensureFreshSession();
-    if (hasSyncConnection()) restoreSupabase().catch(() => {});
+    if (hasSyncConnection()) runSync();
   });
+  window.addEventListener("online", () => { if (hasSyncConnection()) runSync(); });
 }
 
 function migrateLegacyKeys() {
@@ -242,6 +254,7 @@ function normalizeBill(bill) {
     paymentNotes: bill.paymentNotes || "",
     rescheduleNotes: bill.rescheduleNotes || "",
     createdAt: bill.createdAt || new Date().toISOString(),
+    updatedAt: bill.updatedAt || bill.createdAt || new Date().toISOString(),
     remindedFor: Array.isArray(bill.remindedFor) ? bill.remindedFor : []
   };
 }
@@ -581,7 +594,7 @@ function renderHero() {
       <button class="btn outline" data-hero-view="${hero.id}" type="button">View bill</button>
     </div>
   </div>`;
-  $("[data-hero-pay]", el)?.addEventListener("click", () => { const b = state.bills.find((x) => x.id === hero.id); if (b) openPaidModal(b); });
+  $("[data-hero-pay]", el)?.addEventListener("click", () => markBillPaidNow(hero.id));
   $("[data-hero-view]", el)?.addEventListener("click", () => openDetailSheet(hero.id));
 }
 
@@ -1023,6 +1036,7 @@ function saveBillFromForm(event) {
   const dueDate = $("#dueDateInput").value;
   if (!$("#billerInput").value.trim() || !amount || !dueDate) return;
 
+  let changed = null;
   if (state.editingBillId) {
     const bill = state.bills.find((b) => b.id === state.editingBillId);
     if (bill) {
@@ -1035,9 +1049,10 @@ function saveBillFromForm(event) {
         reference: $("#referenceInput").value.trim(),
         notes: $("#notesInput").value.trim()
       });
+      changed = bill;
     }
   } else {
-    state.bills.push(normalizeBill({
+    changed = normalizeBill({
       biller: $("#billerInput").value.trim(),
       amount, dueDate,
       category: $("#categoryInput").value,
@@ -1045,12 +1060,13 @@ function saveBillFromForm(event) {
       reference: $("#referenceInput").value.trim(),
       notes: $("#notesInput").value.trim(),
       fileName: state.currentPdfFile?.name || ""
-    }));
+    });
+    state.bills.push(changed);
   }
-  saveBills();
+  markBillDirty(changed);
   closeBillSheet();
   if (state.view !== "overview" && state.view !== "bills") showView("overview"); else render();
-  pushBillsQuietly();
+  scheduleSync();
 }
 
 async function handlePdf(file) {
@@ -1149,15 +1165,17 @@ function openDetailSheet(billId) {
     <div class="dt-actions">
       ${bill.status === "unpaid"
         ? `<button class="btn primary" id="dtMarkPaid" type="button">Mark as paid</button>
+           <button class="btn ghost" id="dtMarkPaidDate" type="button">Paid on another date…</button>
            <button class="btn ghost" id="dtReschedule" type="button">Reschedule</button>`
         : `<button class="btn ghost" id="dtMarkUnpaid" type="button">Mark as unpaid</button>`}
       <button class="btn ghost" id="dtEdit" type="button">Edit</button>
       <button class="btn danger-text" id="dtDelete" type="button">Delete</button>
     </div>
     ${historyRows.length ? `<div class="dt-history"><h4>History</h4>${historyRows.join("")}</div>` : ""}`;
-  $("#dtMarkPaid")?.addEventListener("click", () => { closeDetailSheet(); openPaidModal(bill); });
+  $("#dtMarkPaid")?.addEventListener("click", () => { closeDetailSheet(); markBillPaidNow(bill.id); });
+  $("#dtMarkPaidDate")?.addEventListener("click", () => { closeDetailSheet(); openPaidModal(bill); });
   $("#dtReschedule")?.addEventListener("click", () => { closeDetailSheet(); openRescheduleModal(bill); });
-  $("#dtMarkUnpaid")?.addEventListener("click", () => { bill.status = "unpaid"; bill.paidAt = ""; saveBills(); closeDetailSheet(); render(); pushBillsQuietly(); });
+  $("#dtMarkUnpaid")?.addEventListener("click", () => { bill.status = "unpaid"; bill.paidAt = ""; markBillDirty(bill); closeDetailSheet(); render(); scheduleSync(); });
   $("#dtEdit")?.addEventListener("click", () => { closeDetailSheet(); openBillSheet(bill.id); });
   $("#dtDelete")?.addEventListener("click", () => {
     if (!confirm(`Delete ${bill.biller}? This removes it from this device and the cloud.`)) return;
@@ -1176,11 +1194,11 @@ function closeDetailSheet() {
 function deleteBill(id) {
   const bill = state.bills.find((b) => b.id === id);
   state.bills = state.bills.filter((b) => b.id !== id);
-  if (bill) addTombstone(bill.clientBillId || bill.id);
+  if (bill) { addTombstone(bill.clientBillId || bill.id); queueDelete(bill.clientBillId || bill.id); }
   saveBills();
   closeDetailSheet();
   render();
-  if (bill) deleteRemoteBill(bill).catch(() => {});
+  scheduleSync();
 }
 
 function addTombstone(clientBillId) {
@@ -1260,28 +1278,43 @@ function openPaidModal(bill) {
   $("#paidModal").hidden = false;
 }
 function closePaidModal() { $("#paidModal").hidden = true; state.paidBillId = null; }
+
+// One-tap: mark paid with today's date and no notes.
+function markBillPaidNow(id) {
+  const bill = state.bills.find((b) => b.id === id);
+  if (!bill || bill.status === "paid") return;
+  applyPaid(bill, formatDatePartsFromDate(new Date()), "");
+}
+
 function savePaidBill() {
   const bill = state.bills.find((b) => b.id === state.paidBillId);
   if (!bill) return;
+  applyPaid(bill, $("#paidDateInput").value, $("#paymentNotesInput").value.trim());
+  closePaidModal();
+}
+
+function applyPaid(bill, paidDate, notes) {
   bill.status = "paid";
-  bill.paidAt = $("#paidDateInput").value || formatDatePartsFromDate(new Date());
-  bill.paymentNotes = $("#paymentNotesInput").value.trim();
+  bill.paidAt = paidDate || formatDatePartsFromDate(new Date());
+  bill.paymentNotes = notes || "";
+  markBillDirty(bill);
   // Recurring bills: spawn the next occurrence as unpaid so the schedule
   // continues, and demote this paid one to a one-off so it isn't projected twice.
   if (bill.recurrence !== "once") {
     const anchorDay = normalizeAnchorDay(bill.anchorDay, bill.dueDate);
     const next = advance(dateFromInput(bill.dueDate), RECURRENCE[bill.recurrence], anchorDay);
-    state.bills.push(normalizeBill({
+    const spawned = normalizeBill({
       biller: bill.biller, amount: bill.amount, dueDate: formatDatePartsFromDate(next),
       category: bill.category, recurrence: bill.recurrence, anchorDay,
       reference: bill.reference, notes: bill.notes
-    }));
+    });
+    state.bills.push(spawned);
     bill.recurrence = "once";
+    markBillDirty(bill);
+    markBillDirty(spawned);
   }
-  saveBills();
-  closePaidModal();
   render();
-  pushBillsQuietly();
+  scheduleSync();
 }
 
 function openRescheduleModal(bill) {
@@ -1298,34 +1331,35 @@ function saveRescheduledBill() {
   bill.dueDate = $("#rescheduleDateInput").value || bill.dueDate;
   bill.rescheduleNotes = $("#rescheduleNotesInput").value.trim();
   bill.remindedFor = [];
-  saveBills();
+  markBillDirty(bill);
   closeRescheduleModal();
   render();
-  pushBillsQuietly();
+  scheduleSync();
 }
 
 /* ---------------- settings ---------------- */
 function setupSettings() {
   $("#reminderLeadSelect")?.addEventListener("change", (e) => {
     state.settings.reminderLeadDays = Number(e.target.value);
-    saveSettings(); render(); syncReminderSettingsQuietly();
+    saveSettings(); render(); scheduleSync(200);
   });
   $("#emailReminderToggle")?.addEventListener("change", (e) => {
     state.settings.emailReminders = e.target.checked;
-    saveSettings(); updateEmailReminderHint(); syncReminderSettingsQuietly();
+    saveSettings(); updateEmailReminderHint(); scheduleSync(200);
   });
   $("#exportButton")?.addEventListener("click", exportBills);
   $("#importButton")?.addEventListener("click", () => $("#importInput").click());
   $("#importInput")?.addEventListener("change", importBills);
   $("#clearBillsButton")?.addEventListener("click", () => {
-    if (!confirm("Clear all bills from this device? Export first if you want a backup.")) return;
-    state.bills = []; saveBills(); render();
+    if (!confirm("Clear all bills? This removes them from this device and, once synced, your account.")) return;
+    state.bills.forEach((b) => { addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id); });
+    state.bills = []; saveBills(); render(); scheduleSync(200);
   });
   $("#logoutButton")?.addEventListener("click", logout);
   $("#accountNameInput")?.addEventListener("change", (e) => {
     state.settings.firstName = e.target.value.trim().slice(0, 40);
     state.settings.namePrompted = true;
-    saveSettings(); render(); syncReminderSettingsQuietly();
+    saveSettings(); render(); scheduleSync(200);
   });
   $("#syncSupabaseButton")?.addEventListener("click", () => syncSupabase());
   $("#restoreSupabaseButton")?.addEventListener("click", () => restoreSupabase());
@@ -1359,14 +1393,14 @@ async function importBills(event) {
     const data = JSON.parse(text);
     const incoming = Array.isArray(data) ? data : data.bills || [];
     const byId = new Map(state.bills.map((b) => [b.clientBillId, b]));
-    incoming.map(normalizeBill).forEach((b) => byId.set(b.clientBillId, b));
+    incoming.map(normalizeBill).forEach((b) => { b.updatedAt = new Date().toISOString(); byId.set(b.clientBillId, b); if (!state.dirtyBills.includes(String(b.clientBillId))) state.dirtyBills.push(String(b.clientBillId)); });
     state.bills = Array.from(byId.values());
     if (data.settings) {
       if (data.settings.reminderLeadDays != null) state.settings.reminderLeadDays = Number(data.settings.reminderLeadDays);
       if (data.settings.emailReminders != null) state.settings.emailReminders = !!data.settings.emailReminders;
       saveSettings();
     }
-    saveBills(); render();
+    saveBills(); saveSyncQueues(); render(); scheduleSync();
     updateSyncStatus(`Imported ${incoming.length} bill(s).`);
   } catch (err) {
     updateSyncStatus("Import failed. Check the JSON file and try again.");
@@ -1655,65 +1689,102 @@ async function cloudflareSyncRequest(path, options = {}) {
   return response;
 }
 
-async function syncSupabase() {
-  if (!hasSyncConnection()) { updateSyncStatus("Sign in to sync."); return; }
-  updateSyncStatus("Syncing\u2026", "sync");
-  try {
-    await upsertRemoteBills(state.bills);
-    await syncReminderSettings();
-    const remote = await fetchRemoteBills();
-    state.bills = mergeBills(state.bills, remote.map(normalizeBill));
-    saveBills(); render();
-    updateSyncStatus("All data synced", "idle");
-  } catch (err) {
-    updateSyncStatus(err.message || "Sync failed", "err");
-  }
+/* ---- sync engine: single-flight, debounced, retrying ---- */
+let _syncing = false;
+let _syncAgain = false;
+let _syncTimer = null;
+
+function saveSyncQueues() {
+  localStorage.setItem(DIRTY_KEY, JSON.stringify(state.dirtyBills));
+  localStorage.setItem(DELQ_KEY, JSON.stringify(state.pendingDeletes));
 }
 
-async function restoreSupabase() {
-  if (!hasSyncConnection()) { updateSyncStatus("Sign in to sync."); return; }
+// Mark a bill as locally changed so the next sync pushes just that bill
+// (pushing only changed rows is what stops a partner's edits being clobbered).
+function markBillDirty(bill) {
+  if (bill) {
+    bill.updatedAt = new Date().toISOString();
+    const id = String(bill.clientBillId || bill.id);
+    if (!state.dirtyBills.includes(id)) state.dirtyBills.push(id);
+  }
+  saveBills();
+  saveSyncQueues();
+}
+
+function queueDelete(clientBillId) {
+  const id = String(clientBillId);
+  if (!state.pendingDeletes.includes(id)) state.pendingDeletes.push(id);
+  state.dirtyBills = state.dirtyBills.filter((x) => x !== id);
+  saveSyncQueues();
+}
+
+// Debounced trigger used after local edits.
+function scheduleSync(delay = 700) {
+  if (!useCloudflareSync()) { updateSyncStatus("Saved on this device", "off"); return; }
+  if (!hasActiveSession()) { updateSyncStatus("Sign in to back up", "off"); return; }
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => runSync(), delay);
+}
+
+// The one place that talks to the cloud. Only one runs at a time; overlapping
+// requests coalesce into a single follow-up run.
+async function runSync() {
+  if (!hasSyncConnection()) return;
+  if (_syncing) { _syncAgain = true; return; }
+  _syncing = true;
+  clearTimeout(_syncTimer);
   updateSyncStatus("Syncing\u2026", "sync");
   try {
+    await ensureFreshSession();
+
+    if (state.pendingDeletes.length) {
+      const ids = state.pendingDeletes.slice();
+      const res = await cloudflareSyncRequest("/api/bills", {
+        method: "DELETE",
+        body: JSON.stringify({ appInstanceId: state.settings.appInstanceId, clientBillIds: ids })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      state.pendingDeletes = state.pendingDeletes.filter((id) => !ids.includes(id));
+      state.tombstones = state.tombstones.filter((t) => !ids.includes(t.clientBillId));
+      saveTombstones();
+      saveSyncQueues();
+    }
+
+    if (state.dirtyBills.length) {
+      const ids = new Set(state.dirtyBills.map(String));
+      const dirty = state.bills.filter((b) => ids.has(String(b.clientBillId || b.id)));
+      if (dirty.length) {
+        const res = await cloudflareSyncRequest("/api/bills", {
+          method: "POST",
+          body: JSON.stringify({ appInstanceId: state.settings.appInstanceId, bills: dirty })
+        });
+        if (!res.ok) throw new Error(await res.text());
+      }
+      state.dirtyBills = [];
+      saveSyncQueues();
+    }
+
+    await syncReminderSettings();
+
     const remote = await fetchRemoteBills();
     const remoteSettings = await fetchRemoteSettings();
     if (remoteSettings) applyRemoteSettings(remoteSettings);
     state.bills = mergeBills(state.bills, remote.map(normalizeBill));
-    saveBills(); saveSettings(); render();
+    saveBills(); saveSettings();
+    render();
     updateSyncStatus("All data synced", "idle");
   } catch (err) {
-    updateSyncStatus(err.message || "Sync failed", "err");
+    updateSyncStatus("Will sync when online", "err");
+  } finally {
+    _syncing = false;
+    if (_syncAgain) { _syncAgain = false; scheduleSync(200); }
   }
 }
 
-async function pushBillsQuietly() {
-  if (!hasSyncConnection()) return;
-  try { await upsertRemoteBills(state.bills); updateSyncStatus("All data synced", "idle"); }
-  catch (err) { updateSyncStatus("Will sync when back online", "err"); }
-}
-
-async function upsertRemoteBills(bills) {
-  if (!bills.length) return;
-  const response = await cloudflareSyncRequest("/api/bills", {
-    method: "POST", body: JSON.stringify({ appInstanceId: state.settings.appInstanceId, bills })
-  });
-  if (!response.ok) throw new Error(await response.text());
-}
-
-async function deleteRemoteBill(bill) {
-  if (!hasSyncConnection()) return;
-  const clientBillId = bill.clientBillId || bill.id;
-  const response = await cloudflareSyncRequest("/api/bills", {
-    method: "DELETE",
-    body: JSON.stringify({ appInstanceId: state.settings.appInstanceId, clientBillIds: [clientBillId] })
-  });
-  if (response.ok) {
-    // Server no longer has it, so the local tombstone can be dropped.
-    state.tombstones = state.tombstones.filter((t) => t.clientBillId !== String(clientBillId));
-    saveTombstones();
-  } else {
-    throw new Error(await response.text());
-  }
-}
+// Public wrappers kept so existing call sites keep working.
+async function syncSupabase() { await runSync(); }
+async function restoreSupabase() { await runSync(); }
+function pushBillsQuietly() { scheduleSync(); }
 
 async function fetchRemoteBills() {
   const appId = encodeURIComponent(state.settings.appInstanceId);
@@ -1775,13 +1846,27 @@ function applyRemoteSettings(settings) {
 
 function mergeBills(localBills, remoteBills) {
   const dead = tombstonedIds();
-  const byKey = new Map();
-  [...remoteBills, ...localBills].forEach((bill) => {
-    const key = bill.clientBillId || bill.id;
-    if (dead.has(String(key))) return; // deleted on this device; don't resurrect
-    byKey.set(key, normalizeBill(bill));
-  });
-  return Array.from(byKey.values());
+  const dirty = new Set(state.dirtyBills.map(String));
+  const byKey = new Map(); // key -> { bill, fromLocal }
+
+  const put = (bill, fromLocal) => {
+    const key = String(bill.clientBillId || bill.id);
+    if (dead.has(key)) return; // deleted on this device; don't resurrect
+    const norm = normalizeBill(bill);
+    const cur = byKey.get(key);
+    if (!cur) { byKey.set(key, { bill: norm, fromLocal }); return; }
+    // An unsynced local edit always wins over the remote copy.
+    const curDirtyLocal = cur.fromLocal && dirty.has(key);
+    const newDirtyLocal = fromLocal && dirty.has(key);
+    if (newDirtyLocal && !curDirtyLocal) { byKey.set(key, { bill: norm, fromLocal }); return; }
+    if (curDirtyLocal && !newDirtyLocal) return;
+    // Otherwise the most recently updated copy wins.
+    if (new Date(norm.updatedAt || 0) >= new Date(cur.bill.updatedAt || 0)) byKey.set(key, { bill: norm, fromLocal });
+  };
+
+  remoteBills.forEach((b) => put(b, false));
+  localBills.forEach((b) => put(b, true));
+  return Array.from(byKey.values()).map((e) => e.bill);
 }
 
 function updateSyncStatus(message, statusClass) {

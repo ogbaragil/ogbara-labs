@@ -315,6 +315,7 @@ function fromSupabaseRow(row) {
     paymentNotes: row.payment_notes || "",
     rescheduleNotes: row.reschedule_notes || "",
     createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
     remindedFor: row.reminded_for || []
   };
 }
