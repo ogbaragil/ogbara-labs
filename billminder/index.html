@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=cleared-8">
+    <link rel="stylesheet" href="styles.css?v=cleared-9">
   </head>
   <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -155,6 +155,9 @@
           <article class="panel settings-panel">
             <h3>Account</h3>
             <p id="accountStatus" class="muted">Not signed in.</p>
+            <label class="field">Your first name
+              <input id="accountNameInput" type="text" placeholder="Add your name" maxlength="40" autocomplete="given-name">
+            </label>
             <button class="btn ghost" id="logoutButton" type="button">Log out</button>
           </article>
           <p class="app-tag">Cleared by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a></p>
@@ -272,6 +275,15 @@
       </form>
     </div>
 
-    <script src="app.js?v=cleared-7" defer></script>
+    <div class="modal-backdrop" id="nameModal" hidden>
+      <form class="modal-card" id="nameForm">
+        <div class="modal-head"><h2>Welcome to Cleared 👋</h2></div>
+        <p class="muted">What should we call you? We'll greet you by your first name instead of your email.</p>
+        <label>First name<input id="firstNameInput" type="text" placeholder="e.g. Alex" autocomplete="given-name" maxlength="40" required></label>
+        <div class="sheet-actions"><button class="btn ghost" id="skipNameButton" type="button">Skip</button><button class="btn primary" type="submit">Save</button></div>
+      </form>
+    </div>
+
+    <script src="app.js?v=cleared-8" defer></script>
   </body>
 </html>

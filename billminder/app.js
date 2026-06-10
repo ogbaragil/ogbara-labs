@@ -41,6 +41,8 @@ const RECURRENCE = {
 const DEFAULT_SETTINGS = {
   reminderLeadDays: 3,
   emailReminders: false,
+  firstName: "",
+  namePrompted: false,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Melbourne",
   appInstanceId: crypto.randomUUID(),
   syncSecret: crypto.randomUUID()
@@ -106,10 +108,11 @@ async function bootSession() {
   await ensureFreshSession();
   updateAuthGate();
   if (hasSyncConnection()) {
-    restoreReminderSettings();
+    await restoreReminderSettings();
     await loadHousehold();
     restoreSupabase().catch(() => {});
     maybeAcceptInvite();
+    maybeAskName();
   }
   window.addEventListener("focus", async () => {
     await ensureFreshSession();
@@ -194,9 +197,17 @@ function greeting() {
 }
 
 function firstName() {
+  const saved = String(state.settings?.firstName || "").trim();
+  if (saved) return saved.split(/\s+/)[0];
   const email = state.auth?.email || "";
   const handle = email.split("@")[0] || "there";
   return handle.charAt(0).toUpperCase() + handle.slice(1).replace(/[._-].*$/, "");
+}
+
+function accountLabel() {
+  if (!hasActiveSession()) return "Not signed in.";
+  const name = String(state.settings?.firstName || "").trim();
+  return name ? `Signed in as ${name}` : `Signed in as ${state.auth.email}`;
 }
 
 function relativeDue(bill) {
@@ -805,7 +816,9 @@ function renderCalendarDay() {
 /* ===================== MORE ===================== */
 function renderMore() {
   const acct = $("#accountStatus");
-  if (acct) acct.textContent = hasActiveSession() ? `Signed in as ${state.auth.email}` : "Not signed in.";
+  if (acct) acct.textContent = accountLabel();
+  const nameInput = $("#accountNameInput");
+  if (nameInput && document.activeElement !== nameInput) nameInput.value = state.settings.firstName || "";
   updateEmailReminderHint();
   renderHousehold();
 }
@@ -1191,6 +1204,40 @@ function tombstonedIds() {
 function saveTombstones() { localStorage.setItem(TOMB_KEY, JSON.stringify(state.tombstones)); }
 
 /* ---------------- modals (paid / reschedule / reset) ---------------- */
+/* ---------------- first-name prompt ---------------- */
+function maybeAskName() {
+  if (!hasActiveSession()) return;
+  const name = String(state.settings?.firstName || "").trim();
+  if (name || state.settings?.namePrompted) return;
+  openNameModal();
+}
+
+function openNameModal() {
+  const modal = $("#nameModal");
+  if (!modal) return;
+  const input = $("#firstNameInput");
+  if (input) input.value = state.settings.firstName || "";
+  modal.hidden = false;
+  setTimeout(() => input?.focus(), 60);
+}
+
+function closeNameModal() {
+  const modal = $("#nameModal");
+  if (modal) modal.hidden = true;
+}
+
+function saveFirstName(skip) {
+  if (!skip) {
+    const value = ($("#firstNameInput")?.value || "").trim().slice(0, 40);
+    if (value) state.settings.firstName = value;
+  }
+  state.settings.namePrompted = true;
+  saveSettings();
+  closeNameModal();
+  render();
+  syncReminderSettingsQuietly();
+}
+
 function setupModals() {
   $("#paidForm")?.addEventListener("submit", (e) => { e.preventDefault(); savePaidBill(); });
   $("#closePaidButton")?.addEventListener("click", closePaidModal);
@@ -1201,6 +1248,8 @@ function setupModals() {
   $("#resetPasswordForm")?.addEventListener("submit", (e) => { e.preventDefault(); updatePassword(); });
   $("#closeResetPasswordButton")?.addEventListener("click", closeResetPasswordModal);
   $("#cancelResetPasswordButton")?.addEventListener("click", closeResetPasswordModal);
+  $("#nameForm")?.addEventListener("submit", (e) => { e.preventDefault(); saveFirstName(false); });
+  $("#skipNameButton")?.addEventListener("click", () => saveFirstName(true));
 }
 
 function openPaidModal(bill) {
@@ -1273,6 +1322,11 @@ function setupSettings() {
     state.bills = []; saveBills(); render();
   });
   $("#logoutButton")?.addEventListener("click", logout);
+  $("#accountNameInput")?.addEventListener("change", (e) => {
+    state.settings.firstName = e.target.value.trim().slice(0, 40);
+    state.settings.namePrompted = true;
+    saveSettings(); render(); syncReminderSettingsQuietly();
+  });
   $("#syncSupabaseButton")?.addEventListener("click", () => syncSupabase());
   $("#restoreSupabaseButton")?.addEventListener("click", () => restoreSupabase());
 
@@ -1372,6 +1426,7 @@ async function authenticate(mode) {
     await loadHousehold();
     await restoreSupabase().catch(() => {});
     maybeAcceptInvite();
+    maybeAskName();
   } catch (err) {
     updateAuthStatus(err.message || "Sign in failed.");
   } finally {
@@ -1400,6 +1455,7 @@ async function createAccount() {
     state.auth = payload; saveAuth();
     updateAuthGate(); render();
     await syncReminderSettings().catch(() => {});
+    maybeAskName();
   } catch (err) {
     updateAuthStatus(err.message || "Sign up failed.");
   } finally {
@@ -1540,7 +1596,7 @@ function updateAuthGate() {
   $("#authScreen").hidden = signedIn;
   $("#appShell").hidden = !signedIn;
   const acct = $("#accountStatus");
-  if (acct) acct.textContent = signedIn ? `Signed in as ${state.auth.email}` : "Not signed in.";
+  if (acct) acct.textContent = accountLabel();
   updateAuthStatus();
 }
 
@@ -1676,6 +1732,7 @@ async function syncReminderSettings() {
       email: state.auth?.email || "",
       reminderLeadDays: state.settings.reminderLeadDays,
       emailReminders: state.settings.emailReminders,
+      firstName: state.settings.firstName || "",
       timezone: state.settings.timezone
     })
   });
@@ -1706,6 +1763,10 @@ function applyRemoteSettings(settings) {
   if (!settings) return;
   state.settings.reminderLeadDays = Number(settings.reminderLeadDays ?? state.settings.reminderLeadDays);
   state.settings.emailReminders = Boolean(settings.emailReminders);
+  if (typeof settings.firstName === "string" && settings.firstName.trim()) {
+    state.settings.firstName = settings.firstName.trim();
+    state.settings.namePrompted = true;
+  }
   state.settings.timezone = settings.timezone || state.settings.timezone || getBrowserTimezone();
   if ($("#reminderLeadSelect")) $("#reminderLeadSelect").value = String(state.settings.reminderLeadDays);
   if ($("#emailReminderToggle")) $("#emailReminderToggle").checked = state.settings.emailReminders;

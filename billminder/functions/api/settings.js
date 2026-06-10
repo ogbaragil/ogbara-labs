@@ -41,6 +41,7 @@ export async function onRequestPost({ request, env }) {
     reminder_lead_days: normalizeLeadDays(payload?.reminderLeadDays),
     email_reminders: Boolean(payload?.emailReminders),
     timezone: normalizeTimezone(payload?.timezone),
+    first_name: normalizeName(payload?.firstName),
     updated_at: new Date().toISOString()
   };
 
@@ -77,11 +78,16 @@ function normalizeTimezone(value) {
   return timezone || "Australia/Melbourne";
 }
 
+function normalizeName(value) {
+  return String(value || "").trim().slice(0, 40) || null;
+}
+
 function fromSupabaseRow(row) {
   return {
     reminderLeadDays: Number(row.reminder_lead_days ?? 3),
     emailReminders: Boolean(row.email_reminders),
     timezone: row.timezone || "Australia/Melbourne",
+    firstName: row.first_name || "",
     email: row.email || ""
   };
 }
