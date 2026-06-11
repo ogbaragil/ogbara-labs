@@ -1119,7 +1119,7 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
     </div></div>}
     {moreOpen && <MobileSideDrawer active={active} setActive={openAction} onClose={() => setMoreOpen(false)} onSignOut={onSignOut} business={business} onComplianceSection={openComplianceSection} />}
     <nav className="mobile-bottom">
-      {[['Dashboard','Dashboard','⌂'],['Participants','Participants','♙'],['Invoices','Invoices','▤'],['Finance','Finance','↔']].map(([tab,label,icon]) => <button key={tab} className={active === tab ? 'active' : ''} onClick={() => openAction(tab)}><span>{icon}</span><small>{label}</small></button>)}
+      {[['Dashboard','Home','◇'],['Participants','People','◉'],['Schedules','Ops','▦'],['Invoices','Claims','▤']].map(([tab,label,icon]) => <button key={tab} className={active === tab ? 'active' : ''} onClick={() => openAction(tab)}><span>{icon}</span><small>{label}</small></button>)}
       <button className={moreActive ? 'active' : ''} onClick={openMore}><span>☰</span><small>More</small></button>
     </nav>
   </div>;
@@ -1193,7 +1193,7 @@ function MobileHome({ welcomeMessage, totals, alerts, invoices, clients, setActi
       <MiniKpi label="Participants" value={totals.activeClients} />
       <MiniKpi label="Net" value={money(totals.net)} />
     </div>
-    <div className="mobile-quick"><button onClick={() => setActive('Invoices')}>+ Invoice</button><button onClick={() => setActive('Finance')}>+ Expense</button></div>
+    <div className="mobile-quick"><button className="primary" onClick={() => setActive('Participants')}>+ Participant</button><button onClick={() => setActive('Schedules')}>+ Shift</button><button onClick={() => setActive('Invoices')}>+ Invoice</button></div>
     <MobilePanel title="Today" action={alerts.length ? `${alerts.length} alerts` : 'All clear'}>{alerts.length ? alerts.map((a,i) => <div className="mobile-alert" key={i}><span>{a.type}</span><div><b>{a.title}</b><small>{a.meta}</small></div></div>) : <p className="mobile-empty">No urgent compliance, invoice, or plan alerts today.</p>}<button className="text-link mobile-alert-link" onClick={() => setActive('Compliance')}>Open compliance report</button></MobilePanel>
     <MobilePanel title="Recent invoices" action="View all"><Records rows={invoices} empty="No invoices yet." render={i => <div className="mobile-list-row" key={i.id}><div><b>{i.invoiceNumber}</b><small>{i.clientName} · {fmt(i.dueDate)}</small></div><strong>{money(i.total)}</strong></div>} /></MobilePanel>
     <MobilePanel title="Active clients" action="View all"><Records rows={clients.slice(0,3)} empty="No participants yet." render={c => <div className="mobile-list-row" key={c.id}><div><b>{c.name}</b><small>Plan ends {fmt(c.planEndDate)}</small></div><strong>{money(c.budget)}</strong></div>} /></MobilePanel>
@@ -1548,6 +1548,7 @@ function getComplianceItems({ clients, invoices, business, workers = [] }) {
 
 function ParticipantDetail({ client, invoices = [], shifts = [], workers = [], onBack, onEdit }) {
   const c = client;
+  const [tab, setTab] = useState('Overview');
   const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0);
   const budget = Number(c.budget || 0);
   const remaining = Math.max(0, budget - spent);
@@ -1556,9 +1557,23 @@ function ParticipantDetail({ client, invoices = [], shifts = [], workers = [], o
   const findWorker = (id) => workers.find(w => w.id === id);
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
-  const thisWeek = shifts.filter(s => s.participantId === c.id && (() => { const d = new Date(`${s.date}T00:00:00`); return d >= weekStart && d < weekEnd; })()).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
-  const recentInvoices = invoices.filter(i => i.clientId === c.id).slice(0, 4);
+  const myShifts = shifts.filter(s => s.participantId === c.id).sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
+  const thisWeek = myShifts.filter(s => { const d = new Date(`${s.date}T00:00:00`); return d >= weekStart && d < weekEnd; }).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
+  const myInvoices = invoices.filter(i => i.clientId === c.id);
+  const recentInvoices = myInvoices.slice(0, 4);
   const status = c.archived ? 'Inactive' : 'Active';
+
+  // Compliance items for this participant.
+  const complianceRows = buildParticipantComplianceRows([c])[0]?.items || [];
+  const toneClass = (t) => ({ current: 'green', due: 'amber', overdue: 'red', missing: 'red' }[t] || 'grey');
+
+  // Timeline: merge shifts + invoices into a dated activity feed.
+  const timeline = [
+    ...myShifts.map(s => ({ date: s.date, kind: 'shift', label: `${s.supportType || 'Support'} · ${findWorker(s.workerId)?.name || 'Worker'}`, meta: `${s.startTime}–${s.endTime} · ${s.status || 'Scheduled'}`, icon: '▦' })),
+    ...myInvoices.map(i => ({ date: i.issueDate, kind: 'invoice', label: `${i.invoiceNumber} · ${normaliseInvoiceStatus(i.status)}`, meta: money(i.total), icon: '▤' })),
+  ].filter(x => x.date).sort((a, b) => b.date.localeCompare(a.date));
+
+  const TABS_P = ['Overview', 'Funding', 'Services', 'Invoices', 'Compliance', 'Timeline'];
 
   return <>
     <div className="ops-hero-actions" style={{ marginBottom: '14px' }}>
@@ -1574,14 +1589,19 @@ function ParticipantDetail({ client, invoices = [], shifts = [], workers = [], o
         </div>
         <div style={{ textAlign: 'right' }}><small style={{ color: 'var(--muted)', display: 'block', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Plan</small><b>{fmt(c.planStartDate)} → {fmt(c.planEndDate)}</b></div>
       </div>
+      <div className="participant-tabs" style={{ display: 'flex', gap: '4px', marginTop: '16px', borderTop: '1px solid var(--line)', paddingTop: '14px', overflowX: 'auto' }}>
+        {TABS_P.map(t => <button key={t} className={tab === t ? 'active' : 'ghost'} onClick={() => setTab(t)}>{t}</button>)}
+      </div>
     </Card>
+
     <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
       <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Budget</small><b>{money(budget)}</b></div>
       <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Used</small><b style={{ color: 'var(--blue)' }}>{money(spent)}</b><div className="bar" style={{ marginTop: '8px' }}><span style={{ width: `${usedPct}%` }} /></div></div>
       <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Remaining</small><b style={{ color: 'var(--green)' }}>{money(remaining)}</b></div>
       <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Days Left</small><b style={{ color: daysLeft !== null && daysLeft < 30 ? 'var(--amber)' : 'var(--ink)' }}>{daysLeft === null ? '—' : daysLeft < 0 ? 'Ended' : daysLeft}</b></div>
     </div>
-    <div className="bottom-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+
+    {tab === 'Overview' && <div className="bottom-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
       <Card title="About">
         <div className="checkline" style={{ borderTop: 'none' }}><span style={{ color: 'var(--muted)', flex: 1 }}>Contact</span><b>{c.phone || '-'}</b></div>
         <div className="checkline"><span style={{ color: 'var(--muted)', flex: 1 }}>Email</span><b style={{ wordBreak: 'break-all' }}>{c.email || '-'}</b></div>
@@ -1593,7 +1613,42 @@ function ParticipantDetail({ client, invoices = [], shifts = [], workers = [], o
       <Card title="Recent Activity">
         <Records rows={recentInvoices} empty="No recent invoices." render={i => <div className="feed" key={i.id}><span>▤</span><div><b style={{ fontWeight: 600 }}>{i.invoiceNumber}</b><small>{fmt(i.issueDate)} · {normaliseInvoiceStatus(i.status)}</small></div><time>{money(i.total)}</time></div>} />
       </Card>
-    </div>
+    </div>}
+
+    {tab === 'Funding' && <Card title="Plan & Funding">
+      <div className="ops-insight-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+        <InsightCard label="Total Budget" value={money(budget)} sub="Plan allocation" />
+        <InsightCard label="Used" value={money(spent)} sub={`${usedPct}% of plan`} progress={usedPct} />
+        <InsightCard label="Remaining" value={money(remaining)} sub="Available to spend" />
+      </div>
+      <div className="two" style={{ marginTop: '14px' }}>
+        <div className="checkline" style={{ borderTop: 'none' }}><span style={{ color: 'var(--muted)', flex: 1 }}>Plan start</span><b>{fmt(c.planStartDate)}</b></div>
+        <div className="checkline" style={{ borderTop: 'none' }}><span style={{ color: 'var(--muted)', flex: 1 }}>Plan end</span><b>{fmt(c.planEndDate)}</b></div>
+        <div className="checkline"><span style={{ color: 'var(--muted)', flex: 1 }}>Consent expiry</span><b>{fmt(c.consentExpiry)}</b></div>
+        <div className="checkline"><span style={{ color: 'var(--muted)', flex: 1 }}>Agreement expiry</span><b>{fmt(c.agreementExpiry)}</b></div>
+      </div>
+    </Card>}
+
+    {tab === 'Services' && <Card title="All Services & Shifts" action={`${myShifts.length} total`}>
+      <Records rows={myShifts} empty="No shifts recorded for this participant." render={s => <div className="invoice-row" key={s.id} style={{ gridTemplateColumns: 'auto 1fr auto auto' }}>
+        <span className="feed-icon" style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'var(--blue-50)', color: 'var(--blue)', display: 'grid', placeItems: 'center' }}>▦</span>
+        <div><b>{s.supportType || 'Support'}</b><small>{fmt(s.date)} · {s.startTime}–{s.endTime} · {findWorker(s.workerId)?.name || 'Worker'}</small></div>
+        <span className={`pill ${({ Completed: 'green', 'In Progress': 'blue', Cancelled: 'grey', Missed: 'red' }[s.status]) || 'amber'}`}>{s.status || 'Scheduled'}</span>
+        <small style={{ color: 'var(--muted)' }}>{s.location || '-'}</small>
+      </div>} />
+    </Card>}
+
+    {tab === 'Invoices' && <Card title="Invoices" action={`${myInvoices.length} · ${money(spent)}`}>
+      <Records rows={myInvoices} empty="No invoices for this participant." render={i => <div className="invoice-row" key={i.id}><span className="accent-line" /><div><b>{i.invoiceNumber}</b><small>Issued {fmt(i.issueDate)} · Due {fmt(i.dueDate)}</small></div><strong>{money(i.total)}</strong><span className={`pill ${({ Paid: 'green', Submitted: 'violet', Cancelled: 'grey' }[normaliseInvoiceStatus(i.status)]) || 'amber'}`}>{normaliseInvoiceStatus(i.status)}</span></div>} />
+    </Card>}
+
+    {tab === 'Compliance' && <Card title="Participant Compliance">
+      <Records rows={complianceRows} empty="No compliance items tracked." render={(it, idx) => <div className="checkline" key={idx}><span style={{ flex: 1 }}>{it.label}</span><b style={{ color: 'var(--muted)' }}>{it.date ? fmt(it.date) : 'Not set'}</b><span className={`pill ${toneClass(it.status.tone)}`}>{it.status.label}</span></div>} />
+    </Card>}
+
+    {tab === 'Timeline' && <Card title="Activity Timeline" action={`${timeline.length} events`}>
+      <Records rows={timeline} empty="No activity yet." render={(t, idx) => <div className="feed" key={idx}><span>{t.icon}</span><div><b style={{ fontWeight: 600 }}>{t.label}</b><small>{fmt(t.date)} · {t.meta}</small></div></div>} />
+    </Card>}
   </>;
 }
 
@@ -1603,8 +1658,21 @@ function Clients({ clients, form, setForm, editing, save, edit, archive, del, ca
   if (detailClient) return <ParticipantDetail client={detailClient} invoices={invoices} shifts={shifts} workers={workers} onBack={() => setDetailId(null)} onEdit={(c) => { setDetailId(null); edit(c); }} />;
   const active = clients.filter(c => !c.archived);
   const archived = clients.filter(c => c.archived);
-  const ClientTable = ({ rows, archivedView = false }) => <div className="client-table"><div className="client-table-head"><span>Participant</span><span>Plan</span><span>Budget</span><span>Contact</span><span>Actions</span></div><Records rows={rows} empty={archivedView ? 'No archived clients.' : 'No active participants added yet.'} render={c => { const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0); const budget = Number(c.budget || 0); const usedPct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0; return <div className="client-table-row" key={c.id}><div style={{ cursor: 'pointer' }} onClick={() => setDetailId(c.id)}><b>{c.name}</b><small>{c.ndisNumber ? `NDIS ${c.ndisNumber}` : (c.address || '-')}</small></div><div><b>{fmt(c.planEndDate)}</b><small>{(() => { const d = daysUntil(c.planEndDate); return d === null ? 'No end date' : d < 0 ? 'Plan ended' : `${d} days left`; })()}</small></div><div><b>{money(budget)}</b>{budget ? <div className="bar" style={{ marginTop: '6px' }}><span style={{ width: `${usedPct}%` }} /></div> : <small>No budget set</small>}</div><div><b>{c.email || '-'}</b><small>{c.phone || '-'}</small></div><div className="actions"><button onClick={() => setDetailId(c.id)}>View</button><button onClick={() => edit(c)}>Edit</button><button onClick={() => archive(c.id)}>{archivedView ? 'Unarchive' : 'Archive'}</button><button className="danger" onClick={() => del(c.id)}>Delete</button></div></div>; }} /></div>;
-  return <><Card title={editing ? 'Edit Participant' : 'Add Participant'}><div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div><button className="primary" onClick={save}>{editing ? 'Update Participant' : 'Save Participant'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Participants" action={`${active.length} active`}><ClientTable rows={active} /></Card><Card title="Archived Participants" action={`${archived.length} archived`}><details className="archived-participants"><summary>Show archived participants</summary><ClientTable rows={archived} archivedView /></details></Card></>;
+  const [query, setQuery] = useState('');
+  const [planFilter, setPlanFilter] = useState('all');
+  const matchesQuery = (c) => !query || [c.name, c.ndisNumber, c.email, c.phone, c.address].join(' ').toLowerCase().includes(query.toLowerCase());
+  const matchesPlan = (c) => {
+    if (planFilter === 'all') return true;
+    const d = daysUntil(c.planEndDate);
+    if (planFilter === 'expiring') return d !== null && d >= 0 && d <= 30;
+    if (planFilter === 'ended') return d !== null && d < 0;
+    if (planFilter === 'active') return d === null || d >= 0;
+    return true;
+  };
+  const filteredActive = active.filter(c => matchesQuery(c) && matchesPlan(c));
+  const ClientTable = ({ rows, archivedView = false }) => <div className="client-table"><div className="client-table-head"><span>Participant</span><span>Plan</span><span>Budget</span><span>Contact</span><span>Actions</span></div><Records rows={rows} empty={archivedView ? 'No archived clients.' : (query || planFilter !== 'all' ? 'No participants match your filters.' : 'No active participants added yet.')} render={c => { const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0); const budget = Number(c.budget || 0); const usedPct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0; return <div className="client-table-row" key={c.id}><div style={{ cursor: 'pointer' }} onClick={() => setDetailId(c.id)}><b>{c.name}</b><small>{c.ndisNumber ? `NDIS ${c.ndisNumber}` : (c.address || '-')}</small></div><div><b>{fmt(c.planEndDate)}</b><small>{(() => { const d = daysUntil(c.planEndDate); return d === null ? 'No end date' : d < 0 ? 'Plan ended' : `${d} days left`; })()}</small></div><div><b>{money(budget)}</b>{budget ? <div className="bar" style={{ marginTop: '6px' }}><span style={{ width: `${usedPct}%` }} /></div> : <small>No budget set</small>}</div><div><b>{c.email || '-'}</b><small>{c.phone || '-'}</small></div><div className="actions"><button onClick={() => setDetailId(c.id)}>View</button><button onClick={() => edit(c)}>Edit</button><button onClick={() => archive(c.id)}>{archivedView ? 'Unarchive' : 'Archive'}</button><button className="danger" onClick={() => del(c.id)}>Delete</button></div></div>; }} /></div>;
+  const participantFilters = <div className="filters"><div className="search inline-search"><input placeholder="Search participants…" value={query} onChange={e => setQuery(e.target.value)} /></div><select value={planFilter} onChange={e => setPlanFilter(e.target.value)} style={{ width: 'auto', minWidth: '150px' }}><option value="all">All plans</option><option value="active">Active plans</option><option value="expiring">Expiring (30 days)</option><option value="ended">Ended plans</option></select></div>;
+  return <><Card title={editing ? 'Edit Participant' : 'Add Participant'}><div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div><button className="primary" onClick={save}>{editing ? 'Update Participant' : 'Save Participant'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Participants" action={participantFilters}><div style={{ marginBottom: '6px', color: 'var(--muted)', fontSize: '13px' }}>{filteredActive.length} of {active.length} shown</div><ClientTable rows={filteredActive} /></Card><Card title="Archived Participants" action={`${archived.length} archived`}><details className="archived-participants"><summary>Show archived participants</summary><ClientTable rows={archived} archivedView /></details></Card></>;
 }
 
 function BillingPipeline({ invoices }) {
@@ -3123,6 +3191,12 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
       </div>}
       <div className="actions"><button className="primary" onClick={saveShift}>{editingId ? 'Update Shift' : recurring.enabled ? `Create ${buildRecurringDates().length} Recurring Shifts` : 'Assign Employee to Shift'}</button>{editingId && <button onClick={() => { setEditingId(null); setDraft(emptyShift()); }}>Cancel Edit</button>}</div>
     </Card>
+
+    {view === 'Calendar' && <Card title="Today's Timeline" action={<small style={{ color: 'var(--muted)' }}>{new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</small>}>
+      <div className="client-table"><div className="client-table-head" style={{ gridTemplateColumns: '120px 1fr 1fr 1fr auto' }}><span>Time</span><span>Worker</span><span>Participant</span><span>Service</span><span>Status</span></div>
+        <Records rows={[...todayShifts].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))} empty="No shifts scheduled for today." render={s => <div className="client-table-row" key={s.id} style={{ gridTemplateColumns: '120px 1fr 1fr 1fr auto', cursor: 'pointer' }} onClick={() => setDetailId(s.id)}><div><b>{s.startTime}–{s.endTime}</b></div><div><b>{findWorker(s.workerId)?.name || s.workerName || 'Unassigned'}</b></div><div><b>{findClient(s.participantId)?.name || s.participantName || 'Participant'}</b></div><div><b style={{ fontWeight: 500 }}>{s.supportType || 'Support'}</b></div><span className={`pill ${({ Completed: 'green', 'In Progress': 'blue', Cancelled: 'grey', Missed: 'red' }[s.status]) || 'amber'}`}>{s.status === 'In Progress' ? 'Live' : (s.status || 'Scheduled')}</span></div>} />
+      </div>
+    </Card>}
 
     {view === 'Calendar' && <Card title="This Week Coverage"><div className="schedule-week-board">{weekDays.map(day => {
       const dayRows = weekShifts.filter(shift => shift.date === day);

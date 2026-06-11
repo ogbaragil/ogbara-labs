@@ -654,3 +654,32 @@ textarea{min-height:96px;resize:vertical}
 .worker-view-heading small{display: block;font-weight: 800;text-transform: uppercase;letter-spacing: .08em;font-size: 11px;margin-bottom: 5px}
 .worker-view-heading h1{margin: 0 0 6px;font-size: clamp(22px, 7vw, 30px);line-height: 1.05}
 .worker-view-heading p{margin: 0;font-size: 14px;line-height: 1.45}
+/* ============================================================================
+   Gap-fill polish — new interactive patterns on the light theme
+   ========================================================================== */
+.segmented-control{background:var(--surface-2);border:1px solid var(--line);padding:4px;border-radius:12px}
+.segmented-control button{color:var(--muted);font-size:13px;padding:7px 13px}
+.segmented-control button.active{background:#fff;color:var(--navy);box-shadow:var(--shadow-sm)}
+.compliance-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
+.compliance-tabs button{font-size:13px;padding:7px 13px}
+.participant-tabs button{font-size:13.5px;padding:8px 14px;white-space:nowrap}
+.inline-search{box-shadow:var(--shadow-sm)}
+.inline-search input{min-width:200px}
+.schedule-toolbar{margin-top:0}
+.schedule-week-board{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
+.schedule-day-column{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:10px;min-height:120px}
+.schedule-day-head{margin-bottom:8px}
+.schedule-day-head b{display:block;font-size:13px}
+.schedule-day-head small{color:var(--muted);font-size:11px}
+.schedule-mini-card{display:block;width:100%;text-align:left;margin:0 0 8px;padding:9px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:none}
+.schedule-mini-card span{display:block;font-size:11px;color:var(--blue);font-weight:700}
+.schedule-mini-card b{display:block;font-size:13px;margin:2px 0}
+.schedule-mini-card small{display:block;color:var(--muted);font-size:11px}
+.traffic-pill{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--blue-50);color:var(--blue)}
+.traffic-pill.current{background:var(--green-50);color:var(--green)}
+.traffic-pill.due{background:var(--amber-50);color:var(--amber)}
+.traffic-pill.overdue{background:var(--red-50);color:var(--red)}
+.mini-kpi small{display:block;color:var(--muted);text-transform:uppercase;font-size:11px;font-weight:700;letter-spacing:.04em}
+.mini-kpi b{display:block;font-size:20px;font-weight:760;margin-top:6px}
+.checkline{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.checkline:first-child{border-top:0}
