@@ -1081,12 +1081,11 @@ function BrandMark({ compact = false }) {
 }
 
 function MobileShell({ active, setActive, complianceSection, setComplianceSection, displayName, welcomeMessage, business, setBusiness, saveBusiness, pricingItems, totals, clients, invoices, transactions, workers, setWorkers, setInvoices = () => {}, shifts = [], setShifts = () => {}, onPublishSchedule = async () => {}, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, notice, user, theme, toggleTheme, onSignOut, clientForm, setClientForm, editingClient, saveClient, editClient, archiveClient, deleteClient, cancelClient, invoiceForm, setInvoiceForm, editingInvoice, setLine, selectItem, addLine, removeLine, saveInvoice, editInvoice, deleteInvoice, exportPDF, updateInvoiceStatus, cancelInvoice, txnForm, setTxnForm, editingTxn, saveTxn, editTxn, deleteTxn, cancelTxn, settings }) {
-  const [fabOpen, setFabOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const activeClients = clients.filter(c => c && !c.archived);
   const alerts = getMobileAlerts({ clients, invoices, totals, business, workers });
   const recentInvoices = invoices.slice(0, 4);
-  const openAction = (tab) => { setFabOpen(false); setMoreOpen(false); setActive(tab); setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 20); };
+  const openAction = (tab) => { setMoreOpen(false); setActive(tab); setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 20); };
   const openMore = () => setMoreOpen(true);
   const openComplianceSection = (sectionName) => { setComplianceSection(sectionName); openAction('Compliance'); };
   const moreActive = ['Compliance','Reports','Schedules','Settings'].includes(active);
@@ -1105,16 +1104,8 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} />}
       {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={() => setActive('Compliance')} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={onPublishSchedule} />}
-      {active === 'Settings' && <div className="mobile-settings"><MobileMore setActive={setActive} />{settings}</div>}
+      {active === 'Settings' && <div className="mobile-settings">{settings}</div>}
     </main>
-    <button className="mobile-fab" onClick={() => setFabOpen(v => !v)}>+</button>
-    {fabOpen && <div className="fab-sheet" onClick={() => setFabOpen(false)}><div onClick={e => e.stopPropagation()}>
-      <b>Quick action</b>
-      <button onClick={() => openAction('Participants')}>New participant</button>
-      <button onClick={() => openAction('Invoices')}>New invoice</button>
-      <button onClick={() => openAction('Finance')}>New expense</button>
-      <button onClick={() => setFabOpen(false)}>Close</button>
-    </div></div>}
     {moreOpen && <MobileSideDrawer active={active} setActive={openAction} onClose={() => setMoreOpen(false)} onSignOut={onSignOut} business={business} onComplianceSection={openComplianceSection} />}
     <nav className="mobile-bottom">
       {[['Dashboard','Home','◇'],['Participants','People','◉'],['Schedules','Ops','▦'],['Invoices','Claims','▤']].map(([tab,label,icon]) => <button key={tab} className={active === tab ? 'active' : ''} onClick={() => openAction(tab)}><span>{icon}</span><small>{label}</small></button>)}
@@ -1126,9 +1117,9 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
 function MobileSideDrawer({ active, setActive, onClose, onSignOut, business, onComplianceSection }) {
   const [complianceOpen, setComplianceOpen] = useState(false);
   const items = [
+    ['Workers', '◉', 'Team roster and documents'],
     ['Reports', '▥', 'PDF and CSV exports'],
-    ['Schedules', '◷', 'Rosters and appointments'],
-    ['Settings', '⚙', 'Business, pricing and cloud'],
+    ['Settings', '⚙', 'Business, pricing and data'],
   ];
   const complianceSections = [
     ['Employees', 'Worker checks and training'],
@@ -1178,13 +1169,9 @@ function getMobileAlerts({ clients, invoices, totals, business, workers = [] }) 
   return alerts.slice(0, 5);
 }
 
-function MobileMore({ setActive }) {
-  return <MobilePanel title="More"><div className="mobile-more-grid"><button onClick={() => setActive('Workers')}>Workers</button><button onClick={() => setActive('Invoices')}>Claims & Billing</button><button onClick={() => setActive('Compliance')}>Compliance</button><button onClick={() => setActive('Reports')}>Reports & Insights</button><button onClick={() => setActive('Schedules')}>Operations</button><button onClick={() => setActive('Settings')}>Settings</button></div></MobilePanel>;
-}
-
 function MobileHome({ welcomeMessage, totals, alerts, invoices, clients, setActive }) {
   return <section className="mobile-home">
-    <div className="mobile-hero"><h2>{welcomeMessage}</h2><p>Here’s what’s happening with your business today.</p></div>
+    <div className="mobile-hero"><h2>{welcomeMessage}</h2><p>Here's what's happening with your business today.</p></div>
     <div className="mobile-kpis">
       <MiniKpi label="Revenue" value={money(totals.income)} />
       <MiniKpi label="Expenses" value={money(totals.expenses)} />
@@ -1193,8 +1180,8 @@ function MobileHome({ welcomeMessage, totals, alerts, invoices, clients, setActi
     </div>
     <div className="mobile-quick"><button className="primary" onClick={() => setActive('Participants')}>+ Participant</button><button onClick={() => setActive('Schedules')}>+ Shift</button><button onClick={() => setActive('Invoices')}>+ Invoice</button></div>
     <MobilePanel title="Today" action={alerts.length ? `${alerts.length} alerts` : 'All clear'}>{alerts.length ? alerts.map((a,i) => <div className="mobile-alert" key={i}><span>{a.type}</span><div><b>{a.title}</b><small>{a.meta}</small></div></div>) : <p className="mobile-empty">No urgent compliance, invoice, or plan alerts today.</p>}<button className="text-link mobile-alert-link" onClick={() => setActive('Compliance')}>Open compliance report</button></MobilePanel>
-    <MobilePanel title="Recent invoices" action="View all"><Records rows={invoices} empty="No invoices yet." render={i => <div className="mobile-list-row" key={i.id}><div><b>{i.invoiceNumber}</b><small>{i.clientName} · {fmt(i.dueDate)}</small></div><strong>{money(i.total)}</strong></div>} /></MobilePanel>
-    <MobilePanel title="Active clients" action="View all"><Records rows={clients.slice(0,3)} empty="No participants yet." render={c => <div className="mobile-list-row" key={c.id}><div><b>{c.name}</b><small>Plan ends {fmt(c.planEndDate)}</small></div><strong>{money(c.budget)}</strong></div>} /></MobilePanel>
+    <MobilePanel title="Recent invoices" action={<button className="text-link" onClick={() => setActive('Invoices')}>View all</button>}><Records rows={invoices} empty="No invoices yet." render={i => <div className="mobile-list-row" key={i.id}><div><b>{i.invoiceNumber}</b><small>{i.clientName} · {fmt(i.dueDate)}</small></div><strong>{money(i.total)}</strong></div>} /></MobilePanel>
+    <MobilePanel title="Active clients" action={<button className="text-link" onClick={() => setActive('Participants')}>View all</button>}><Records rows={clients.slice(0,3)} empty="No participants yet." render={c => <div className="mobile-list-row" key={c.id}><div><b>{c.name}</b><small>Plan ends {fmt(c.planEndDate)}</small></div><strong>{money(c.budget)}</strong></div>} /></MobilePanel>
   </section>;
 }
 
@@ -1206,7 +1193,13 @@ function MobileParticipants({ clients, form, setForm, editing, save, edit, archi
   const active = clients.filter(c => !c.archived);
   return <section className="mobile-page">
     <div className="mobile-title"><h2>Participants</h2><button onClick={() => setShowForm(v => !v)}>{showForm || editing ? 'Hide form' : '+ Participant'}</button></div>
-    {(showForm || editing) && <MobilePanel title={editing ? 'Edit client' : 'New client'}><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><div className="mobile-two"><Field type="date" label="Plan Start" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/></div><Field type="number" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><div className="mobile-two"><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/></div><Field type="date" label="Risk Review" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/><button className="primary" onClick={() => { save(); setShowForm(false); }}>{editing ? 'Update client' : 'Save client'}</button>{editing && <button onClick={cancel}>Cancel</button>}</MobilePanel>}
+    {(showForm || editing) && <MobilePanel title={editing ? 'Edit client' : 'New client'}>
+      <div className="mobile-form-section"><small className="mobile-form-label">Identity</small><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/></div>
+      <div className="mobile-form-section"><small className="mobile-form-label">Plan & Budget</small><div className="mobile-two"><Field type="date" label="Plan Start" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/></div><Field type="number" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/></div>
+      <div className="mobile-form-section"><small className="mobile-form-label">Compliance Dates</small><div className="mobile-two"><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/></div><Field type="date" label="Risk Review" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/></div>
+      <div className="mobile-form-section"><small className="mobile-form-label">Contact</small><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div>
+      <button className="primary" onClick={() => { save(); setShowForm(false); }}>{editing ? 'Update client' : 'Save client'}</button>{editing && <button onClick={cancel}>Cancel</button>}
+    </MobilePanel>}
     <MobilePanel title="Active clients" action={`${active.length} clients`}>
       <div className="compact-client-list"><Records rows={active} empty="No active participants added yet." render={c => <div className="compact-client-row" key={c.id}><div><b>{c.name}</b><small>NDIS {c.ndisNumber || '-'} · Plan {fmt(c.planEndDate)}</small></div><div><strong>{money(c.budget)}</strong><small>{(() => { const d = daysUntil(c.planEndDate); return d === null ? 'No end date' : d < 0 ? 'Ended' : `${d} days left`; })()}</small></div><div className="compact-actions"><button onClick={() => { edit(c); setShowForm(true); }}>Edit</button><button onClick={() => archive(c.id)}>Archive</button><button className="danger" onClick={() => del(c.id)}>Delete</button></div></div>} /></div>
     </MobilePanel>
@@ -1285,7 +1278,7 @@ function MobileFinance({ business, clients, transactions, form, setForm, editing
         <label><span>Sort</span><select value={filters.sort} onChange={e => setFilter('sort', e.target.value)}><option value="date_desc">Newest date</option><option value="date_asc">Oldest date</option><option value="amount_desc">Highest amount</option><option value="amount_asc">Lowest amount</option></select></label>
       </div>
     </MobilePanel>
-    <MobilePanel title="Transactions" action={`${rows.length ? start + 1 : 0}-${Math.min(start + PAGE_SIZE, rows.length)} of ${rows.length}`}><Records rows={pageRows} empty="No matching transactions found." render={t => <div className="mobile-list-row" key={t.id}><div><b>{t.description}</b><small>{t.clientId === BUSINESS_TXN_CLIENT_ID ? (t.clientName || businessLabel) : (t.clientName || 'No participant')} · {t.category || 'General'} · {fmt(t.date)} · {(t.status || 'paid')}</small></div><strong className={t.type === 'expense' ? 'negative' : 'positive'}>{t.type === 'expense' ? '-' : '+'}{money(t.amount)}</strong><div className="actions"><button onClick={() => edit(t)}>Edit</button><button className="danger" onClick={() => del(t.id)}>Delete</button></div></div>} />{rows.length > PAGE_SIZE && <Pagination page={safePage} totalPages={totalPages} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))} />}</MobilePanel>
+    <MobilePanel title="Transactions" action={`${rows.length ? start + 1 : 0}-${Math.min(start + PAGE_SIZE, rows.length)} of ${rows.length}`}><Records rows={pageRows} empty="No matching transactions found." render={t => <div className="mobile-list-row" key={t.id}><div><b>{t.description}</b><small>{t.clientId === BUSINESS_TXN_CLIENT_ID ? (t.clientName || businessLabel) : (t.clientName || 'No participant')} · {t.category || 'General'} · {fmt(t.date)} · {(t.status || 'paid')}</small></div><strong className={t.type === 'expense' ? 'negative' : 'positive'}>{t.type === 'expense' ? '-' : '+'}{money(t.amount)}</strong><div className="mobile-card-actions"><button onClick={() => edit(t)}>Edit</button><button className="danger" onClick={() => del(t.id)}>Delete</button></div></div>} />{rows.length > PAGE_SIZE && <Pagination page={safePage} totalPages={totalPages} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))} />}</MobilePanel>
   </section>;
 }
 
@@ -3702,7 +3695,7 @@ function WorkerPortal({ user, employeeSession, business, worker, workers = [], c
     <main className="worker-main">
       {active === 'Today' ? <>
         <section className="worker-hero worker-dashboard-hero">
-          <div><small>Welcome back</small><h1>{matchedWorker?.name || employeeSession?.username || getFirstName(user)}</h1><p>Today first: review your next shift, clock in/out, complete notes and report incidents from one place. Times shown in Melbourne time.</p></div>
+          <div><small>Welcome back</small><h1>{matchedWorker?.name || employeeSession?.username || getFirstName(user)}</h1><p>Your shifts for today. Clock in and out, add notes, and report incidents here. Times shown in Melbourne time.</p></div>
           <div className="worker-hero-card"><span>{todayShifts.length}</span><small>Today</small></div>
         </section>
         {nextShift && <section className="worker-next-shift">
@@ -3726,10 +3719,10 @@ function WorkerPortal({ user, employeeSession, business, worker, workers = [], c
       {portalMessage && <div className="worker-notice"><b>Sync notice</b><span>{portalMessage}</span></div>}
       <div className="worker-shift-list">
         {active === 'Today'
-          ? <Records rows={visible} empty="No assigned shifts found." render={shift => <WorkerShiftCard key={shift.id} shift={shift} displayStatus={getDisplayStatus(shift)} client={findClient(shift.participantId)} onStart={() => startShift(shift)} onEnd={() => endShift(shift)} onNotes={payload => saveNotes(shift, payload)} />} />
+          ? <Records rows={visible} empty="No assigned shifts found." render={shift => <WorkerShiftCard key={shift.id} shift={shift} displayStatus={getDisplayStatus(shift)} client={findClient(shift.participantId)} now={now} onStart={() => startShift(shift)} onEnd={() => endShift(shift)} onNotes={payload => saveNotes(shift, payload)} />} />
           : active === 'Notes'
             ? <WorkerNotesByClient shifts={visible} clients={clients} getDisplayStatus={getDisplayStatus} />
-            : <WorkerGroupedShiftList shifts={visible} clients={clients} getDisplayStatus={getDisplayStatus} mode={active} onStart={startShift} onEnd={endShift} onNotes={saveNotes} />}
+            : <WorkerGroupedShiftList shifts={visible} clients={clients} getDisplayStatus={getDisplayStatus} mode={active} now={now} onStart={startShift} onEnd={endShift} onNotes={saveNotes} />}
       </div>
     </main>
     <nav className="worker-bottom-nav">{[
@@ -3742,7 +3735,7 @@ function WorkerPortal({ user, employeeSession, business, worker, workers = [], c
   </div>;
 }
 
-function WorkerShiftCard({ shift, displayStatus, client, onStart, onEnd, onNotes }) {
+function WorkerShiftCard({ shift, displayStatus, client, onStart, onEnd, onNotes, now = Date.now() }) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(shift.notes || '');
   const [incident, setIncident] = useState(Boolean(shift.incidentDescription));
@@ -3751,8 +3744,6 @@ function WorkerShiftCard({ shift, displayStatus, client, onStart, onEnd, onNotes
   const [incidentAction, setIncidentAction] = useState(shift.incidentAction || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
   useEffect(() => { setNotes(shift.notes || ''); setIncident(Boolean(shift.incidentDescription)); setIncidentType(shift.incidentType || ''); setIncidentDescription(shift.incidentDescription || ''); setIncidentAction(shift.incidentAction || ''); setSaved(false); }, [shift.id, shift.notes, shift.incidentType, shift.incidentDescription, shift.incidentAction]);
   const status = displayStatus || shift.status || 'Scheduled';
   const clientName = client?.name || shift.participantName || 'Assigned participant';
@@ -3813,7 +3804,7 @@ function WorkerShiftCard({ shift, displayStatus, client, onStart, onEnd, onNotes
 
     <div className="worker-quick-details">
       <div><small>Time</small><b>{scheduledLabel}</b><span>{duration}</span></div>
-      <div><small>Address</small><b>{address}</b><span>{address === 'Address not entered' ? 'Confirm location with admin' : 'Attend this location'}</span></div>
+      <div><small>Address</small><b>{address}</b><span>{address === 'Address not entered' ? 'Ask admin for the location' : 'Where to attend'}</span></div>
     </div>
 
     <div className={`worker-status-timeline step-${currentStep}`}>
@@ -3865,13 +3856,21 @@ function groupWorkerShifts(shifts, mode) {
   return Array.from(groups.entries()).map(([label, rows]) => ({ label, rows }));
 }
 
-function WorkerGroupedShiftList({ shifts = [], clients = [], getDisplayStatus, mode, onStart, onEnd, onNotes }) {
+function WorkerGroupedShiftList({ shifts = [], clients = [], getDisplayStatus, mode, onStart, onEnd, onNotes, now = Date.now() }) {
   const [openGroup, setOpenGroup] = useState('');
   const [openShift, setOpenShift] = useState('');
-  const groups = groupWorkerShifts(shifts, mode);
+  const [query, setQuery] = useState('');
   const findClient = (id) => clients.find(c => c.id === id);
+  const filtered = !query.trim() ? shifts : shifts.filter(s => {
+    const c = findClient(s.participantId);
+    return [c?.name, s.participantName, s.supportType, s.location, s.date, s.startTime, getDisplayStatus(s)].join(' ').toLowerCase().includes(query.trim().toLowerCase());
+  });
+  const groups = groupWorkerShifts(filtered, mode);
+  const showSearch = mode === 'All Shifts';
   if (!shifts.length) return <div className="worker-empty-state">No assigned shifts found.</div>;
   return <div className="worker-collapsed-groups">
+    {showSearch && <div className="worker-search"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search client, service, date or status…" />{query && <button type="button" className="worker-search-clear" onClick={() => setQuery('')} aria-label="Clear search">×</button>}</div>}
+    {!groups.length && <div className="worker-empty-state">No shifts match "{query}".</div>}
     {groups.map((group, idx) => {
       const isOpen = openGroup === group.label || (!openGroup && idx === 0);
       return <section className="worker-collapse-group" key={group.label}>
@@ -3887,7 +3886,7 @@ function WorkerGroupedShiftList({ shifts = [], clients = [], getDisplayStatus, m
               <span><b>{client?.name || shift.participantName || 'Assigned participant'}</b><small>{shift.startTime || '--:--'}–{shift.endTime || '--:--'} · {shift.supportType || 'Support shift'}</small></span>
               <i className={`worker-status ${String(status).toLowerCase().replace(/\s+/g, '-')}`}>{status}</i>
             </button>
-            {expanded && <WorkerShiftCard shift={shift} displayStatus={status} client={client} onStart={() => onStart(shift)} onEnd={() => onEnd(shift)} onNotes={payload => onNotes(shift, payload)} />}
+            {expanded && <WorkerShiftCard shift={shift} displayStatus={status} client={client} now={now} onStart={() => onStart(shift)} onEnd={() => onEnd(shift)} onNotes={payload => onNotes(shift, payload)} />}
           </div>;
         })}</div>}
       </section>;

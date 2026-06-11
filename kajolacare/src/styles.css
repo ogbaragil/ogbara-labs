@@ -528,19 +528,14 @@ textarea{min-height:96px;resize:vertical}
 .worker-shift-card{border-radius:28px;padding:22px;margin:14px 0}
 .worker-shift-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .worker-shift-head h3{margin:6px 0 0;font-size:28px;letter-spacing:-.04em}
-.worker-status{display:inline-flex;align-items:center;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:950;white-space:nowrap}
-.worker-detail-grid{display:grid;grid-template-columns:1.1fr 1.4fr 1fr;gap:12px;margin:18px 0}
-.worker-detail-item{border-radius:20px;padding:14px 15px;min-height:104px}
-.worker-detail-item small{display:block;text-transform:uppercase;letter-spacing:.12em;font-weight:950;font-size:11px;margin-bottom:8px}
-.worker-detail-item b{display:block;font-size:16px;line-height:1.35}
-.worker-detail-item span{display:block;font-size:13px;line-height:1.35;margin-top:6px}
+.worker-status{display:inline-flex;align-items:center;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;white-space:nowrap}
 .worker-admin-note{border-left:4px solid #07348B;border-radius:16px;padding:12px 14px;margin:12px 0}
 .worker-admin-note p{margin:5px 0 0;line-height:1.55}
 .worker-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
 .worker-actions button{width:auto}
 .worker-actions button:disabled{opacity:.48;cursor:not-allowed}
 .worker-note-field{display:block;margin-top:12px}
-.worker-note-field span{display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.12em;font-weight:950;font-size:12px}
+.worker-note-field span{display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;font-size:12px}
 .worker-note-field textarea{width:100%;min-height:118px;border-radius:20px;padding:14px 16px;font:inherit;resize:vertical}
 .worker-card-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
 /* State-of-the-art scheduling workspace */
@@ -602,7 +597,7 @@ textarea{min-height:96px;resize:vertical}
 /* v17.3 Melbourne time + employee mobile overflow fixes */
 .worker-shell, .worker-main, .worker-shift-list, .worker-shift-card{max-width: 100%;overflow-x: hidden}
 .worker-shift-card, .worker-shift-card *{box-sizing: border-box}
-.worker-shift-head h3, .worker-detail-item b, .worker-detail-item span, .worker-detail-panel p, .worker-admin-note p, .worker-card-footer small{overflow-wrap: anywhere;word-break: normal}
+.worker-shift-head h3, .worker-detail-panel p, .worker-admin-note p, .worker-card-footer small{overflow-wrap: anywhere;word-break: normal}
 .worker-incident-toggle{display: grid;grid-template-columns: 28px minmax(0, 1fr);align-items: start;gap: .75rem;width: 100%;line-height: 1.35}
 .worker-incident-toggle input{width: 24px;height: 24px;margin: 0;flex: 0 0 auto}
 .worker-incident-toggle span{min-width: 0;overflow-wrap: anywhere;white-space: normal;display: block}
@@ -615,7 +610,7 @@ textarea{min-height:96px;resize:vertical}
 .worker-client-block p{margin:0;font-weight:800}
 .worker-quick-details{display:grid;grid-template-columns:1fr 1.2fr;gap:10px;margin:14px 0}
 .worker-quick-details>div{border-radius:18px;padding:12px}
-.worker-quick-details small{display:block;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:950}
+.worker-quick-details small{display:block;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:800}
 .worker-quick-details b{display:block;margin-top:5px;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
 .worker-quick-details span{display:block;margin-top:4px;font-size:12px;line-height:1.3}
 .worker-status-timeline{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:14px 0 12px;position:relative}
@@ -629,7 +624,7 @@ textarea{min-height:96px;resize:vertical}
 .worker-detail-panel-compact{font-size:14px}
 .worker-notes-stage{border-top:1px solid #e2e8f0;margin-top:14px;padding-top:14px}
 .worker-single-action{display:grid;gap:10px;margin-top:14px}
-.worker-single-action button{width:100%;min-height:54px;border-radius:999px;font-size:16px;font-weight:950}
+.worker-single-action button{width:100%;min-height:54px;border-radius:999px;font-size:16px;font-weight:800}
 .worker-single-action small{display:block;text-align:center;line-height:1.35;overflow-wrap:anywhere}
 .worker-note-field{margin-top:0}
 .worker-note-field textarea{min-height:112px}
@@ -650,7 +645,7 @@ textarea{min-height:96px;resize:vertical}
 .worker-collapse-head span{display:grid;gap:3px;min-width:0}
 .worker-collapse-head b{font-size:16px;line-height:1.2;overflow-wrap:anywhere}
 .worker-collapse-head small{font-weight:850}
-.worker-collapse-head em{width:34px;height:34px;border-radius:999px;display:grid;place-items:center;font-style:normal;font-weight:950;flex:0 0 auto}
+.worker-collapse-head em{width:34px;height:34px;border-radius:999px;display:grid;place-items:center;font-style:normal;font-weight:800;flex:0 0 auto}
 .worker-collapse-body{display:grid;gap:10px;padding:0 12px 12px}
 .worker-collapsed-shift{border-radius:18px;overflow:hidden}
 .worker-collapsed-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px;background:transparent;text-align:left}
@@ -1258,3 +1253,142 @@ label.field{display:flex;flex-direction:column;gap:6px}
   .org-settings-head-compact .org-summary-card{max-width:100%}
   .business-modal .grid{grid-template-columns:1fr}
 }
+
+/* ============================================================================
+   MOBILE RESPONSIVE — shared desktop workspaces on phones (≤768px)
+   Makes ComplianceWorkspace, ReportsWorkspace, WorkersWorkspace,
+   SchedulesWorkspace, Finance, Invoices usable on mobile without separate code.
+   ========================================================================== */
+@media(max-width:768px){
+  /* All multi-column dashboard/insight/stat grids stack */
+  .dashboard-grid,.bottom-grid,.two,.ops-insight-grid,.report-summary-grid,
+  .schedule-command-centre,.finance-summary-grid,.settings-bottom-grid,
+  .settings-cat-grid,.workspace-stat-grid,.health-strip,.ops-stat-grid,
+  .stat-grid,.compliance-grid{grid-template-columns:1fr !important}
+  .two{display:flex;flex-direction:column}
+
+  /* Stat cards a touch more compact */
+  .stat,.insight-card{padding:14px}
+  .stat b,.stat strong{font-size:20px}
+
+  /* Compliance tab strip → horizontal scroll instead of wrapping huge */
+  .compliance-tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin:12px 0}
+  .compliance-tabs button{flex:0 0 auto;white-space:nowrap}
+
+  /* Grid tables → horizontal scroll wrapper keeps columns intact */
+  .client-table,.txn-table,.compliance-table,.compliance-register,.schedule-register{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* Workspace hero rows (Operations Centre + alerts side panel) stack */
+  .ops-hero,.schedule-hero{flex-direction:column}
+
+  /* Reduce heavy paddings to reclaim width */
+  .card{padding:16px}
+  .topbar{flex-wrap:wrap;gap:10px}
+  .topbar h2{font-size:20px}
+
+  /* Pricing/business modals full-screen on phone */
+  .modal,.pricing-modal,.business-modal,.shift-modal,.txn-modal,.invoice-modal{max-width:100% !important;max-height:96vh;border-radius:16px 16px 0 0}
+  .modal-overlay{padding:0;align-items:flex-end}
+  .invoice-modal-grid,.shift-modal-grid,.txn-modal-grid,.invoice-line-grid,.business-modal .grid,.audit-response-grid,.recurring-grid{grid-template-columns:1fr !important}
+
+  /* Participant/worker/shift/reg/txn rows wrap cleanly */
+  .p-row-main,.w-row,.shift-card-top,.reg-row,.txn-card{flex-wrap:wrap}
+  .p-actions,.w-row .reg-actions,.shift-actions,.reg-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
+
+  /* Filters/search bars stack full width */
+  .filters{flex-direction:column;align-items:stretch;width:100%}
+  .filters .inline-search,.filters .filter-select,.filters input,.filters select,.filters button{width:100%}
+  .transaction-filters{grid-template-columns:1fr}
+
+  /* Settings header summary card full width */
+  .org-settings-head-compact .org-summary-card{max-width:100%}
+  .org-summary-card{flex-wrap:wrap}
+
+  /* Compliance hub + evidence tiles single column */
+  .hub-grid,.evidence-grid{grid-template-columns:1fr}
+
+  /* Charts shrink to fit */
+  .chart-wrap,.mini-line-chart,.donut-chart{max-width:100%;height:auto}
+
+  /* Week board horizontal scroll */
+  .schedule-week-board{grid-auto-flow:column;grid-auto-columns:minmax(130px,1fr);overflow-x:auto}
+}
+
+/* Phone-specific extra tightening (≤480px) */
+@media(max-width:480px){
+  .mobile-main{padding:14px 12px 88px}
+  .stat-grid,.ops-stat-grid{gap:8px}
+  .modal-foot{flex-direction:column;align-items:stretch;gap:10px}
+  .modal-foot-actions{width:100%}
+  .modal-foot-actions button{flex:1}
+  .workspace-stat-grid{grid-template-columns:1fr 1fr !important}
+}
+
+/* Mobile participant form sections (#8) */
+.mobile-form-section{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.mobile-form-section:last-of-type{border-bottom:0}
+.mobile-form-label{display:block;text-transform:uppercase;letter-spacing:.05em;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px}
+
+/* Very narrow phones: stack two-up date pairs to avoid cramped inputs (#6) */
+@media(max-width:380px){
+  .mobile-two{grid-template-columns:1fr}
+}
+
+/* ============================================================================
+   WORKER PORTAL — status colors (pills, timeline, confirmation banners)
+   Restores per-status color that was missing.
+   ========================================================================== */
+/* Status pills (#1) — default neutral, then per-status */
+.worker-status{background:#eef1f6;color:var(--muted)}
+.worker-status.scheduled{background:var(--blue-50);color:var(--blue)}
+.worker-status.in-progress{background:#e6f7f6;color:var(--teal)}
+.worker-status.awaiting-notes{background:var(--amber-50);color:var(--amber)}
+.worker-status.completed{background:var(--green-50);color:var(--green)}
+.worker-status.missed{background:var(--red-50);color:var(--red)}
+.worker-status.cancelled{background:#eef1f6;color:var(--muted)}
+
+/* Progress timeline (#2) — line + dots now colored */
+.worker-status-timeline:before{background:#e3e9f1}
+.worker-status-timeline span{background:#e3e9f1;border:2px solid #fff;box-shadow:0 0 0 1px #e3e9f1}
+.worker-status-timeline>div.done span{background:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.worker-status-timeline>div.done small{color:var(--blue)}
+.worker-status-timeline small{color:var(--muted)}
+/* Filled progress line up to current step */
+.worker-status-timeline.step-1:after,.worker-status-timeline.step-2:after,.worker-status-timeline.step-3:after{content:"";position:absolute;left:12.5%;top:11px;height:3px;border-radius:99px;background:var(--blue);z-index:0}
+.worker-status-timeline.step-1:after{right:62.5%}
+.worker-status-timeline.step-2:after{right:37.5%}
+.worker-status-timeline.step-3:after{right:12.5%}
+/* Completed = green timeline */
+.status-completed .worker-status-timeline:after{background:var(--green)}
+.status-completed .worker-status-timeline>div.done span{background:var(--green);box-shadow:0 0 0 1px var(--green)}
+.status-completed .worker-status-timeline>div.done small{color:var(--green)}
+/* Missed = red dots */
+.status-missed .worker-status-timeline>div.done span{background:var(--red);box-shadow:0 0 0 1px var(--red)}
+
+/* Confirmation banners (#3) */
+.worker-confirmation{background:var(--surface-2);border:1px solid var(--line)}
+.worker-confirmation b{color:var(--ink)}
+.worker-confirmation span{color:var(--muted)}
+.worker-confirmation.in-progress{background:#e6f7f6;border-color:#b9e8e5}
+.worker-confirmation.in-progress b{color:var(--teal)}
+.worker-confirmation.awaiting-notes{background:var(--amber-50);border-color:#f5dcb3}
+.worker-confirmation.awaiting-notes b{color:var(--amber)}
+.worker-confirmation.completed{background:var(--green-50);border-color:#bce8cb}
+.worker-confirmation.completed b{color:var(--green)}
+.worker-confirmation.missed{background:var(--red-50);border-color:#f3c9c9}
+.worker-confirmation.missed b{color:var(--red)}
+
+/* #6 — flatten nested WorkerShiftCard inside collapsed group rows */
+.worker-collapsed-shift .worker-shift-card{border:0;box-shadow:none;background:var(--surface-2);border-radius:0 0 12px 12px;margin:0;border-top:1px solid var(--line)}
+.worker-collapsed-shift{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:8px}
+.worker-collapsed-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;background:var(--surface);border:0;box-shadow:none;text-align:left;border-radius:0}
+.worker-collapsed-row:hover{background:var(--surface-2);box-shadow:none}
+.worker-collapsed-row>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.worker-collapsed-row b{font-size:14px;color:var(--ink)}
+.worker-collapsed-row small{font-size:12.5px;color:var(--muted)}
+
+/* #4 — worker search bar */
+.worker-search{position:relative;margin-bottom:14px}
+.worker-search input{width:100%;height:44px;padding:0 40px 0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:14px}
+.worker-search-clear{position:absolute;right:6px;top:6px;width:32px;height:32px;border-radius:8px;padding:0;font-size:20px;line-height:1;justify-content:center;color:var(--muted);background:transparent;border:0;box-shadow:none}
+.worker-search-clear:hover{background:var(--surface-2);box-shadow:none}
