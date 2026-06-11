@@ -978,8 +978,6 @@ export default function App() {
     <aside className="sidebar">
       <div className="brand"><BrandMark /><div><BrandWordmark /><p>{business.name || "Life's Good Disability Services"}</p></div></div>
       <nav>{TABS.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>)}</nav>
-      <div className="status-card"><span className={isSupabaseConfigured ? 'dot on' : 'dot'} /> <b>{isSupabaseConfigured ? 'Supabase Connected' : 'Local Mode'}</b><small>{isSupabaseConfigured ? 'Auto-load on sign-in • manual admin sync' : 'Cloud sync disabled'}</small></div>
-      <div className="profile-card"><div className="avatar">{(user.email || 'KC').slice(0,2).toUpperCase()}</div><div><b>{user.email}</b><small>Signed in securely</small></div></div>
     </aside>
     <main className="main">
       <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>
@@ -1786,6 +1784,15 @@ function Invoices({ pricingItems = DEFAULT_PRICING_ITEMS, clients, invoices, for
   const submitted = invoices.filter(i => norm(i) === 'Submitted');
   const paid = invoices.filter(i => norm(i) === 'Paid');
   const outstanding = invoices.filter(i => !['Paid', 'Cancelled'].includes(norm(i)));
+  const [open, setOpen] = useState(false);
+  const openNew = () => setOpen(true);
+  const openEdit = (i) => { edit(i); setOpen(true); };
+  const closeModal = () => { setOpen(false); if (editing) cancel(); };
+  const submitInvoice = () => { save(); setOpen(false); };
+  const selectedClient = clients.find(c => c.id === form.clientId);
+  // Auto-open when editing is triggered externally
+  useEffect(() => { if (editing) setOpen(true); }, [editing]);
+
   return <>
     <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
       <Stat label="Ready to Claim" value={money(sumWhere(i => ['Generated', 'Approved'].includes(norm(i))))} tone="blue" icon="▤" trend={`${readyToClaim.length} services`} />
@@ -1793,12 +1800,51 @@ function Invoices({ pricingItems = DEFAULT_PRICING_ITEMS, clients, invoices, for
       <Stat label="Paid" value={money(sumWhere(i => norm(i) === 'Paid'))} tone="green" icon="$" trend={`${paid.length} invoices`} />
       <Stat label="Outstanding" value={money(sumWhere(i => !['Paid', 'Cancelled'].includes(norm(i))))} tone="gold" icon="!" trend={`${outstanding.length} invoices`} />
     </div>
-    <Card title="Claims Pipeline" action={<button className="primary" onClick={() => { const el = document.getElementById('invoice-form-anchor'); el?.scrollIntoView({ behavior: 'smooth' }); }}>+ Create Invoice</button>}>
+    <Card title="Claims Pipeline" action={<button className="primary" onClick={openNew}>+ Create Invoice</button>}>
       <p style={{ marginTop: 0 }}>Track services through to payment.</p>
       <BillingPipeline invoices={invoices} />
     </Card>
-    <span id="invoice-form-anchor" />
-    <Card title={editing ? 'Edit Invoice' : 'Generate Invoice'} className="invoice-form-card"><div className="grid"><label><span>Client</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">Select active client</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><Field type="date" label="Due Date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}/></div>{form.lines.map((line, idx) => <div className="line" key={line.id}><div className="line-head"><h4>Service Line {idx + 1}</h4><button className="danger" onClick={() => removeLine(line.id)}>Remove</button></div><div className="grid"><label><span>Support Item</span><select value={line.itemCode || line.itemLabel} onChange={e => selectItem(line.id, e.target.value)}>{pricingItems.map(i => <option key={i.id || i.itemNumber} value={i.itemNumber || i.id}>{i.itemNumber ? `${i.itemNumber} — ${i.label}` : i.label}</option>)}</select></label><Field type="date" label="Service Date" value={line.serviceDate} onChange={e => setLine(line.id, 'serviceDate', e.target.value)}/><Field label="Unit Type" value={line.unitType} onChange={e => setLine(line.id, 'unitType', e.target.value)}/><Field type="number" step="0.01" label="Quantity" value={line.quantity} onChange={e => setLine(line.id, 'quantity', e.target.value)}/><Field type="number" step="0.01" label="Rate" value={line.rate} onChange={e => setLine(line.id, 'rate', e.target.value)}/><Field label="Line Notes" value={line.notes || ''} onChange={e => setLine(line.id, 'notes', e.target.value)} placeholder="Optional notes for this support item" /></div><b className="subtotal">Subtotal {money(Number(line.quantity || 0) * Number(line.rate || 0))}</b></div>)}<button onClick={addLine}>+ Add Another Service</button><Field label="Notes" multiline value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}/><div className="total">Invoice total: {money(preview)}</div><button className="primary" onClick={save}>{editing ? 'Update Invoice' : 'Generate Invoice'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Invoice Register" className="invoice-register-card" action={`${invoices.length} invoices`}><Records rows={invoices} empty="No invoices created yet." render={i => <details className="invoice-tile" key={i.id}><summary><div><b>{i.invoiceNumber}</b><small>{i.clientName}</small></div><strong>{money(i.total)}</strong><span className={`pill ${({ Paid: 'green', Submitted: 'violet', Cancelled: 'grey' }[norm(i)]) || 'amber'}`}>{i.status || 'Generated'}</span></summary><p>Issue: {fmt(i.issueDate)} · Due: {fmt(i.dueDate)} · NDIS: {i.ndisNumber || '-'}</p>{i.lines.map((l, idx) => <p key={l.id || idx}>{idx + 1}. {l.itemCode ? `${l.itemCode} · ` : ''}{l.itemLabel} · {fmt(l.serviceDate)} · {l.quantity} {l.unitType} @ {money(l.rate)} = {money(l.lineTotal)}</p>)}{i.notes && <p>Notes: {i.notes}</p>}<InvoiceStatusControls invoice={i} onChange={onStatusChange} /><div className="actions"><button onClick={() => edit(i)}>Edit</button><button onClick={() => exportPDF(i)}>Export PDF</button><button className="danger" onClick={() => del(i.id)}>Delete</button></div></details>}/></Card></>;
+
+    <Card title="Invoice Register" className="invoice-register-card" action={`${invoices.length} invoices`}><Records rows={invoices} empty="No invoices created yet. Click + Create Invoice to start." render={i => <details className="invoice-tile" key={i.id}><summary><div><b>{i.invoiceNumber}</b><small>{i.clientName}</small></div><strong>{money(i.total)}</strong><span className={`pill ${({ Paid: 'green', Submitted: 'violet', Cancelled: 'grey' }[norm(i)]) || 'amber'}`}>{i.status || 'Generated'}</span></summary><p>Issue: {fmt(i.issueDate)} · Due: {fmt(i.dueDate)} · NDIS: {i.ndisNumber || '-'}</p>{i.lines.map((l, idx) => <p key={l.id || idx}>{idx + 1}. {l.itemCode ? `${l.itemCode} · ` : ''}{l.itemLabel} · {fmt(l.serviceDate)} · {l.quantity} {l.unitType} @ {money(l.rate)} = {money(l.lineTotal)}</p>)}{i.notes && <p>Notes: {i.notes}</p>}<InvoiceStatusControls invoice={i} onChange={onStatusChange} /><div className="actions"><button onClick={() => openEdit(i)}>Edit</button><button onClick={() => exportPDF(i)}>Export PDF</button><button className="danger" onClick={() => del(i.id)}>Delete</button></div></details>}/></Card>
+
+    {open && <div className="modal-overlay" onClick={closeModal}>
+      <div className="modal invoice-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h3>{editing ? 'Edit Invoice' : 'Generate Invoice'}</h3><small>{editing ? 'Update invoice details and service lines' : 'Bill services to an NDIS participant plan'}</small></div>
+          <button className="modal-close" onClick={closeModal} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">
+          <div className="invoice-modal-grid">
+            <label className="field"><span>Participant</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">Select participant</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <Field type="date" label="Due Date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}/>
+            {selectedClient && <div className="invoice-client-chip"><span className="p-avatar">{(selectedClient.name || 'P').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase()}</span><div><b>{selectedClient.name}</b><small>NDIS {selectedClient.ndisNumber || '—'} · Budget {money(selectedClient.budget)}</small></div></div>}
+          </div>
+
+          <div className="invoice-lines-head"><b>Service Lines</b><small>{form.lines.length} line{form.lines.length === 1 ? '' : 's'}</small></div>
+          {form.lines.map((line, idx) => <div className="invoice-line-card" key={line.id}>
+            <div className="invoice-line-top"><span className="invoice-line-num">{idx + 1}</span><label className="field invoice-line-item"><span>Support Item</span><select value={line.itemCode || line.itemLabel} onChange={e => selectItem(line.id, e.target.value)}>{pricingItems.map(i => <option key={i.id || i.itemNumber} value={i.itemNumber || i.id}>{i.itemNumber ? `${i.itemNumber} — ${i.label}` : i.label}</option>)}</select></label>{form.lines.length > 1 && <button className="ghost danger-ghost invoice-line-remove" onClick={() => removeLine(line.id)}>Remove</button>}</div>
+            <div className="invoice-line-grid">
+              <Field type="date" label="Service Date" value={line.serviceDate} onChange={e => setLine(line.id, 'serviceDate', e.target.value)}/>
+              <Field label="Unit Type" value={line.unitType} onChange={e => setLine(line.id, 'unitType', e.target.value)}/>
+              <Field type="number" step="0.01" label="Quantity" value={line.quantity} onChange={e => setLine(line.id, 'quantity', e.target.value)}/>
+              <Field type="number" step="0.01" label="Rate" value={line.rate} onChange={e => setLine(line.id, 'rate', e.target.value)}/>
+            </div>
+            <Field label="Line Notes" value={line.notes || ''} onChange={e => setLine(line.id, 'notes', e.target.value)} placeholder="Optional notes for this support item" />
+            <div className="invoice-line-subtotal">Subtotal <b>{money(Number(line.quantity || 0) * Number(line.rate || 0))}</b></div>
+          </div>)}
+          <button className="invoice-add-line" onClick={addLine}>+ Add Another Service</button>
+          <Field label="Invoice Notes" multiline value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Notes shown on the invoice…" />
+        </div>
+        <div className="modal-foot">
+          <div className="invoice-total-display"><small>Invoice Total</small><b>{money(preview)}</b></div>
+          <div className="modal-foot-actions">
+            <button onClick={closeModal}>Cancel</button>
+            <button className="primary" onClick={submitInvoice} disabled={!form.clientId}>{editing ? 'Update Invoice' : 'Generate Invoice'}</button>
+          </div>
+        </div>
+      </div>
+    </div>}
+  </>;
 }
 
 
@@ -2596,14 +2642,6 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
   const changeTxnType = (value) => setForm(p => ({ ...p, type: value, clientId: value === 'expense' ? p.clientId : (p.clientId === BUSINESS_TXN_CLIENT_ID ? '' : p.clientId) }));
   return <>
     <BusinessPerformance business={business} transactions={transactions} invoices={invoices} clients={clients} />
-    <Card title="Finance Overview" className="finance-overview-card" action={`${rows.length} transactions`}>
-      <div className="finance-summary-grid">
-        <InsightCard label="Income" value={money(income)} sub="Filtered register" />
-        <InsightCard label="Expenses" value={money(expenses)} sub="Filtered register" />
-        <InsightCard label="Net Position" value={money(income-expenses)} sub="Income less expenses" />
-      </div>
-      <p>Track payments, expenses and invoice-linked transactions from one clean ledger. Use filters below to narrow the register.</p>
-    </Card>
     <Card title={editing ? 'Edit Transaction' : 'New Transaction'} className="finance-form-card">
       <div className="grid"><label><span>Client / Business</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">No Participant</option>{form.type === 'expense' && <option value={BUSINESS_TXN_CLIENT_ID}>{businessLabel}</option>}{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label><span>Type</span><select value={form.type} onChange={e => changeTxnType(e.target.value)}><option>expense</option><option>income</option></select></label><label><span>Status</span><select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}><option>pending</option><option>paid</option></select></label><Field label="Category" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}/><Field label="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}/><Field type="number" step="0.01" label="Amount" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}/><Field type="date" label="Date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}/></div>
       <button className="primary" onClick={save}>{editing ? 'Update Transaction' : 'Save Transaction'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}
@@ -2964,22 +3002,128 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
 
   const updateDraft = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
+  // Derived workspace data
+  const activeClients = clients.filter(c => !c.archived);
+  const plansNeedReview = activeClients.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d <= 30; }).length;
+  const pricingCount = getPricingItems(business).length;
+  const locationCount = (business.address ? 1 : 0) + (business.secondaryAddress ? 1 : 0) || (business.address ? 1 : 1);
+  const goPricing = () => { setPricingOpen(true); setTimeout(() => document.getElementById('settings-pricing-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); };
+  const goBusiness = () => { setBusinessOpen(true); setTimeout(() => document.getElementById('settings-business-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); };
+  const goCloud = () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' });
+
+  const categories = [
+    { icon: '▤', tone: 'violet', title: 'Organisation', desc: 'Manage your business profile, locations, staff and branding.', link: 'View all organisation settings', onLink: goBusiness, items: [
+      { icon: '▦', label: 'Business Profile', go: goBusiness },
+      { icon: '⌖', label: 'Locations', go: goBusiness },
+      { icon: '◉', label: 'Staff & Permissions', go: goBusiness },
+      { icon: '▥', label: 'Branding', go: goBusiness },
+    ] },
+    { icon: '◷', tone: 'green', title: 'Participants & Funding', desc: 'Configure pricing, support items and funding rules.', link: 'View all funding settings', onLink: goPricing, items: [
+      { icon: '◷', label: 'NDIS Pricing Manager', go: goPricing },
+      { icon: '▢', label: 'Support Items', go: goPricing },
+      { icon: '▤', label: 'Funding Rules', go: goPricing },
+      { icon: '◉', label: 'Service Agreements', go: goBusiness },
+    ] },
+    { icon: '✓', tone: 'blue', title: 'Data & Security', desc: 'Backup, security and data management.', link: 'View all security settings', onLink: goCloud, items: [
+      { icon: '☁', label: 'Cloud Backup', go: goCloud },
+      { icon: '⤓', label: 'Data Export', go: () => backup() },
+      { icon: '✓', label: 'Security Settings', go: goCloud },
+      { icon: '◷', label: 'Sync & Restore', go: goCloud },
+    ] },
+    { icon: '⌁', tone: 'amber', title: 'Integrations', desc: 'Connect with apps and external services.', link: 'View all integrations', onLink: goCloud, items: [
+      { icon: '☁', label: 'Supabase Cloud', go: goCloud },
+      { icon: '⤓', label: 'PDF & CSV Export', go: () => backup() },
+      { icon: '▤', label: 'NDIS Bulk Claims', go: goPricing },
+      { icon: '◉', label: 'Provider Portal', go: goBusiness },
+    ] },
+  ];
+
+  const workspaceStats = [
+    { icon: '◉', tone: 'violet', value: activeClients.length, label: 'Participants', sub: 'Active participants' },
+    { icon: '▤', tone: 'green', value: invoices.length, label: 'Invoices', sub: 'Generated' },
+    { icon: '$', tone: 'blue', value: transactions.length, label: 'Transactions', sub: 'Processed' },
+    { icon: '◷', tone: 'amber', value: pricingCount, label: 'Support Items', sub: 'Active' },
+  ];
+
   return <>
-    <Card title="Settings" action="Manage your organisation settings">
-      <div className="settings-grid">
-        {[
-          { icon: '▤', title: 'Business', desc: 'Business details, NDIS provider info, locations', go: () => { setBusinessOpen(true); setTimeout(() => document.getElementById('settings-business-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); } },
-          { icon: '◷', title: 'Pricing & Rates', desc: 'Manage NDIS support items and rates', go: () => { setPricingOpen(true); setTimeout(() => document.getElementById('settings-pricing-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); } },
-          { icon: '☁', title: 'Cloud & Sync', desc: 'Back up and restore your data', go: () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
-          { icon: '⤓', title: 'Backup & Restore', desc: 'Export, import and system tools', go: () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
-        ].map((s, i) => (
-          <button key={i} className="settings-tile" onClick={s.go}>
-            <span className="settings-tile-icon">{s.icon}</span>
-            <span className="settings-tile-text"><b>{s.title}</b><small>{s.desc}</small></span>
-          </button>
-        ))}
+    {/* Header */}
+    <div className="org-settings-head">
+      <div>
+        <h2 className="org-settings-title">Organisation Settings <span className="org-shield">✓</span></h2>
+        <p className="org-settings-sub">Manage your workspace, staff, compliance and data.</p>
+      </div>
+      <div className="org-summary-card">
+        <div className="org-summary-info">
+          <b>{business.name || "Your Disability Services"}</b>
+          <small>NDIS Provider{business.abn ? ` · ABN ${business.abn}` : ''}</small>
+          <div className="org-summary-stats">
+            <span><i>◉</i> {activeClients.length} Participants</span>
+            <span><i>◈</i> {pricingCount} Support Items</span>
+            <span><i>⌖</i> {locationCount} Location{locationCount === 1 ? '' : 's'}</span>
+          </div>
+        </div>
+        <div className="org-summary-logo">{business.logoUrl ? <img src={business.logoUrl} alt="Logo" /> : <span>{(business.name || 'KC').slice(0, 2).toUpperCase()}</span>}</div>
+      </div>
+    </div>
+
+    {/* Workspace Health */}
+    <Card title="Workspace Health" action={<button className="text-link" onClick={goCloud}>View Health Details ›</button>}>
+      <div className="health-strip">
+        <div className="health-item"><span className="health-ic green">✓</span><div><b>Cloud Backup</b><small className="health-status green">{isSupabaseConfigured ? 'Connected' : 'Local mode'}</small><small>{isSupabaseConfigured ? 'Sync available' : 'Cloud sync disabled'}</small></div></div>
+        <div className="health-item"><span className="health-ic green">✓</span><div><b>NDIS Pricing</b><small className="health-status green">Up to date</small><small>{pricingCount} support items</small></div></div>
+        <div className="health-item"><span className="health-ic green">✓</span><div><b>Participants</b><small className="health-status green">{activeClients.length} active</small><small>{plansNeedReview ? `${plansNeedReview} need review` : 'All plans current'}</small></div></div>
+        <div className={`health-item`}><span className={`health-ic ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? '!' : '✓'}</span><div><b>Plans Review</b><small className={`health-status ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? `${plansNeedReview} plan${plansNeedReview === 1 ? '' : 's'}` : 'All current'}</small><small>{plansNeedReview ? 'Update required' : 'No action needed'}</small></div></div>
+        <div className="health-item"><span className="health-ic green">✓</span><div><b>System Status</b><small className="health-status green">All good</small><small>No issues detected</small></div></div>
       </div>
     </Card>
+
+    {/* Category cards */}
+    <div className="settings-cat-grid">
+      {categories.map((cat, ci) => (
+        <div className="settings-cat-card" key={ci}>
+          <div className="settings-cat-head">
+            <span className={`settings-cat-icon ${cat.tone}`}>{cat.icon}</span>
+            <div><b>{cat.title}</b><small>{cat.desc}</small></div>
+          </div>
+          <div className="settings-cat-list">
+            {cat.items.map((it, ii) => <button key={ii} className="settings-cat-item" onClick={it.go}><span className="settings-cat-item-ic">{it.icon}</span><span>{it.label}</span><span className="settings-cat-chevron">›</span></button>)}
+          </div>
+          <button className="text-link settings-cat-link" onClick={cat.onLink}>{cat.link}</button>
+        </div>
+      ))}
+    </div>
+
+    {/* Bottom row */}
+    <div className="settings-bottom-grid">
+      <Card title="Workspace Statistics">
+        <div className="workspace-stat-grid">
+          {workspaceStats.map((s, i) => <div className={`workspace-stat ${s.tone}`} key={i}><span className="workspace-stat-ic">{s.icon}</span><b>{s.value}</b><small>{s.label}</small><em>{s.sub}</em></div>)}
+        </div>
+      </Card>
+      <Card title="Cloud Backup Status" action={<span className={`pill ${isSupabaseConfigured ? 'green' : 'grey'}`}>{isSupabaseConfigured ? 'Connected' : 'Local'}</span>}>
+        <div className="cloud-status-body">
+          <div className="cloud-status-lines">
+            <div><small>Mode</small><b>{isSupabaseConfigured ? 'Supabase Cloud' : 'Local storage'}</b></div>
+            <div><small>Data summary</small><b>{clients.length} clients · {invoices.length} invoices</b></div>
+            <div><small>Transactions</small><b>{transactions.length} recorded</b></div>
+          </div>
+          <div className="cloud-status-icon">☁</div>
+        </div>
+        <div className="cloud-status-actions">
+          <button className="primary" onClick={sync}>Sync Now</button>
+          <button onClick={load}>Load from Cloud</button>
+        </div>
+      </Card>
+      <Card title="Quick Actions">
+        <div className="quick-actions-list">
+          <button className="quick-action" onClick={goPricing}><span className="quick-action-ic violet">◷</span><span>Open Pricing Manager</span><span className="settings-cat-chevron">›</span></button>
+          <button className="quick-action" onClick={backup}><span className="quick-action-ic green">⤓</span><span>Export Data</span><span className="settings-cat-chevron">›</span></button>
+          <button className="quick-action" onClick={goCloud}><span className="quick-action-ic amber">☁</span><span>Cloud Sync &amp; Restore</span><span className="settings-cat-chevron">›</span></button>
+          <button className="quick-action" onClick={goBusiness}><span className="quick-action-ic blue">◉</span><span>Edit Business Profile</span><span className="settings-cat-chevron">›</span></button>
+        </div>
+      </Card>
+    </div>
+
     <span id="settings-business-anchor" />
     <Card title="Business Profile" action={<button type="button" className="text-link" onClick={() => setBusinessOpen(open => !open)}>{businessOpen ? 'Collapse' : 'Edit Profile'}</button>}>
       <div className="settings-summary">
@@ -3021,8 +3165,7 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
       />}
     </Card>
     <span id="settings-cloud-anchor" />
-    <Card title="Backup, Restore & Cloud Sync"><p>Works offline with local storage. Supabase sync is tied to your signed-in account and includes your full workspace. Cloud sync is manual only. Local saves stay on this device until you press Sync to Supabase; Load from Supabase is manual.</p><button onClick={backup}>Export Backup JSON</button><label className="file">Import Backup JSON<input type="file" accept="application/json" onChange={e => e.target.files?.[0] && restore(e.target.files[0])}/></label><button className="primary" onClick={sync}>Sync to Supabase</button><button onClick={load}>Load from Supabase</button><button className="danger" onClick={clear}>Clear All Data</button></Card>
-    <Card title="Data Summary"><div className="mini-stats"><b>Business: {business.name || 'Not set'}</b><b>Pricing Items: {getPricingItems(business).length}</b><b>Clients: {clients.length}</b><b>Invoices: {invoices.length}</b><b>Transactions: {transactions.length}</b></div></Card>
+    <Card title="Backup, Restore & Cloud Sync"><p>Works offline with local storage. Supabase sync is tied to your signed-in account and includes your full workspace. Cloud sync is manual only. Local saves stay on this device until you press Sync to Supabase; Load from Supabase is manual.</p><div className="settings-action-row"><button onClick={backup}>Export Backup JSON</button><label className="file">Import Backup JSON<input type="file" accept="application/json" onChange={e => e.target.files?.[0] && restore(e.target.files[0])}/></label><button className="primary" onClick={sync}>Sync to Supabase</button><button onClick={load}>Load from Supabase</button><button className="danger" onClick={clear}>Clear All Data</button></div></Card>
     <Card title="Cloud Status"><p><b>{isSupabaseConfigured ? 'Supabase Connected' : 'Local Mode'}</b></p><p>{isSupabaseConfigured ? `Signed in as ${user?.email || 'your account'}. Your cloud snapshot is private to this login.` : 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Cloudflare Pages variables, public/supabase-config.js, or the app setup screen.'}</p><p><small>Config source: {supabaseConfigSource}</small></p><button onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button></Card>
   </>;
 }
