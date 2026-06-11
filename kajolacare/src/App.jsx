@@ -3033,9 +3033,11 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
   const plansNeedReview = activeClients.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d <= 30; }).length;
   const pricingCount = getPricingItems(business).length;
   const locationCount = (business.address ? 1 : 0) + (business.secondaryAddress ? 1 : 0) || (business.address ? 1 : 1);
-  const goPricing = () => { setPricingOpen(true); setTimeout(() => document.getElementById('settings-pricing-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); };
-  const goBusiness = () => { setBusinessOpen(true); setTimeout(() => document.getElementById('settings-business-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); };
+  const goPricing = () => setPricingOpen(true);
+  const goBusiness = () => setBusinessOpen(true);
   const goCloud = () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' });
+  const closeBusiness = () => setBusinessOpen(false);
+  const closePricing = () => setPricingOpen(false);
 
   const categories = [
     { icon: '▤', tone: 'violet', title: 'Organisation', desc: 'Business profile, branding and provider details.', link: 'Open organisation settings', onLink: goBusiness, items: [
@@ -3049,15 +3051,15 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
       { icon: '▢', label: 'Support Item Rates', go: goPricing },
       { icon: '▤', label: 'Price Guide', go: goPricing },
     ] },
-    { icon: '✓', tone: 'blue', title: 'Data & Backup', desc: 'Back up, restore and manage your data.', link: 'Open data tools', onLink: goCloud, items: [
-      { icon: '☁', label: 'Cloud Backup', go: goCloud },
-      { icon: '⤓', label: 'Export Data', go: () => backup() },
-      { icon: '↻', label: 'Restore & Sync', go: goCloud },
+    { icon: '✓', tone: 'blue', title: 'Data & Backup', desc: 'Back up, restore and export your data.', link: 'Open backup tools', onLink: goCloud, items: [
+      { icon: '☁', label: 'Cloud Sync', go: goCloud },
+      { icon: '↻', label: 'Restore Backup', go: goCloud },
+      { icon: '⤓', label: 'Backup & Export', go: goCloud },
     ] },
-    { icon: '⌁', tone: 'amber', title: 'Exports', desc: 'Generate PDF and CSV documents.', link: 'Open data tools', onLink: goCloud, items: [
-      { icon: '⤓', label: 'Backup File (JSON)', go: () => backup() },
+    { icon: '⌁', tone: 'amber', title: 'Documents', desc: 'Invoices, reports and compliance exports.', link: 'Open reports', onLink: goCloud, items: [
       { icon: '▤', label: 'Invoice PDFs', go: goCloud },
       { icon: '▥', label: 'Compliance Registers', go: goCloud },
+      { icon: '◷', label: 'Financial Reports', go: goCloud },
     ] },
   ];
 
@@ -3070,11 +3072,7 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
 
   return <>
     {/* Header */}
-    <div className="org-settings-head">
-      <div>
-        <h2 className="org-settings-title">Organisation Settings <span className="org-shield">✓</span></h2>
-        <p className="org-settings-sub">Manage your workspace, pricing, compliance and data.</p>
-      </div>
+    <div className="org-settings-head org-settings-head-compact">
       <div className="org-summary-card">
         <div className="org-summary-info">
           <b>{business.name || "Your Disability Services"}</b>
@@ -3139,57 +3137,16 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
       </Card>
       <Card title="Quick Actions">
         <div className="quick-actions-list">
-          <button className="quick-action" onClick={goPricing}><span className="quick-action-ic violet">◷</span><span>Open Pricing Manager</span><span className="settings-cat-chevron">›</span></button>
-          <button className="quick-action" onClick={backup}><span className="quick-action-ic green">⤓</span><span>Export Data</span><span className="settings-cat-chevron">›</span></button>
-          <button className="quick-action" onClick={goCloud}><span className="quick-action-ic amber">☁</span><span>Backup &amp; Restore</span><span className="settings-cat-chevron">›</span></button>
           <button className="quick-action" onClick={goBusiness}><span className="quick-action-ic blue">◉</span><span>Edit Business Profile</span><span className="settings-cat-chevron">›</span></button>
+          <button className="quick-action" onClick={goPricing}><span className="quick-action-ic violet">◷</span><span>Open Pricing Manager</span><span className="settings-cat-chevron">›</span></button>
+          <button className="quick-action" onClick={goCloud}><span className="quick-action-ic amber">☁</span><span>Backup &amp; Restore</span><span className="settings-cat-chevron">›</span></button>
         </div>
       </Card>
     </div>
 
-    <span id="settings-business-anchor" />
-    <Card title="Business Profile" action={<button type="button" className="text-link" onClick={() => setBusinessOpen(open => !open)}>{businessOpen ? 'Collapse' : 'Edit Profile'}</button>}>
-      <div className="settings-summary">
-        <div className="logo-preview compact">{draft.logoUrl ? <img src={draft.logoUrl} alt="Business logo" /> : <span>{(draft.name || 'KC').slice(0,2).toUpperCase()}</span>}</div>
-        <div>
-          <b>{draft.name || 'Business profile not completed'}</b>
-          <small>{[draft.abn, draft.email, draft.phone].filter(Boolean).join(' · ') || 'Details shown on invoices. Open only when you need to update them.'}</small>
-        </div>
-      </div>
-      {businessOpen && <>
-        <p>This information appears on exported invoices and reports.</p>
-        <div className="logo-uploader">
-          <div className="logo-preview">{draft.logoUrl ? <img src={draft.logoUrl} alt="Business logo" /> : <span>{(draft.name || 'KC').slice(0,2).toUpperCase()}</span>}</div>
-          <div>
-            <b>Business Logo</b>
-            <small>Upload a PNG or JPG. It will appear on exported invoices.</small>
-            <label className="file">Upload Logo<input type="file" accept="image/png,image/jpeg,image/jpg" onChange={async e => { const file = e.target.files?.[0]; if (file) updateDraft('logoUrl', await fileToDataUrl(file)); }}/></label>
-            {draft.logoUrl && <button type="button" onClick={() => updateDraft('logoUrl', '')}>Remove Logo</button>}
-          </div>
-        </div>
-        <div className="grid">
-          <Field label="Business Name" value={draft.name} onChange={e => updateDraft('name', e.target.value)} />
-          <Field label="ABN / Registration" value={draft.abn} onChange={e => updateDraft('abn', e.target.value)} />
-          <Field label="Business Email" type="email" value={draft.email} onChange={e => updateDraft('email', e.target.value)} />
-          <Field label="Business Phone" value={draft.phone} onChange={e => updateDraft('phone', e.target.value)} />
-          <Field label="Business Address" multiline value={draft.address} onChange={e => updateDraft('address', e.target.value)} />
-          <Field label="Payment Details" multiline value={draft.paymentDetails} onChange={e => updateDraft('paymentDetails', e.target.value)} placeholder={"Bank: Your Bank\nBSB: 000 000\nAccount: 0000 0000"} />
-        </div>
-        <button className="primary" onClick={() => { saveBusiness(draft); setBusinessOpen(false); }}>Save Business Profile</button>
-      </>}
-    </Card>
-    <span id="settings-pricing-anchor" />
-    <Card title="NDIS Pricing Manager" action={<button type="button" className="text-link" onClick={() => setPricingOpen(open => !open)}>{pricingOpen ? 'Collapse' : 'Manage Pricing'}</button>}>
-      {!pricingOpen && <p className="muted">Pricing manager is collapsed. Open it only when reviewing or changing NDIS support items and rates.</p>}
-      {pricingOpen && <NdisPricingManager
-        items={draft.pricingItems || DEFAULT_PRICING_ITEMS}
-        onChange={(nextItems) => updateDraft('pricingItems', nextItems)}
-        onSave={() => saveBusiness({ ...draft, pricingItems: draft.pricingItems || DEFAULT_PRICING_ITEMS })}
-      />}
-    </Card>
     <span id="settings-cloud-anchor" />
-    <Card title="Backup, Restore & Data" action={<button className="text-link" onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button>}>
-      <p>Your workspace is saved on this device and can be backed up to the secure cloud. Export a backup file any time, restore from a previous backup, or sync your full workspace to the cloud.</p>
+    <Card title="Backup & Data" action={<button className="text-link" onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button>}>
+      <p>Your workspace is saved on this device and can be backed up to the secure cloud. Export a backup file any time, restore from a previous backup, or sync your full workspace.</p>
       <div className="settings-action-row">
         <button className="primary" onClick={sync}>Sync to Cloud</button>
         <button onClick={load}>Restore from Cloud</button>
@@ -3203,6 +3160,65 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
       <span className="settings-brand-lock">🔒 Your data is secure and encrypted.</span>
       <span className="settings-brand-tag"><b>Kajola Care</b> by Ogbara</span>
     </div>
+
+    {/* Business Profile modal */}
+    {businessOpen && <div className="modal-overlay" onClick={closeBusiness}>
+      <div className="modal business-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h3>Business Profile</h3><small>Details shown on invoices and exported reports</small></div>
+          <button className="modal-close" onClick={closeBusiness} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">
+          <div className="logo-uploader">
+            <div className="logo-preview">{draft.logoUrl ? <img src={draft.logoUrl} alt="Business logo" /> : <span>{(draft.name || 'KC').slice(0,2).toUpperCase()}</span>}</div>
+            <div>
+              <b>Business Logo</b>
+              <small>Upload a PNG or JPG. It will appear on exported invoices.</small>
+              <label className="file">Upload Logo<input type="file" accept="image/png,image/jpeg,image/jpg" onChange={async e => { const file = e.target.files?.[0]; if (file) updateDraft('logoUrl', await fileToDataUrl(file)); }}/></label>
+              {draft.logoUrl && <button type="button" onClick={() => updateDraft('logoUrl', '')}>Remove Logo</button>}
+            </div>
+          </div>
+          <div className="grid">
+            <Field label="Business Name" value={draft.name} onChange={e => updateDraft('name', e.target.value)} />
+            <Field label="ABN / Registration" value={draft.abn} onChange={e => updateDraft('abn', e.target.value)} />
+            <Field label="Business Email" type="email" value={draft.email} onChange={e => updateDraft('email', e.target.value)} />
+            <Field label="Business Phone" value={draft.phone} onChange={e => updateDraft('phone', e.target.value)} />
+            <Field label="Business Address" multiline value={draft.address} onChange={e => updateDraft('address', e.target.value)} />
+            <Field label="Payment Details" multiline value={draft.paymentDetails} onChange={e => updateDraft('paymentDetails', e.target.value)} placeholder={"Bank: Your Bank\nBSB: 000 000\nAccount: 0000 0000"} />
+          </div>
+        </div>
+        <div className="modal-foot">
+          <span className="muted" style={{ fontSize: '13px' }}>Appears on all exported documents</span>
+          <div className="modal-foot-actions">
+            <button onClick={closeBusiness}>Cancel</button>
+            <button className="primary" onClick={() => { saveBusiness(draft); setBusinessOpen(false); }}>Save Profile</button>
+          </div>
+        </div>
+      </div>
+    </div>}
+
+    {/* NDIS Pricing modal */}
+    {pricingOpen && <div className="modal-overlay" onClick={closePricing}>
+      <div className="modal pricing-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h3>NDIS Pricing Manager</h3><small>Manage support items and rates</small></div>
+          <button className="modal-close" onClick={closePricing} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">
+          <NdisPricingManager
+            items={draft.pricingItems || DEFAULT_PRICING_ITEMS}
+            onChange={(nextItems) => updateDraft('pricingItems', nextItems)}
+            onSave={() => { saveBusiness({ ...draft, pricingItems: draft.pricingItems || DEFAULT_PRICING_ITEMS }); }}
+          />
+        </div>
+        <div className="modal-foot">
+          <span className="muted" style={{ fontSize: '13px' }}>{pricingCount} support items</span>
+          <div className="modal-foot-actions">
+            <button className="primary" onClick={closePricing}>Done</button>
+          </div>
+        </div>
+      </div>
+    </div>}
   </>;
 }
 

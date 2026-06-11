@@ -1246,3 +1246,15 @@ label.field{display:flex;flex-direction:column;gap:6px}
 @media(max-width:680px){
   .shift-modal-grid,.txn-modal-grid,.shift-modal .recurring-grid{grid-template-columns:1fr}
 }
+
+/* Settings compact header (title removed) + business/pricing modals */
+.org-settings-head-compact{justify-content:flex-end;margin-bottom:16px}
+.org-settings-head-compact .org-summary-card{flex:1;max-width:520px}
+.business-modal{max-width:640px}
+.business-modal .grid{grid-template-columns:1fr 1fr;gap:14px}
+.pricing-modal{max-width:920px}
+.pricing-modal .modal-body{padding:18px 20px}
+@media(max-width:680px){
+  .org-settings-head-compact .org-summary-card{max-width:100%}
+  .business-modal .grid{grid-template-columns:1fr}
+}
