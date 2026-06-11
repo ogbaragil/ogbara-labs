@@ -2375,7 +2375,20 @@ function InternalAuditReports({ business, auditReports = [], setAuditReports, se
         {Object.values(grouped).map(group => <section className="audit-section" key={`${group.division}-${group.area}`}><h4>{group.division}</h4><h5>{group.area}</h5><p>{group.outcome}</p>{group.rows.map(row => <div className="audit-question" key={row.id}><div><b>{row.requirement}</b></div><div className="audit-response-grid"><label><span>Status</span><select value={row.status || 'C'} onChange={e=>updateResponse(row.id,'status',e.target.value)}><option>C</option><option>NC</option><option>OFI</option><option>NA</option></select></label><Field label="Findings / Comments / Remarks" multiline value={row.findings || ''} onChange={e=>updateResponse(row.id,'findings',e.target.value)}/><Field label="Evidence Link" value={row.evidence || ''} onChange={e=>updateResponse(row.id,'evidence',e.target.value)}/><Field label="Actions Required" multiline value={row.actionRequired || ''} onChange={e=>updateResponse(row.id,'actionRequired',e.target.value)}/><label><span>Priority</span><select value={row.priority || 'Medium'} onChange={e=>updateResponse(row.id,'priority',e.target.value)}><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label><Field label="Responsible Person" value={row.responsiblePerson || ''} onChange={e=>updateResponse(row.id,'responsiblePerson',e.target.value)}/><Field label="Review Date" type="date" value={row.reviewDate || ''} onChange={e=>updateResponse(row.id,'reviewDate',e.target.value)}/><label className="checkline"><input type="checkbox" checked={!!row.improvementItem} onChange={e=>updateResponse(row.id,'improvementItem',e.target.checked)}/> Create CI item</label><label className="checkline"><input type="checkbox" checked={!!row.riskRaised} onChange={e=>updateResponse(row.id,'riskRaised',e.target.checked)}/> Create risk item</label></div></div>)}</section>)}
       </div>
     </Card>}
-    <Card title="Saved Internal Audit Reports" action={`${auditReports.length} saved`}><div className="client-table compliance-register"><div className="client-table-head"><span>Audit</span><span>Scope / Site</span><span>Results</span><span>Status</span><span>Actions</span></div><Records rows={reportsWithSummary} empty="No internal audit reports yet." render={r => <div className="client-table-row" key={r.id}><div><b>{r.auditNo}</b><small>{fmt(r.auditDate)}</small></div><div><b>{r.site || '-'}</b><small>{r.scope || 'No scope noted'}</small></div><div><b>C {r.summary.c} · NC {r.summary.nc} · OFI {r.summary.ofi} · NA {r.summary.na}</b><small>{r.summary.actions} action-linked item(s)</small></div><span className={`traffic-pill ${r.status === 'Closed' || r.status === 'Completed' ? 'current' : r.status === 'In Progress' ? 'due' : 'overdue'}`}>{r.status || 'Draft'}</span><div className="actions"><button onClick={()=>editReport(r)}>Edit</button><button onClick={()=>exportInternalAuditReportPdf({ business, report: r })}>PDF</button><button className="danger" onClick={()=>delReport(r.id)}>Delete</button></div></div>} /></div></Card>
+    <Card title="Saved Internal Audit Reports" action={`${auditReports.length} saved`}>
+      <div className="reg-list"><Records rows={reportsWithSummary} empty="No internal audit reports yet." render={r => {
+        const tone = r.status === 'Closed' || r.status === 'Completed' ? 'green' : r.status === 'In Progress' ? 'amber' : 'red';
+        return <div className="reg-row" key={r.id}>
+          <div className="reg-main">
+            <b>{r.auditNo}</b>
+            <small>{r.site || 'No site'} · {fmt(r.auditDate)}</small>
+            <small className="reg-note">{r.scope || 'No scope noted'} · C {r.summary.c} · NC {r.summary.nc} · OFI {r.summary.ofi} · NA {r.summary.na} · {r.summary.actions} action(s)</small>
+          </div>
+          <span className={`pill ${tone}`}>{r.status || 'Draft'}</span>
+          <div className="reg-actions"><button className="ghost" onClick={()=>editReport(r)}>Edit</button><button className="ghost" onClick={()=>exportInternalAuditReportPdf({ business, report: r })}>PDF</button><button className="ghost danger-ghost" onClick={()=>delReport(r.id)}>Delete</button></div>
+        </div>;
+      }} /></div>
+    </Card>
   </>;
 }
 
@@ -2604,7 +2617,17 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
         <select value={filters.sort} onChange={e => setFilter('sort', e.target.value)}><option value="date_desc">Newest date first</option><option value="date_asc">Oldest date first</option><option value="amount_desc">Highest amount first</option><option value="amount_asc">Lowest amount first</option></select>
       </div>
       <div className="register-summary"><b>Income {money(income)}</b><b>Expenses {money(expenses)}</b><b>Net {money(income-expenses)}</b></div>
-      <div className="txn-table"><div className="txn-table-head"><span>Transaction</span><span>Participant / Category</span><span>Date</span><span>Status</span><span>Amount</span><span>Actions</span></div><Records rows={pageRows} empty="No matching transactions found." render={t => <div className="txn-row" key={t.id}><div><b>{t.description}</b><small>{t.invoiceNumber ? `Invoice ${t.invoiceNumber}` : t.type}</small></div><div><b>{t.clientId === BUSINESS_TXN_CLIENT_ID ? (t.clientName || businessLabel) : (t.clientName || 'No Participant')}</b><small>{t.category || 'General'}</small></div><time>{fmt(t.date)}</time><select className="status-select" value={t.status || 'pending'} onChange={e => updateStatus(t.id, e.target.value)}><option value="pending">pending</option><option value="paid">paid</option></select><strong className={t.type === 'expense' ? 'negative' : 'positive'}>{t.type === 'expense' ? '-' : '+'}{money(t.amount)}</strong><div className="actions"><button onClick={() => edit(t)}>Edit</button><button className="danger" onClick={() => del(t.id)}>Delete</button></div></div>}/></div>{rows.length > PAGE_SIZE && <Pagination page={safePage} totalPages={totalPages} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))} />}</Card>
+      <div className="txn-list"><Records rows={pageRows} empty="No matching transactions found." render={t => <div className="txn-card" key={t.id}>
+        <span className={`txn-dot ${t.type === 'expense' ? 'out' : 'in'}`}>{t.type === 'expense' ? '−' : '+'}</span>
+        <div className="txn-info">
+          <b>{t.description || 'Transaction'}</b>
+          <small>{t.clientId === BUSINESS_TXN_CLIENT_ID ? (t.clientName || businessLabel) : (t.clientName || 'No participant')} · {t.category || 'General'}{t.invoiceNumber ? ` · Invoice ${t.invoiceNumber}` : ''}</small>
+        </div>
+        <time className="txn-when">{fmt(t.date)}</time>
+        <select className="status-select" value={t.status || 'pending'} onChange={e => updateStatus(t.id, e.target.value)}><option value="pending">pending</option><option value="paid">paid</option></select>
+        <strong className={`txn-amt ${t.type === 'expense' ? 'negative' : 'positive'}`}>{t.type === 'expense' ? '-' : '+'}{money(t.amount)}</strong>
+        <div className="reg-actions"><button className="ghost" onClick={() => edit(t)}>Edit</button><button className="ghost danger-ghost" onClick={() => del(t.id)}>Delete</button></div>
+      </div>}/></div>{rows.length > PAGE_SIZE && <Pagination page={safePage} totalPages={totalPages} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))} />}</Card>
   </>;
 }
 
@@ -2774,7 +2797,21 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
           <button className="primary" onClick={saveWorker}>{editingWorkerId ? 'Update Worker' : 'Save Worker'}</button>{editingWorkerId && <button onClick={() => { setWorkerDraft(emptyWorker()); setEditingWorkerId(null); setWorkerFormOpen(false); }}>Cancel Edit</button>}
         </>}
       </Card>
-      <Card title="Employees Compliance Register"><div className="client-table compliance-register"><div className="client-table-head"><span>Worker</span><span>Role</span><span>Critical Status</span><span>Due / Missing Items</span><span>Actions</span></div><Records rows={workerRows} empty="No workers added yet." render={row => { const reviewItems = row.items.filter(item => ['due','overdue','missing'].includes(item.status.tone)); return <div className="client-table-row" key={row.worker.id}><div><b>{row.worker.name}</b><small>{row.worker.employeeUsername ? `@${row.worker.employeeUsername}` : (row.worker.email || row.worker.phone || 'No login username')}</small></div><div><b>{row.worker.role || '-'}</b><small>{row.worker.notes || 'No notes'}</small></div><div><span className={`traffic-pill ${row.overall.tone}`}>{row.overall.label}</span><small>{statusSummary(row.items.find(i => i.status.sort === row.overall.sort)?.date || '')}</small></div><div><small>{reviewItems.length ? reviewItems.slice(0, 3).map(i => i.label).join(', ') : 'All current'}</small></div><div className="actions"><button onClick={() => editWorker(row.worker)}>Edit</button><button className="danger" onClick={() => deleteWorker(row.worker.id)}>Delete</button></div></div>; }} /></div></Card>
+      <Card title="Employees Compliance Register" action={`${workerRows.length} staff`}>
+        <div className="reg-list"><Records rows={workerRows} empty="No workers added yet." render={row => {
+          const reviewItems = row.items.filter(item => ['due','overdue','missing'].includes(item.status.tone));
+          return <div className="reg-row" key={row.worker.id}>
+            <span className="p-avatar">{(row.worker.name || 'W').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</span>
+            <div className="reg-main">
+              <b>{row.worker.name || 'Unnamed worker'}</b>
+              <small>{row.worker.role || 'Support Worker'}{row.worker.employeeUsername ? ` · @${row.worker.employeeUsername}` : (row.worker.email ? ` · ${row.worker.email}` : '')}</small>
+              <small className="reg-note">{reviewItems.length ? `Needs: ${reviewItems.slice(0, 3).map(i => i.label).join(', ')}` : 'All documents current'}</small>
+            </div>
+            <span className={`pill ${row.overall.tone === 'overdue' ? 'red' : row.overall.tone === 'due' ? 'amber' : row.overall.tone === 'missing' ? 'red' : 'green'}`}>{row.overall.label}</span>
+            <div className="reg-actions"><button className="ghost" onClick={() => editWorker(row.worker)}>Edit</button><button className="ghost danger-ghost" onClick={() => deleteWorker(row.worker.id)}>Delete</button></div>
+          </div>;
+        }} /></div>
+      </Card>
     </>}
 
     {section === 'Participants' && <Card title="Participant Compliance"><div className="compliance-table"><div className="compliance-table-head"><span>Participant</span><span>Plan Review</span><span>Consent</span><span>Agreement</span><span>Risk Review</span><span>Status</span></div><Records rows={participantRows} empty="No participants yet." render={row => <div className="compliance-table-row" key={row.client.id}><div><b>{row.client.name}</b><small>{row.client.ndisNumber || 'NDIS missing'}</small></div>{row.items.map(item => <ComplianceDateCell key={item.key} item={item} />)}<span className={`traffic-pill ${row.overall.tone}`}>{row.overall.label}</span></div>} /></div></Card>}
@@ -2840,7 +2877,25 @@ function RecordRegister({ title, type, rows = [], setRows = () => {}, clients = 
       {open && <div className="grid">{activeFields.map(field => <RegisterField key={field} field={field} value={draft[field] || ''} onChange={value => setField(field, value)} clients={clients} />)}</div>}
       {open && <><button className="primary" onClick={save}>{editingId ? 'Update Record' : 'Save Record'}</button>{editingId && <button onClick={() => { setDraft(emptyRecordFor(type, effectiveRows)); setEditingId(null); setOpen(false); }}>Cancel Edit</button>}</>}
     </Card>
-    <Card title={`${title} Records`} action={`${effectiveRows.length} saved`}><div className="client-table compliance-register"><div className="client-table-head"><span>Record</span><span>Evidence / Area</span><span>Date / Review</span><span>Status</span><span>Actions</span></div><Records rows={effectiveRows} empty="No records yet." render={row => <div className="client-table-row" key={row.id}><div><b>{recordDisplayTitle(row)}</b><small>{type === 'audits' ? 'Internal audit schedule' : (row.category || row.sourceOfFeedback || row.auditArea || row.issueHazardAspect || row.version || 'General')}</small></div><div><b>{withParticipantName(row, clients).participantName || row.owner || row.personResponsible || row.receivedBy || '-'}</b><small>{row.evidence || row.controlMeasures || row.location || row.notes || 'No evidence link noted'}</small></div><div><b>{fmt(row.dateReviewLastCompleted || row.date || row.reviewDate || row.byWhen || row.dateNextDue || row.dueDate || row.nextReviewDate)}</b><small>{row.dateNextDue ? `Next due ${fmt(row.dateNextDue)}` : row.reviewDate ? `Review ${fmt(row.reviewDate)}` : row.byWhen ? `Due ${fmt(row.byWhen)}` : row.dueDate ? `Due ${fmt(row.dueDate)}` : ''}</small></div><span className={`traffic-pill ${row.status === 'Closed' || row.status === 'Completed' ? 'current' : row.status === 'In Progress' || row.status === 'Pending Review' ? 'due' : 'overdue'}`}>{row.status || 'Open'}</span><div className="actions"><button onClick={() => edit(row)}>Edit</button><button className="danger" onClick={() => del(row.id)}>Delete</button></div></div>} /></div></Card>
+    <Card title={`${title} Records`} action={`${effectiveRows.length} saved`}>
+      <div className="reg-list"><Records rows={effectiveRows} empty="No records yet. Add one above to build your audit trail." render={row => {
+        const tone = row.status === 'Closed' || row.status === 'Completed' ? 'green' : row.status === 'In Progress' || row.status === 'Pending Review' ? 'amber' : 'red';
+        const evidence = withParticipantName(row, clients).participantName || row.owner || row.personResponsible || row.receivedBy || '';
+        const sub = type === 'audits' ? 'Internal audit schedule' : (row.category || row.sourceOfFeedback || row.auditArea || row.issueHazardAspect || row.version || 'General');
+        const dateStr = fmt(row.dateReviewLastCompleted || row.date || row.reviewDate || row.byWhen || row.dateNextDue || row.dueDate || row.nextReviewDate);
+        const dueLabel = row.dateNextDue ? `Next due ${fmt(row.dateNextDue)}` : row.reviewDate ? `Review ${fmt(row.reviewDate)}` : row.byWhen ? `Due ${fmt(row.byWhen)}` : row.dueDate ? `Due ${fmt(row.dueDate)}` : '';
+        return <div className="reg-row" key={row.id}>
+          <div className="reg-main">
+            <b>{recordDisplayTitle(row)}</b>
+            <small>{sub}{evidence ? ` · ${evidence}` : ''}</small>
+            {(row.evidence || row.controlMeasures || row.location || row.notes) && <small className="reg-note">{row.evidence || row.controlMeasures || row.location || row.notes}</small>}
+          </div>
+          <div className="reg-date"><b>{dateStr}</b>{dueLabel && <small>{dueLabel}</small>}</div>
+          <span className={`pill ${tone}`}>{row.status || 'Open'}</span>
+          <div className="reg-actions"><button className="ghost" onClick={() => edit(row)}>Edit</button><button className="ghost danger-ghost" onClick={() => del(row.id)}>Delete</button></div>
+        </div>;
+      }} /></div>
+    </Card>
   </>;
 }
 
