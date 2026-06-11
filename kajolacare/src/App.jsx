@@ -3098,22 +3098,6 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
         )} />
       </Card>
     </div>
-    <span style={{ display: 'none' }} aria-hidden="true">
-      <Card title="Scheduling Command Centre" action={`${filteredShifts.length} visible · ${coverageHours.toFixed(1)} scheduled hrs`}>
-      <p>Manage the full shift lifecycle: assign a client shift, let the worker clock in/out, collect shift notes, review evidence, then generate timesheet and invoice/payroll status.</p>
-      <div className="schedule-command-centre">
-        <InsightCard label="Today" value={todayShifts.length} sub="Assigned shifts" />
-        <InsightCard label="Live" value={liveShifts.length} sub="Clocked in now" />
-        <InsightCard label="Review" value={reviewQueue.length} sub="Completed with notes" />
-        <InsightCard label="Hours" value={actualCompletedHours.toFixed(1)} sub="Completed actual hours" />
-      </div>
-      <div className="schedule-toolbar">
-        <div className="segmented-control">{['Calendar','Assigned','In Progress','Completed','Review','Timesheets'].map(tab => <button key={tab} className={view === tab ? 'active' : ''} onClick={() => setView(tab)}>{tab}</button>)}</div>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search worker, client, notes, location…" />
-        <select value={filterWorker} onChange={e => setFilterWorker(e.target.value)}><option value="all">All workers</option>{activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name || w.email || w.employeeUsername}</option>)}</select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="all">All statuses</option>{statusList.map(x => <option key={x}>{x}</option>)}</select>
-      </div>
-    </Card>
 
     <Card title={editingId ? 'Edit Client Shift' : 'Assign Client Shift'} action={editingId ? 'Editing assignment' : 'New assignment'}>
       {(!activeWorkers.length || !activeClients.length) && <div className="auth-message">Add at least one employee in Compliance &gt; Employees and one participant before creating assigned shifts.</div>}
