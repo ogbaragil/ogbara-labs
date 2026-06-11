@@ -2432,7 +2432,8 @@ function ReportsWorkspace({ business, transactions = [], clients = [], risks = [
         {TRANSACTION_REPORT_PERIODS.map(option => <button key={option.key} className={period === option.key ? 'active' : ''} onClick={() => setPeriod(option.key)}>{option.label}</button>)}
       </div>
     </Card>
-    <Card title="Transaction PDF Report" action={`${rows.length} transactions`}>
+    <Card title="Transaction Report" action={`${rows.length} transactions`}>
+      <p style={{ marginTop: 0 }}>Download a professional transaction report for the selected period. The full register lives in Finance.</p>
       <div className="report-summary-grid">
         <InsightCard label="Income" value={money(summary.income)} sub="For selected period" />
         <InsightCard label="Expenses" value={money(summary.expenses)} sub="For selected period" />
@@ -2443,15 +2444,35 @@ function ReportsWorkspace({ business, transactions = [], clients = [], risks = [
         <div className="report-button-row"><button className="primary" onClick={() => exportTransactionReportPdf({ business, transactions, period })}>Download PDF</button><button onClick={() => exportTransactionReportCsv({ business, transactions, period })}>Download CSV</button></div>
         <small>Period: {TRANSACTION_REPORT_PERIODS.find(p => p.key === period)?.label || '1 month'}</small>
       </div>
-      <div className="txn-table report-preview"><div className="txn-table-head"><span>Transaction</span><span>Participant / Category</span><span>Date</span><span>Status</span><span>Amount</span><span>Type</span></div><Records rows={recentRows} empty="No transactions found for this period." render={t => <div className="txn-row" key={t.id}><div><b>{t.description || '-'}</b><small>{t.invoiceNumber ? `Invoice ${t.invoiceNumber}` : t.type}</small></div><div><b>{t.clientId === BUSINESS_TXN_CLIENT_ID ? (t.clientName || business?.name || 'Business') : (t.clientName || 'No Participant')}</b><small>{t.category || 'General'}</small></div><time>{fmt(t.date)}</time><span className="pill">{t.status || 'pending'}</span><strong className={t.type === 'expense' ? 'negative' : 'positive'}>{t.type === 'expense' ? '-' : '+'}{money(t.amount)}</strong><span>{t.type || '-'}</span></div>} /></div>
-      {rows.length > recentRows.length && <p className="report-note">Preview shows the latest {recentRows.length} transactions. The PDF includes all {rows.length} matching transactions.</p>}
     </Card>
     <Card title="Audit & Compliance Evidence Pack" action="PDF/CSV">
-      <p>Export live registers for audit evidence: risk, complaints, incidents, improvements, internal audits, governance reviews and document control.</p>
-      <div className="report-summary-grid"><InsightCard label="Risks" value={risks.length} sub="Risk register"/><InsightCard label="Incidents" value={incidents.length} sub="Incident records"/><InsightCard label="Complaints" value={complaints.length} sub="Complaints log"/><InsightCard label="Improvements" value={improvements.length} sub="CAPA/CI actions"/></div>
-      <div className="report-actions"><ComplianceExportButton business={business} title="Risk Register" rows={risks.map(r => withParticipantName(r, clients))} cols={EXPORT_COLUMNS.risks}/><ComplianceExportButton business={business} title="Incident Register" rows={incidents.map(r => withParticipantName(r, clients))} cols={EXPORT_COLUMNS.incidents}/><ComplianceExportButton business={business} title="Complaints Register" rows={complaints.map(r => withParticipantName(r, clients))} cols={EXPORT_COLUMNS.complaints}/><ComplianceExportButton business={business} title="Continuous Improvement Register" rows={improvements} cols={EXPORT_COLUMNS.improvements}/><ComplianceExportButton business={business} title="Internal Audit Schedule" rows={audits} cols={EXPORT_COLUMNS.audits}/><button onClick={() => exportInternalAuditSummaryPdf({ business, auditReports })}>Internal Audit Reports PDF</button><ComplianceExportButton business={business} title="Governance Review Register" rows={governanceReviews} cols={EXPORT_COLUMNS.governanceReviews}/><ComplianceExportButton business={business} title="Evidence Library" rows={documents} cols={EXPORT_COLUMNS.documents}/></div>
+      <p>Export live registers for audit evidence. Each register is audit-ready as PDF or CSV.</p>
+      <div className="evidence-grid">
+        <EvidenceCard business={business} title="Risk Register" count={risks.length} rows={risks.map(r => withParticipantName(r, clients))} cols={EXPORT_COLUMNS.risks} icon="⚠" />
+        <EvidenceCard business={business} title="Incident Register" count={incidents.length} rows={incidents.map(r => withParticipantName(r, clients))} cols={EXPORT_COLUMNS.incidents} icon="◎" />
+        <EvidenceCard business={business} title="Complaints Register" count={complaints.length} rows={complaints.map(r => withParticipantName(r, clients))} cols={EXPORT_COLUMNS.complaints} icon="◷" />
+        <EvidenceCard business={business} title="Continuous Improvement" count={improvements.length} rows={improvements} cols={EXPORT_COLUMNS.improvements} icon="✦" />
+        <EvidenceCard business={business} title="Internal Audit Schedule" count={audits.length} rows={audits} cols={EXPORT_COLUMNS.audits} icon="▤" />
+        <EvidenceCard business={business} title="Internal Audit Reports" count={auditReports.length} pdfOnly onPdf={() => exportInternalAuditSummaryPdf({ business, auditReports })} icon="▥" />
+        <EvidenceCard business={business} title="Governance Reviews" count={governanceReviews.length} rows={governanceReviews} cols={EXPORT_COLUMNS.governanceReviews} icon="◈" />
+        <EvidenceCard business={business} title="Evidence Library" count={documents.length} rows={documents} cols={EXPORT_COLUMNS.documents} icon="▢" />
+      </div>
     </Card>
   </>;
+}
+function EvidenceCard({ business, title, count, rows, cols, icon, pdfOnly, onPdf }) {
+  return (
+    <div className="evidence-card">
+      <div className="evidence-head">
+        <span className="evidence-icon">{icon}</span>
+        <div className="evidence-title"><b>{title}</b><small>{count} record{count === 1 ? '' : 's'}</small></div>
+      </div>
+      <div className="evidence-actions">
+        <button className="primary" onClick={() => pdfOnly ? onPdf() : exportRegisterPdf({ business, title, rows, cols })}>PDF</button>
+        {!pdfOnly && <button onClick={() => downloadCsv(`${cleanFile(title)}.csv`, rows, cols)}>CSV</button>}
+      </div>
+    </div>
+  );
 }
 function ComplianceExportButton({ business, title, rows, cols }) { return <span className="report-button-row"><button onClick={() => exportRegisterPdf({ business, title, rows, cols })}>{title} PDF</button><button onClick={() => downloadCsv(`${cleanFile(title)}.csv`, rows, cols)}>CSV</button></span>; }
 
@@ -2704,12 +2725,12 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
     <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'start', marginBottom: '16px' }}>
       <Card title="Compliance Hub">
         <p style={{ marginTop: 0 }}>Monitor quality, risk and governance.</p>
-        <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', margin: 0 }}>
+        <div className="hub-grid">
           {hubDomains.map(d => (
-            <button key={d.key} onClick={() => setSection(d.go)} style={{ display: 'block', textAlign: 'left', padding: '16px', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--surface)', boxShadow: 'none' }}>
-              <span style={{ display: 'grid', placeItems: 'center', width: '40px', height: '40px', borderRadius: '11px', background: `var(--${d.tone === 'red' ? 'red' : d.tone === 'amber' ? 'amber' : 'green'}-50)`, color: `var(--${d.tone === 'red' ? 'red' : d.tone === 'amber' ? 'amber' : 'green'})`, fontSize: '18px', marginBottom: '10px' }}>{d.icon}</span>
-              <b style={{ display: 'block', fontSize: '15px' }}>{d.key}</b>
-              <small style={{ color: 'var(--muted)', display: 'block', marginTop: '4px' }}>{d.desc}</small>
+            <button key={d.key} className="hub-tile" onClick={() => setSection(d.go)}>
+              <span className={`hub-tile-icon ${d.tone === 'red' ? 'red' : d.tone === 'amber' ? 'amber' : 'green'}`}>{d.icon}</span>
+              <b>{d.key}</b>
+              <small>{d.desc}</small>
             </button>
           ))}
         </div>
@@ -2890,20 +2911,21 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
 
   return <>
     <Card title="Settings" action="Manage your organisation settings">
-      <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(2,1fr)', margin: '4px 0 0' }}>
+      <div className="settings-grid">
         {[
-          { icon: '▤', title: 'Business', desc: 'Business details, NDIS provider info, locations', go: () => setBusinessOpen(true) },
-          { icon: '◉', title: 'Pricing & Rates', desc: 'Manage NDIS support items and rates', go: () => setPricingOpen(true) },
-          { icon: '☁', title: 'Cloud & Sync', desc: 'Back up and restore your data', go: () => { const el = document.getElementById('settings-cloud-anchor'); el?.scrollIntoView({ behavior: 'smooth' }); } },
-          { icon: '⤓', title: 'Backup & Restore', desc: 'Export, import and system tools', go: () => { const el = document.getElementById('settings-cloud-anchor'); el?.scrollIntoView({ behavior: 'smooth' }); } },
+          { icon: '▤', title: 'Business', desc: 'Business details, NDIS provider info, locations', go: () => { setBusinessOpen(true); setTimeout(() => document.getElementById('settings-business-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); } },
+          { icon: '◷', title: 'Pricing & Rates', desc: 'Manage NDIS support items and rates', go: () => { setPricingOpen(true); setTimeout(() => document.getElementById('settings-pricing-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); } },
+          { icon: '☁', title: 'Cloud & Sync', desc: 'Back up and restore your data', go: () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
+          { icon: '⤓', title: 'Backup & Restore', desc: 'Export, import and system tools', go: () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
         ].map((s, i) => (
-          <button key={i} onClick={s.go} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', textAlign: 'left', padding: '16px', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--surface)', boxShadow: 'none' }}>
-            <span style={{ display: 'grid', placeItems: 'center', width: '40px', height: '40px', borderRadius: '11px', background: 'var(--blue-50)', color: 'var(--blue)', fontSize: '18px', flex: 'none' }}>{s.icon}</span>
-            <span><b style={{ display: 'block', fontSize: '15px' }}>{s.title}</b><small style={{ color: 'var(--muted)' }}>{s.desc}</small></span>
+          <button key={i} className="settings-tile" onClick={s.go}>
+            <span className="settings-tile-icon">{s.icon}</span>
+            <span className="settings-tile-text"><b>{s.title}</b><small>{s.desc}</small></span>
           </button>
         ))}
       </div>
     </Card>
+    <span id="settings-business-anchor" />
     <Card title="Business Profile" action={<button type="button" className="text-link" onClick={() => setBusinessOpen(open => !open)}>{businessOpen ? 'Collapse' : 'Edit Profile'}</button>}>
       <div className="settings-summary">
         <div className="logo-preview compact">{draft.logoUrl ? <img src={draft.logoUrl} alt="Business logo" /> : <span>{(draft.name || 'KC').slice(0,2).toUpperCase()}</span>}</div>
@@ -2934,6 +2956,7 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
         <button className="primary" onClick={() => { saveBusiness(draft); setBusinessOpen(false); }}>Save Business Profile</button>
       </>}
     </Card>
+    <span id="settings-pricing-anchor" />
     <Card title="NDIS Pricing Manager" action={<button type="button" className="text-link" onClick={() => setPricingOpen(open => !open)}>{pricingOpen ? 'Collapse' : 'Manage Pricing'}</button>}>
       {!pricingOpen && <p className="muted">Pricing manager is collapsed. Open it only when reviewing or changing NDIS support items and rates.</p>}
       {pricingOpen && <NdisPricingManager
