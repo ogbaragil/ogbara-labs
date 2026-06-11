@@ -69,12 +69,12 @@ create policy "own photos delete" on storage.objects for delete
 ## 5. Auth settings
 
 Dashboard → **Authentication → URL Configuration**:
-- Site URL: `https://ogbaralabs.xyz`
+- Site URL: `https://ogbara.com.au`
 - Redirect URLs — add all of:
-  - `https://howmany.ogbaralabs.xyz`
-  - `https://lifegrid.ogbaralabs.xyz`
-  - `https://couples.ogbaralabs.xyz`
-  - `https://supersnakes.ogbaralabs.xyz`
+  - `https://howmany.ogbara.com.au`
+  - `https://lifegrid.ogbara.com.au`
+  - `https://couples.ogbara.com.au`
+  - `https://supersnakes.ogbara.com.au`
 
 Email+password is used, so no OAuth setup is needed. By default Supabase
 requires email confirmation on sign-up (user gets a confirmation email, then
@@ -127,7 +127,7 @@ security keyed on `user_id` (authenticated). Safe to re-run — it is idempotent
 
 Authentication → URL Configuration → Redirect URLs, add:
 
-- `https://billminder.ogbaralabs.xyz`
+- `https://billminder.ogbara.com.au`
 
 (Needed so password-reset links return to the app.) Email/password sign-up must
 be enabled, which it already is for the other apps.
@@ -136,7 +136,7 @@ be enabled, which it already is for the other apps.
 
 Connect the same repo, Framework preset **None**, Build command **empty**, Build
 output directory **.**, Root directory **`billminder`**. Add custom domain
-`billminder.ogbaralabs.xyz`. Then set these **Pages environment variables**:
+`billminder.ogbara.com.au`. Then set these **Pages environment variables**:
 
 - `VITE_SUPABASE_URL` — this project's URL (same value as the other apps)
 - `VITE_SUPABASE_ANON_KEY` — this project's anon key (same value as the other apps)
@@ -167,3 +167,78 @@ Sign up → sign in → upload a text-readable PDF (decodes in the browser) → 
 scanned PDF (AI extraction) → mark a bill paid and reschedule another with notes →
 JSON export then import → enable email reminders and hit the Worker's
 `/run-reminders` endpoint once to confirm an email arrives.
+
+
+---
+
+# Kajola Care (additive — same shared project)
+
+Kajola Care reuses this same Supabase project and the same `auth.users` accounts
+(admins sign in with Supabase Auth email/password), but it stores its data in its
+own tables rather than the generic `app_state` blob. Nothing here collides with
+the other apps; it is purely additive — the same pattern as Bill Minder.
+
+Kajola Care also has an **employee portal**: staff sign in with an
+app-managed username/password (not a Supabase Auth account) and can only view and
+update their own shifts, through two `security definer` RPC functions. Those
+functions are created by the same schema file.
+
+## 1. Run Kajola Care's schema
+
+SQL Editor → New query → paste the contents of `kajolacare/supabase/schema.sql` →
+Run. This creates:
+
+- `public.clients`, `public.invoices`, `public.invoice_lines`,
+  `public.transactions`, `public.app_snapshots` — all with row-level security
+  keyed on `user_id` (the admin's authenticated account).
+- `set_updated_at()` triggers and the supporting indexes.
+- The employee-portal RPCs `employee_portal_login(text, text)` and
+  `employee_portal_update_shift(text, text, text, text, jsonb)`, granted to
+  `anon, authenticated`.
+
+Everything is `create … if not exists` / `create or replace`, so it is safe to
+re-run.
+
+(`kajolacare/supabase/auth-app-snapshots.sql` is an older subset of the same
+tables without the employee-portal RPCs — you do **not** need to run it if you
+run `schema.sql`, which is the complete file.)
+
+## 2. Add the auth redirect URL
+
+Authentication → URL Configuration → Redirect URLs, add:
+
+- `https://kajolacare.ogbara.com.au`
+
+(Needed so admin password-reset / confirmation links return to the app.)
+Email/password sign-up must be enabled, which it already is for the other apps.
+
+## 3. Cloudflare Pages project (the build-step one)
+
+Connect the same repo, Root directory **`kajolacare`**. Unlike every other app,
+this one **builds**:
+
+- Framework preset: **Vite** (or **None**)
+- Build command: **`npm run build`**
+- Build output directory: **`dist`**
+- Custom domain: `kajolacare.ogbara.com.au`
+
+The app already ships the shared Supabase URL + anon key baked into
+`kajolacare/public/supabase-config.js`, so it works with **no env vars**. If you
+prefer to drive it from Cloudflare instead, set these **Pages environment
+variables** (they take precedence over the baked-in values):
+
+- `VITE_SUPABASE_URL` — this project's URL (same value as the other apps)
+- `VITE_SUPABASE_ANON_KEY` — this project's anon key (same value as the other apps)
+
+The employee-portal routes (`/employee`, `/employee-portal`, `/worker`, `/staff`)
+need SPA fallback routing. `kajolacare/public/_redirects` already contains
+`/* /index.html 200`, which Cloudflare Pages applies automatically — nothing else
+to configure.
+
+## 4. Smoke test
+
+Sign up an admin → sign in → add a client → generate an invoice (PDF downloads) →
+record an income/expense transaction → add a worker with an employee username +
+password → "Sync now" so the snapshot reaches the cloud → open
+`/employee` in a private window and sign in as that worker → confirm they see only
+their own shifts and that a shift status change saves back to the cloud.

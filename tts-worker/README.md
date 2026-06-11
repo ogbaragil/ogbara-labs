@@ -28,7 +28,7 @@ stays server-side and every phrase is cached at the edge.
    Bump the Brainy Trails version trio and deploy as usual.
 
 ## Safety rails built in
-- Origin allowlist: only *.ogbaralabs.xyz (and localhost) may call it.
+- Origin allowlist: only *.ogbara.com.au (and localhost) may call it.
 - 240-character cap per request, voice allowlist.
 - Edge caching: repeated phrases never re-bill Google.
 Watch usage at console.cloud.google.com → Text-to-Speech → quotas.

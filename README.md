@@ -8,25 +8,36 @@ SETUP-SUPABASE.md.
 
 ## Layout
 
-| Folder         | App                        | Subdomain                     |
-|----------------|----------------------------|-------------------------------|
-| `home/`        | Landing hub                | `ogbaralabs.xyz` (apex + www) |
-| `howmany/`     | How Many? (kids learning)  | `howmany.ogbaralabs.xyz`      |
-| `brainytrails/`| Brainy Trails (maths 5–11) | `brainytrails.ogbaralabs.xyz` |
-| `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbaralabs.xyz`     |
-| `couples/`     | Couples Snakes & Ladders   | `couples.ogbaralabs.xyz`      |
-| `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbaralabs.xyz`  |
-| `billminder/`  | Bill Minder (bill tracker) | `billminder.ogbaralabs.xyz`   |
+| Folder         | App                        | Subdomain                    |
+|----------------|----------------------------|------------------------------|
+| `home/`        | Landing hub                | `ogbara.com.au` (apex + www) |
+| `howmany/`     | How Many? (kids learning)  | `howmany.ogbara.com.au`      |
+| `brainytrails/`| Brainy Trails (maths 5–11) | `brainytrails.ogbara.com.au` |
+| `lifegrid/`    | Life Grid (life in months) | `lifegrid.ogbara.com.au`     |
+| `couples/`     | Couples Snakes & Ladders   | `couples.ogbara.com.au`      |
+| `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbara.com.au`  |
+| `billminder/`  | Bill Minder (bill tracker) | `billminder.ogbara.com.au`   |
+| `kajolacare/`  | Kajola Care (care ops)     | `kajolacare.ogbara.com.au`   |
 
-Each folder is self-contained: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/`
+Most folders are self-contained: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/`
 (How Many? also has a separate `app.js`).
 
-**Bill Minder is the one exception to "pure static."** It still ships as a static
-PWA shell (no build step), but its sync, auth, AI bill extraction, and scheduled
-email reminders run server-side: a `functions/` directory (Cloudflare Pages
-Functions) plus a separate cron Worker in `worker/`. It is therefore the only app
-whose Pages project needs secrets, and the only one with a companion Worker. Full
-setup is in `SETUP-SUPABASE.md` and `billminder/README.md`.
+**Two apps are exceptions to "pure static."**
+
+**Bill Minder** still ships as a static PWA shell (no build step), but its sync,
+auth, AI bill extraction, and scheduled email reminders run server-side: a
+`functions/` directory (Cloudflare Pages Functions) plus a separate cron Worker
+in `worker/`. It needs Pages secrets and has a companion Worker. Full setup is in
+`SETUP-SUPABASE.md` and `billminder/README.md`.
+
+**Kajola Care** is the one app with a real **build step**: it is a Vite + React
+single-page app (NDIS care-operations workspace — clients, invoices, transactions,
+staff shifts, and an employee portal). Its Pages project runs `npm install` and
+`npm run build` to produce `dist/`, instead of serving the folder as-is. It has
+its own Supabase tables (additive to the shared project, like Bill Minder) and an
+employee-portal sign-in. Full setup is in `SETUP-SUPABASE.md` and
+`kajolacare/README.md`. (The committed `dist/` from the standalone repo was left
+out on purpose — Cloudflare rebuilds it on every push.)
 
 ## Run locally
 
@@ -36,16 +47,36 @@ PWAs need HTTP (not file://). From the repo root:
 
 Then open e.g. http://localhost:8080/supersnakes/
 
+**Kajola Care is the exception** — it's a Vite app, so it has its own dev server:
+
+    cd kajolacare && npm install && npm run dev
+
+(then open the URL Vite prints, e.g. http://localhost:5173/). `npm run build`
+produces `dist/`, which is what Cloudflare serves in production.
+
 ## Deploy on Cloudflare Pages (one project per app)
 
-Create **five** Pages projects, all connected to this same GitHub repo:
+Create **one Pages project per app**, all connected to this same GitHub repo:
 
 1. Workers & Pages → Create → Pages → Connect to Git → pick this repo
 2. Framework preset: **None** · Build command: **(empty)** · Build output directory: **/**
 3. **Root directory (advanced)**: set per project → `home`, `howmany`, `brainytrails`, `lifegrid`, `couples`, `supersnakes`
 4. Save & Deploy
 5. In each project → **Custom domains** → add its subdomain (the `home` project
-   gets `ogbaralabs.xyz` and `www.ogbaralabs.xyz`)
+   gets `ogbara.com.au` and `www.ogbara.com.au`)
+
+**Kajola Care's project is configured differently** because it builds:
+- Root directory: `kajolacare`
+- Framework preset: **Vite** (or None)
+- Build command: **`npm run build`**
+- Build output directory: **`dist`**
+- Custom domain: `kajolacare.ogbara.com.au`
+- Add a **catch-all rewrite to `index.html`** so the employee-portal routes
+  (`/employee`, `/employee-portal`, `/worker`, `/staff`) resolve in this SPA.
+  `kajolacare/public/_redirects` already contains `/* /index.html 200`, which
+  Cloudflare Pages honours automatically.
+- Supabase env vars are optional (the app falls back to the values baked into
+  `kajolacare/public/supabase-config.js`); see `SETUP-SUPABASE.md`.
 
 Optional: in each project's Settings → Builds → **Build watch paths**, set the
 include path to that app's folder (e.g. `supersnakes/*`) so a push only rebuilds

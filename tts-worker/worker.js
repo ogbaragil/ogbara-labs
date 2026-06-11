@@ -15,7 +15,7 @@ const okOrigin = (origin) => {
   if (!origin) return false;
   try {
     const u = new URL(origin);
-    if (u.hostname === "ogbaralabs.xyz" || u.hostname.endsWith(".ogbaralabs.xyz")) return true;
+    if (u.hostname === "ogbara.com.au" || u.hostname.endsWith(".ogbara.com.au")) return true;
     if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return true;   // local dev
   } catch { }
   return false;
@@ -52,7 +52,7 @@ export default {
     // edge cache key: hash of voice+text
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(voice + "\u0000" + text));
     const hash = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
-    const cacheKey = new Request(`https://tts-cache.ogbaralabs.xyz/${voice}/${hash}`);
+    const cacheKey = new Request(`https://tts-cache.ogbara.com.au/${voice}/${hash}`);
     const cached = await caches.default.match(cacheKey);
     if (cached) {
       const out = new Response(cached.body, cached);

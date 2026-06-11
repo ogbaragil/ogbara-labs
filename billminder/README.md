@@ -2,7 +2,7 @@
 
 Cleared is a local-first PWA that scans statements, tracks due dates and amounts owing, sends reminders, and shows history, forecast and insights.
 
-> The product is named **Cleared**. The folder, Cloudflare Pages project, and worker keep the `billminder` name (and `billminder.ogbaralabs.xyz` subdomain) so the existing deployment is preserved. Rename the Pages project and subdomain to `cleared` later if you want the URL to match.
+> The product is named **Cleared**. The folder, Cloudflare Pages project, and worker keep the `billminder` name (and `billminder.ogbara.com.au` subdomain) so the existing deployment is preserved. Rename the Pages project and subdomain to `cleared` later if you want the URL to match.
 
 ## Run locally
 
