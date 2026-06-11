@@ -1209,3 +1209,40 @@ label.field{display:flex;flex-direction:column;gap:6px}
   .modal-foot{flex-direction:column;align-items:stretch}
   .modal-foot-actions button{flex:1}
 }
+
+/* Settings brand footer */
+.settings-brand-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:8px;padding:18px 4px 4px;border-top:1px solid var(--line);flex-wrap:wrap}
+.settings-brand-lock{color:var(--muted);font-size:13px}
+.settings-brand-tag{color:var(--muted);font-size:13px}
+.settings-brand-tag b{color:var(--navy);font-weight:700}
+
+/* ============================================================================
+   Shift + Transaction modals
+   ========================================================================== */
+.shift-modal,.txn-modal{max-width:640px}
+.shift-modal-grid,.txn-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.shift-modal .recurring-shift-panel{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--surface-2)}
+.shift-modal .recurring-toggle{display:flex;align-items:center;gap:10px;font-weight:600;color:var(--ink)}
+.shift-modal .recurring-toggle input{width:18px;height:18px;accent-color:var(--blue)}
+.shift-modal .recurring-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.shift-modal .recurring-preview{grid-column:1 / -1;background:var(--blue-50);border-radius:10px;padding:12px}
+.shift-modal .recurring-preview small{text-transform:uppercase;font-size:11px;font-weight:700;color:var(--muted)}
+.shift-modal .recurring-preview b{display:block;margin:4px 0;color:var(--ink)}
+.shift-modal .recurring-preview span{font-size:12.5px;color:var(--muted)}
+.shift-modal .weekday-picker{grid-column:1 / -1}
+.shift-modal .weekday-picker>div{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.shift-modal .weekday-picker button{width:42px;padding:8px 0;justify-content:center;font-size:12px}
+.shift-modal .weekday-picker button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* Transaction type toggle */
+.txn-type-toggle{display:flex;gap:10px;margin-bottom:16px}
+.txn-type-toggle button{flex:1;justify-content:center;gap:8px;padding:13px;font-weight:600;border:1px solid var(--line);background:var(--surface)}
+.txn-type-toggle button span{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:var(--surface-2);font-size:16px}
+.txn-type-toggle button.active.out{border-color:var(--red);background:var(--red-50);color:var(--red)}
+.txn-type-toggle button.active.out span{background:var(--red);color:#fff}
+.txn-type-toggle button.active.in{border-color:var(--green);background:var(--green-50);color:var(--green)}
+.txn-type-toggle button.active.in span{background:var(--green);color:#fff}
+.invoice-total-display b.txn-amt{font-size:22px}
+@media(max-width:680px){
+  .shift-modal-grid,.txn-modal-grid,.shift-modal .recurring-grid{grid-template-columns:1fr}
+}

@@ -302,7 +302,7 @@ const normaliseInvoiceStatus = (status) => {
   return 'Pending';
 };
 async function syncSnapshot(payload, user) {
-  if (!supabase) return { ok: false, message: 'Supabase is not configured.' };
+  if (!supabase) return { ok: false, message: 'Cloud sync is not configured.' };
   if (!user?.id) return { ok: false, message: 'Please sign in first.' };
   const safePayload = normalisePayload(payload);
   const { error } = await supabase.from('app_snapshots').upsert({
@@ -314,7 +314,7 @@ async function syncSnapshot(payload, user) {
   return error ? { ok: false, message: error.message } : { ok: true, message: 'Cloud sync complete.' };
 }
 async function loadSnapshot(user) {
-  if (!supabase) return { ok: false, message: 'Supabase is not configured.' };
+  if (!supabase) return { ok: false, message: 'Cloud sync is not configured.' };
   if (!user?.id) return { ok: false, message: 'Please sign in first.' };
   const { data, error } = await supabase.from('app_snapshots').select('payload').eq('id', user.id).single();
   if (error) {
@@ -372,7 +372,7 @@ const findEmployeeLogin = async (username, password) => {
       return { ok: true, session: { workerId: worker.id, ownerStorageKey: key, username: u, passwordHash: hash, signedInAt: new Date().toISOString() }, payload };
     } catch {}
   }
-  return { ok: false, message: supabase ? 'Employee login service is not installed yet. Ask admin to run the updated v16.4 Supabase SQL, then sync the admin workspace to cloud.' : 'Employee username was not found on this device.' };
+  return { ok: false, message: supabase ? 'Employee login service is not set up yet. Ask your administrator to enable cloud sync, then sync the admin workspace.' : 'Employee username was not found on this device.' };
 };
 
 const refreshEmployeePortal = async (session) => {
@@ -585,7 +585,7 @@ export default function App() {
         lastCloudSnapshotRef.current = serialisePayload(nextPayload);
         lastLocalSnapshotRef.current = '';
         applyPayload(nextPayload);
-        if (!silent) showNotice('Cloud data loaded into this device. Admin changes remain local until you manually sync to Supabase.');
+        if (!silent) showNotice('Cloud data loaded onto this device. Admin changes stay on this device until you sync to the cloud.');
       } else if (!silent) {
         showNotice(r.message || 'No cloud data found yet.');
       }
@@ -616,8 +616,8 @@ export default function App() {
     const cleanShifts = normaliseShifts(nextShifts || shifts);
     const cleanInvoices = Array.isArray(nextInvoices) ? nextInvoices : invoices;
     if (!user?.id || !supabase) {
-      showNotice('Schedule saved locally. Supabase is not configured for employee portal publishing.');
-      return { ok: false, message: 'Supabase is not configured.' };
+      showNotice('Schedule saved locally. Cloud sync is not configured for employee portal publishing.');
+      return { ok: false, message: 'Cloud sync is not configured.' };
     }
     try {
       const cloud = await loadSnapshot(user);
@@ -990,7 +990,7 @@ export default function App() {
       {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} focusWorker={focusWorker} onWorkerFocusHandled={() => setFocusWorker(null)} />}
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} shifts={shifts} invoices={invoices} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={publishScheduleChanges} />}
-      {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear local data on this device? Your Supabase cloud snapshot will not be overwritten.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
+      {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
     </main>
   </div>
   <MobileShell
@@ -1067,7 +1067,7 @@ export default function App() {
     setBusiness={setBusiness}
     saveBusiness={saveBusiness}
     onPublishSchedule={publishScheduleChanges}
-    settings={<Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear local data on this device? Your Supabase cloud snapshot will not be overwritten.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>}
+    settings={<Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>}
   />
 </>;
 }
@@ -1443,16 +1443,10 @@ function Dashboard({ totals, invoices, transactions, clients, business, workers 
       <InsightCard label="NDIS Budget Usage" value={`${budgetPct}%`} sub={`${money(usedBudget)} used of ${money(totalBudget)}`} progress={budgetPct} />
       <InsightCard label="Plans Expiring Soon" value={expiringParticipants.length} sub="Within 30 days" />
       <InsightCard label="Pending Invoices" value={pendingInvoices.length} sub={money(pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0))} />
-      <InsightCard label="Compliance Due" value={complianceDue} sub={complianceDue ? 'Overdue or due soon' : 'All clear'} />
+      <InsightCard label="Active Participants" value={topParticipants.length || (clients.filter(c => !c.archived).length)} sub="Currently supported" />
     </div>
-    <div className="dashboard-grid">
+    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr' }}>
       <CashflowOverview transactions={transactions} />
-      <Card title="Recent Invoices" action={<button className="text-link" onClick={() => setActive('Invoices')}>View all</button>}><Records rows={invoices.slice(0,4)} empty="No invoices yet." render={i => <div className="invoice-row" key={i.id}><span className="accent-line"/><div><b>{i.invoiceNumber}</b><small>{i.clientName}</small></div><strong>{money(i.total)}</strong><em>{normaliseInvoiceStatus(i.status)}</em><button onClick={() => setActive('Invoices')}>›</button></div>}/></Card>
-    </div>
-    <div className="bottom-grid">
-      <Card title="Participant Budget Leaders"><Records rows={topParticipants} empty="No participants yet." render={(c) => { const spent = clientSpend(c.id); const budget = Number(c.budget || 0); const pct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0; return <div className="client-rank" key={c.id}><div className="mini-avatar">{(c.name||'P').split(' ').map(x=>x[0]).join('').slice(0,2)}</div><b>{c.name}</b><div className="bar"><span style={{width:`${pct || 6}%`}}/></div><strong>{money(spent)}</strong><small>{budget ? `${pct}% of ${money(budget)}` : 'No budget set'}</small></div>; }}/></Card>
-      <Card title="Plan Watch"><Records rows={expiringParticipants.slice(0,4)} empty="No plans expiring soon." render={c => <div className="feed" key={c.id}><span>◷</span><div><b>{c.name}</b><small>{daysUntil(c.planEndDate)} days left · Ends {fmt(c.planEndDate)}</small></div><time>{money(Number(c.budget || 0))}</time></div>}/></Card>
-      <Card title="Compliance Due" action={<button className="text-link" onClick={() => setActive('Compliance')}>View report</button>}><ComplianceItemsReport items={complianceItems.slice(0, 5)} compact empty="No compliance items due." /></Card>
     </div>
   </>;
 }
@@ -2640,13 +2634,15 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
   const expenses = rows.filter(t => t.type === 'expense').reduce((s,t)=>s+Number(t.amount || 0),0);
   const businessLabel = business?.name || 'Business';
   const changeTxnType = (value) => setForm(p => ({ ...p, type: value, clientId: value === 'expense' ? p.clientId : (p.clientId === BUSINESS_TXN_CLIENT_ID ? '' : p.clientId) }));
+  const [txnOpen, setTxnOpen] = useState(false);
+  const openTxnNew = () => setTxnOpen(true);
+  const openTxnEdit = (t) => { edit(t); setTxnOpen(true); };
+  const closeTxn = () => { setTxnOpen(false); if (editing) cancel(); };
+  const submitTxn = () => { save(); setTxnOpen(false); };
+  useEffect(() => { if (editing) setTxnOpen(true); }, [editing]);
   return <>
     <BusinessPerformance business={business} transactions={transactions} invoices={invoices} clients={clients} />
-    <Card title={editing ? 'Edit Transaction' : 'New Transaction'} className="finance-form-card">
-      <div className="grid"><label><span>Client / Business</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">No Participant</option>{form.type === 'expense' && <option value={BUSINESS_TXN_CLIENT_ID}>{businessLabel}</option>}{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label><span>Type</span><select value={form.type} onChange={e => changeTxnType(e.target.value)}><option>expense</option><option>income</option></select></label><label><span>Status</span><select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}><option>pending</option><option>paid</option></select></label><Field label="Category" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}/><Field label="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}/><Field type="number" step="0.01" label="Amount" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}/><Field type="date" label="Date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}/></div>
-      <button className="primary" onClick={save}>{editing ? 'Update Transaction' : 'Save Transaction'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}
-    </Card>
-    <Card title="Transaction Register" action={`${rows.length ? start + 1 : 0}-${Math.min(start + PAGE_SIZE, rows.length)} of ${rows.length}`}>
+    <Card title="Transaction Register" action={<div className="filters"><span className="list-meta" style={{ margin: 0 }}>{rows.length ? start + 1 : 0}-{Math.min(start + PAGE_SIZE, rows.length)} of {rows.length}</span><button className="primary" onClick={openTxnNew}>+ New Transaction</button></div>}>
       <div className="filters transaction-filters">
         <input value={filters.query} placeholder="Search description, client, category" onChange={e => setFilter('query', e.target.value)} />
         <select value={filters.type} onChange={e => setFilter('type', e.target.value)}><option value="all">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
@@ -2664,8 +2660,38 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
         <time className="txn-when">{fmt(t.date)}</time>
         <select className="status-select" value={t.status || 'pending'} onChange={e => updateStatus(t.id, e.target.value)}><option value="pending">pending</option><option value="paid">paid</option></select>
         <strong className={`txn-amt ${t.type === 'expense' ? 'negative' : 'positive'}`}>{t.type === 'expense' ? '-' : '+'}{money(t.amount)}</strong>
-        <div className="reg-actions"><button className="ghost" onClick={() => edit(t)}>Edit</button><button className="ghost danger-ghost" onClick={() => del(t.id)}>Delete</button></div>
+        <div className="reg-actions"><button className="ghost" onClick={() => openTxnEdit(t)}>Edit</button><button className="ghost danger-ghost" onClick={() => del(t.id)}>Delete</button></div>
       </div>}/></div>{rows.length > PAGE_SIZE && <Pagination page={safePage} totalPages={totalPages} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))} />}</Card>
+
+    {txnOpen && <div className="modal-overlay" onClick={closeTxn}>
+      <div className="modal txn-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h3>{editing ? 'Edit Transaction' : 'New Transaction'}</h3><small>{form.type === 'income' ? 'Record money received' : 'Record an expense or payment'}</small></div>
+          <button className="modal-close" onClick={closeTxn} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">
+          <div className="txn-type-toggle">
+            <button className={form.type === 'expense' ? 'active out' : ''} onClick={() => changeTxnType('expense')}><span>−</span> Expense</button>
+            <button className={form.type === 'income' ? 'active in' : ''} onClick={() => changeTxnType('income')}><span>+</span> Income</button>
+          </div>
+          <Field type="number" step="0.01" label="Amount" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" />
+          <Field label="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="What was this for?" />
+          <div className="txn-modal-grid">
+            <label className="field"><span>Participant / Business</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">No participant</option>{form.type === 'expense' && <option value={BUSINESS_TXN_CLIENT_ID}>{businessLabel}</option>}{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <Field label="Category" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} placeholder="e.g. Wages, Travel" />
+            <Field type="date" label="Date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+            <label className="field"><span>Status</span><select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}><option value="pending">Pending</option><option value="paid">Paid</option></select></label>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <div className="invoice-total-display"><small>{form.type === 'expense' ? 'Expense' : 'Income'} Amount</small><b className={form.type === 'expense' ? 'txn-amt negative' : 'txn-amt positive'}>{form.type === 'expense' ? '-' : '+'}{money(Number(form.amount || 0))}</b></div>
+          <div className="modal-foot-actions">
+            <button onClick={closeTxn}>Cancel</button>
+            <button className="primary" onClick={submitTxn}>{editing ? 'Update' : 'Save Transaction'}</button>
+          </div>
+        </div>
+      </div>
+    </div>}
   </>;
 }
 
@@ -3012,34 +3038,31 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
   const goCloud = () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' });
 
   const categories = [
-    { icon: '▤', tone: 'violet', title: 'Organisation', desc: 'Manage your business profile, locations, staff and branding.', link: 'View all organisation settings', onLink: goBusiness, items: [
+    { icon: '▤', tone: 'violet', title: 'Organisation', desc: 'Business profile, branding and provider details.', link: 'Open organisation settings', onLink: goBusiness, items: [
       { icon: '▦', label: 'Business Profile', go: goBusiness },
-      { icon: '⌖', label: 'Locations', go: goBusiness },
-      { icon: '◉', label: 'Staff & Permissions', go: goBusiness },
-      { icon: '▥', label: 'Branding', go: goBusiness },
+      { icon: '▥', label: 'Logo & Branding', go: goBusiness },
+      { icon: '◉', label: 'Provider Details', go: goBusiness },
+      { icon: '$', label: 'Payment Details', go: goBusiness },
     ] },
-    { icon: '◷', tone: 'green', title: 'Participants & Funding', desc: 'Configure pricing, support items and funding rules.', link: 'View all funding settings', onLink: goPricing, items: [
+    { icon: '◷', tone: 'green', title: 'Pricing & Funding', desc: 'NDIS support items, rates and funding.', link: 'Open pricing manager', onLink: goPricing, items: [
       { icon: '◷', label: 'NDIS Pricing Manager', go: goPricing },
-      { icon: '▢', label: 'Support Items', go: goPricing },
-      { icon: '▤', label: 'Funding Rules', go: goPricing },
-      { icon: '◉', label: 'Service Agreements', go: goBusiness },
+      { icon: '▢', label: 'Support Item Rates', go: goPricing },
+      { icon: '▤', label: 'Price Guide', go: goPricing },
     ] },
-    { icon: '✓', tone: 'blue', title: 'Data & Security', desc: 'Backup, security and data management.', link: 'View all security settings', onLink: goCloud, items: [
+    { icon: '✓', tone: 'blue', title: 'Data & Backup', desc: 'Back up, restore and manage your data.', link: 'Open data tools', onLink: goCloud, items: [
       { icon: '☁', label: 'Cloud Backup', go: goCloud },
-      { icon: '⤓', label: 'Data Export', go: () => backup() },
-      { icon: '✓', label: 'Security Settings', go: goCloud },
-      { icon: '◷', label: 'Sync & Restore', go: goCloud },
+      { icon: '⤓', label: 'Export Data', go: () => backup() },
+      { icon: '↻', label: 'Restore & Sync', go: goCloud },
     ] },
-    { icon: '⌁', tone: 'amber', title: 'Integrations', desc: 'Connect with apps and external services.', link: 'View all integrations', onLink: goCloud, items: [
-      { icon: '☁', label: 'Supabase Cloud', go: goCloud },
-      { icon: '⤓', label: 'PDF & CSV Export', go: () => backup() },
-      { icon: '▤', label: 'NDIS Bulk Claims', go: goPricing },
-      { icon: '◉', label: 'Provider Portal', go: goBusiness },
+    { icon: '⌁', tone: 'amber', title: 'Exports', desc: 'Generate PDF and CSV documents.', link: 'Open data tools', onLink: goCloud, items: [
+      { icon: '⤓', label: 'Backup File (JSON)', go: () => backup() },
+      { icon: '▤', label: 'Invoice PDFs', go: goCloud },
+      { icon: '▥', label: 'Compliance Registers', go: goCloud },
     ] },
   ];
 
   const workspaceStats = [
-    { icon: '◉', tone: 'violet', value: activeClients.length, label: 'Participants', sub: 'Active participants' },
+    { icon: '◉', tone: 'violet', value: activeClients.length, label: 'Participants', sub: 'Active' },
     { icon: '▤', tone: 'green', value: invoices.length, label: 'Invoices', sub: 'Generated' },
     { icon: '$', tone: 'blue', value: transactions.length, label: 'Transactions', sub: 'Processed' },
     { icon: '◷', tone: 'amber', value: pricingCount, label: 'Support Items', sub: 'Active' },
@@ -3050,7 +3073,7 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
     <div className="org-settings-head">
       <div>
         <h2 className="org-settings-title">Organisation Settings <span className="org-shield">✓</span></h2>
-        <p className="org-settings-sub">Manage your workspace, staff, compliance and data.</p>
+        <p className="org-settings-sub">Manage your workspace, pricing, compliance and data.</p>
       </div>
       <div className="org-summary-card">
         <div className="org-summary-info">
@@ -3067,12 +3090,12 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
     </div>
 
     {/* Workspace Health */}
-    <Card title="Workspace Health" action={<button className="text-link" onClick={goCloud}>View Health Details ›</button>}>
+    <Card title="Workspace Health">
       <div className="health-strip">
-        <div className="health-item"><span className="health-ic green">✓</span><div><b>Cloud Backup</b><small className="health-status green">{isSupabaseConfigured ? 'Connected' : 'Local mode'}</small><small>{isSupabaseConfigured ? 'Sync available' : 'Cloud sync disabled'}</small></div></div>
+        <div className="health-item"><span className="health-ic green">✓</span><div><b>Data Backup</b><small className="health-status green">Ready</small><small>Export &amp; restore available</small></div></div>
         <div className="health-item"><span className="health-ic green">✓</span><div><b>NDIS Pricing</b><small className="health-status green">Up to date</small><small>{pricingCount} support items</small></div></div>
         <div className="health-item"><span className="health-ic green">✓</span><div><b>Participants</b><small className="health-status green">{activeClients.length} active</small><small>{plansNeedReview ? `${plansNeedReview} need review` : 'All plans current'}</small></div></div>
-        <div className={`health-item`}><span className={`health-ic ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? '!' : '✓'}</span><div><b>Plans Review</b><small className={`health-status ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? `${plansNeedReview} plan${plansNeedReview === 1 ? '' : 's'}` : 'All current'}</small><small>{plansNeedReview ? 'Update required' : 'No action needed'}</small></div></div>
+        <div className="health-item"><span className={`health-ic ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? '!' : '✓'}</span><div><b>Plans Review</b><small className={`health-status ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? `${plansNeedReview} plan${plansNeedReview === 1 ? '' : 's'}` : 'All current'}</small><small>{plansNeedReview ? 'Update required' : 'No action needed'}</small></div></div>
         <div className="health-item"><span className="health-ic green">✓</span><div><b>System Status</b><small className="health-status green">All good</small><small>No issues detected</small></div></div>
       </div>
     </Card>
@@ -3100,25 +3123,25 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
           {workspaceStats.map((s, i) => <div className={`workspace-stat ${s.tone}`} key={i}><span className="workspace-stat-ic">{s.icon}</span><b>{s.value}</b><small>{s.label}</small><em>{s.sub}</em></div>)}
         </div>
       </Card>
-      <Card title="Cloud Backup Status" action={<span className={`pill ${isSupabaseConfigured ? 'green' : 'grey'}`}>{isSupabaseConfigured ? 'Connected' : 'Local'}</span>}>
+      <Card title="Backup & Sync" action={<span className="pill green">Ready</span>}>
         <div className="cloud-status-body">
           <div className="cloud-status-lines">
-            <div><small>Mode</small><b>{isSupabaseConfigured ? 'Supabase Cloud' : 'Local storage'}</b></div>
-            <div><small>Data summary</small><b>{clients.length} clients · {invoices.length} invoices</b></div>
+            <div><small>Workspace</small><b>{clients.length} clients · {invoices.length} invoices</b></div>
             <div><small>Transactions</small><b>{transactions.length} recorded</b></div>
+            <div><small>Support items</small><b>{pricingCount} active</b></div>
           </div>
           <div className="cloud-status-icon">☁</div>
         </div>
         <div className="cloud-status-actions">
           <button className="primary" onClick={sync}>Sync Now</button>
-          <button onClick={load}>Load from Cloud</button>
+          <button onClick={load}>Restore</button>
         </div>
       </Card>
       <Card title="Quick Actions">
         <div className="quick-actions-list">
           <button className="quick-action" onClick={goPricing}><span className="quick-action-ic violet">◷</span><span>Open Pricing Manager</span><span className="settings-cat-chevron">›</span></button>
           <button className="quick-action" onClick={backup}><span className="quick-action-ic green">⤓</span><span>Export Data</span><span className="settings-cat-chevron">›</span></button>
-          <button className="quick-action" onClick={goCloud}><span className="quick-action-ic amber">☁</span><span>Cloud Sync &amp; Restore</span><span className="settings-cat-chevron">›</span></button>
+          <button className="quick-action" onClick={goCloud}><span className="quick-action-ic amber">☁</span><span>Backup &amp; Restore</span><span className="settings-cat-chevron">›</span></button>
           <button className="quick-action" onClick={goBusiness}><span className="quick-action-ic blue">◉</span><span>Edit Business Profile</span><span className="settings-cat-chevron">›</span></button>
         </div>
       </Card>
@@ -3134,12 +3157,12 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
         </div>
       </div>
       {businessOpen && <>
-        <p>This information is private to the signed-in workspace and appears on exported invoices.</p>
+        <p>This information appears on exported invoices and reports.</p>
         <div className="logo-uploader">
           <div className="logo-preview">{draft.logoUrl ? <img src={draft.logoUrl} alt="Business logo" /> : <span>{(draft.name || 'KC').slice(0,2).toUpperCase()}</span>}</div>
           <div>
             <b>Business Logo</b>
-            <small>Upload a PNG or JPG. It will appear on exported invoices and is saved in your private profile.</small>
+            <small>Upload a PNG or JPG. It will appear on exported invoices.</small>
             <label className="file">Upload Logo<input type="file" accept="image/png,image/jpeg,image/jpg" onChange={async e => { const file = e.target.files?.[0]; if (file) updateDraft('logoUrl', await fileToDataUrl(file)); }}/></label>
             {draft.logoUrl && <button type="button" onClick={() => updateDraft('logoUrl', '')}>Remove Logo</button>}
           </div>
@@ -3165,8 +3188,21 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
       />}
     </Card>
     <span id="settings-cloud-anchor" />
-    <Card title="Backup, Restore & Cloud Sync"><p>Works offline with local storage. Supabase sync is tied to your signed-in account and includes your full workspace. Cloud sync is manual only. Local saves stay on this device until you press Sync to Supabase; Load from Supabase is manual.</p><div className="settings-action-row"><button onClick={backup}>Export Backup JSON</button><label className="file">Import Backup JSON<input type="file" accept="application/json" onChange={e => e.target.files?.[0] && restore(e.target.files[0])}/></label><button className="primary" onClick={sync}>Sync to Supabase</button><button onClick={load}>Load from Supabase</button><button className="danger" onClick={clear}>Clear All Data</button></div></Card>
-    <Card title="Cloud Status"><p><b>{isSupabaseConfigured ? 'Supabase Connected' : 'Local Mode'}</b></p><p>{isSupabaseConfigured ? `Signed in as ${user?.email || 'your account'}. Your cloud snapshot is private to this login.` : 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Cloudflare Pages variables, public/supabase-config.js, or the app setup screen.'}</p><p><small>Config source: {supabaseConfigSource}</small></p><button onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button></Card>
+    <Card title="Backup, Restore & Data" action={<button className="text-link" onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button>}>
+      <p>Your workspace is saved on this device and can be backed up to the secure cloud. Export a backup file any time, restore from a previous backup, or sync your full workspace to the cloud.</p>
+      <div className="settings-action-row">
+        <button className="primary" onClick={sync}>Sync to Cloud</button>
+        <button onClick={load}>Restore from Cloud</button>
+        <button onClick={backup}>Export Backup File</button>
+        <label className="file">Import Backup File<input type="file" accept="application/json" onChange={e => e.target.files?.[0] && restore(e.target.files[0])}/></label>
+        <button className="danger" onClick={clear}>Clear All Data</button>
+      </div>
+    </Card>
+
+    <div className="settings-brand-footer">
+      <span className="settings-brand-lock">🔒 Your data is secure and encrypted.</span>
+      <span className="settings-brand-tag"><b>Kajola Care</b> by Ogbara</span>
+    </div>
   </>;
 }
 
@@ -3237,6 +3273,7 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
   const safePricingItems = Array.isArray(pricingItems) && pricingItems.length ? pricingItems : DEFAULT_PRICING_ITEMS;
   const [draft, setDraft] = useState(emptyShift());
   const [editingId, setEditingId] = useState(null);
+  const [shiftModalOpen, setShiftModalOpen] = useState(false);
   const [recurring, setRecurring] = useState({ enabled: false, frequency: 'weekly', occurrences: 4, weekdays: [] });
   const [view, setView] = useState('Calendar');
   const [filterWorker, setFilterWorker] = useState('all');
@@ -3350,9 +3387,12 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
     }
     setDraft(emptyShift());
     setEditingId(null);
+    setShiftModalOpen(false);
   };
-  const editShift = (shift) => { setDraft({ ...emptyShift(), ...shift }); setEditingId(shift.id); window.scrollTo(0, 0); };
-  const duplicateShift = (shift) => { setDraft({ ...emptyShift(), ...shift, id: makeId('shift'), status: 'Scheduled', startedAt: '', endedAt: '', notes: '', date: shift.date || todayISO(), reviewStatus: 'Not reviewed', payrollStatus: 'Not generated', invoiceStatus: 'Not generated' }); setEditingId(null); window.scrollTo(0, 0); };
+  const editShift = (shift) => { setDraft({ ...emptyShift(), ...shift }); setEditingId(shift.id); setShiftModalOpen(true); };
+  const openShiftNew = () => { setDraft(emptyShift()); setEditingId(null); setShiftModalOpen(true); };
+  const closeShiftModal = () => { setShiftModalOpen(false); setEditingId(null); setDraft(emptyShift()); };
+  const duplicateShift = (shift) => { setDraft({ ...emptyShift(), ...shift, id: makeId('shift'), status: 'Scheduled', startedAt: '', endedAt: '', notes: '', date: shift.date || todayISO(), reviewStatus: 'Not reviewed', payrollStatus: 'Not generated', invoiceStatus: 'Not generated' }); setEditingId(null); setShiftModalOpen(true); };
   const deleteShift = (id) => { if (confirm('Delete this assigned shift?')) { const nextShifts = safeShifts.filter(shift => shift.id !== id); setShifts(nextShifts); onPublishSchedule({ nextShifts, message: 'Shift deleted and employee portal updated.' }); } };
   const toggleShiftSelection = (id) => setSelectedShiftIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const selectAllVisibleShifts = () => setSelectedShiftIds(viewRows.map(s => s.id).filter(Boolean));
@@ -3451,7 +3491,7 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
       <Stat label="Pending Notes" value={reviewQueue.length} tone="violet" icon="✎" trend="Completed, need review" />
     </div>
     <div className="dashboard-grid" style={{ gridTemplateColumns: '2.2fr 1fr', marginBottom: '16px' }}>
-      <Card title="Operations Centre" action={`${filteredShifts.length} visible · ${coverageHours.toFixed(1)} hrs`}>
+      <Card title="Operations Centre" action={<div className="filters"><span className="list-meta" style={{ margin: 0 }}>{filteredShifts.length} visible · {coverageHours.toFixed(1)} hrs</span><button className="primary" onClick={openShiftNew}>+ Assign Shift</button></div>}>
         <p style={{ marginTop: 0 }}>Real-time overview of today's shifts and activities.</p>
         <div className="schedule-toolbar">
           <div className="segmented-control">{['Calendar','Assigned','In Progress','Completed','Review','Timesheets'].map(tab => <button key={tab} className={view === tab ? 'active' : ''} onClick={() => setView(tab)}>{tab}</button>)}</div>
@@ -3470,30 +3510,44 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
       </Card>
     </div>
 
-    <Card title={editingId ? 'Edit Client Shift' : 'Assign Client Shift'} action={editingId ? 'Editing assignment' : 'New assignment'}>
-      {(!activeWorkers.length || !activeClients.length) && <div className="auth-message">Add at least one employee in Compliance &gt; Employees and one participant before creating assigned shifts.</div>}
-      <div className="schedule-form-grid">
-        <label><span>Employee / Support Worker</span><select value={draft.workerId} onChange={e => updateDraft('workerId', e.target.value)}><option value="">Select employee</option>{activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name || w.email || w.employeeUsername}</option>)}</select></label>
-        <label><span>Client / Participant</span><select value={draft.participantId} onChange={e => updateDraft('participantId', e.target.value)}><option value="">Select client</option>{activeClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        <Field label="Date" type="date" value={draft.date} onChange={e => updateDraft('date', e.target.value)} />
-        <Field label="Start" type="time" value={draft.startTime} onChange={e => updateDraft('startTime', e.target.value)} />
-        <Field label="Finish" type="time" value={draft.endTime} onChange={e => updateDraft('endTime', e.target.value)} />
-        <label><span>Status</span><select value={draft.status} onChange={e => updateDraft('status', e.target.value)}>{statusList.map(x => <option key={x}>{x}</option>)}</select></label>
-        <Field label="Address / Location" value={draft.location} onChange={e => updateDraft('location', e.target.value)} placeholder="Participant home address or community location…" />
-        <Field label="Service Type" value={draft.supportType} onChange={e => updateDraft('supportType', e.target.value)} placeholder="Personal care, community access, domestic assistance…" />
+    {shiftModalOpen && <div className="modal-overlay" onClick={closeShiftModal}>
+      <div className="modal shift-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h3>{editingId ? 'Edit Client Shift' : 'Assign Client Shift'}</h3><small>{editingId ? 'Update this shift assignment' : 'Schedule a support worker for a participant'}</small></div>
+          <button className="modal-close" onClick={closeShiftModal} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">
+          {(!activeWorkers.length || !activeClients.length) && <div className="auth-message">Add at least one employee in Compliance &gt; Employees and one participant before creating assigned shifts.</div>}
+          <div className="shift-modal-grid">
+            <label className="field"><span>Employee / Support Worker</span><select value={draft.workerId} onChange={e => updateDraft('workerId', e.target.value)}><option value="">Select employee</option>{activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name || w.email || w.employeeUsername}</option>)}</select></label>
+            <label className="field"><span>Client / Participant</span><select value={draft.participantId} onChange={e => updateDraft('participantId', e.target.value)}><option value="">Select client</option>{activeClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <Field label="Date" type="date" value={draft.date} onChange={e => updateDraft('date', e.target.value)} />
+            <label className="field"><span>Status</span><select value={draft.status} onChange={e => updateDraft('status', e.target.value)}>{statusList.map(x => <option key={x}>{x}</option>)}</select></label>
+            <Field label="Start" type="time" value={draft.startTime} onChange={e => updateDraft('startTime', e.target.value)} />
+            <Field label="Finish" type="time" value={draft.endTime} onChange={e => updateDraft('endTime', e.target.value)} />
+          </div>
+          <Field label="Address / Location" value={draft.location} onChange={e => updateDraft('location', e.target.value)} placeholder="Participant home address or community location…" />
+          <Field label="Service Type" value={draft.supportType} onChange={e => updateDraft('supportType', e.target.value)} placeholder="Personal care, community access, domestic assistance…" />
+          <Field label="Worker Instructions / Admin Notes" multiline value={draft.adminNotes || ''} onChange={e => updateDraft('adminNotes', e.target.value)} placeholder="Key risks, goals, transport notes, medication prompts, handover details…" />
+          {!editingId && <div className="recurring-shift-panel">
+            <label className="recurring-toggle"><input type="checkbox" checked={recurring.enabled} onChange={e => setRecurring(prev => ({ ...prev, enabled: e.target.checked }))} /><span>Create as recurring shift</span></label>
+            {recurring.enabled && <div className="recurring-grid">
+              <label><span>Repeat</span><select value={recurring.frequency} onChange={e => setRecurring(prev => ({ ...prev, frequency: e.target.value }))}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option></select></label>
+              <label><span>Number of shifts</span><input type="number" min="1" max="52" value={recurring.occurrences} onChange={e => setRecurring(prev => ({ ...prev, occurrences: e.target.value }))} /></label>
+              {recurring.frequency === 'weekly' && <div className="weekday-picker"><span>Repeat on</span><div>{weekdayOptions.map(day => <button type="button" key={day.value} className={selectedWeekdays.includes(day.value) ? 'active' : ''} onClick={() => toggleWeekday(day.value)} aria-label={day.label}>{day.short}</button>)}</div><small>Select one or more days. The app will create the next {recurringCount} matching shift{recurringCount === 1 ? '' : 's'} from the start date.</small></div>}
+              <div className="recurring-preview"><small>Preview</small><b>{buildRecurringDates().length} shift{buildRecurringDates().length === 1 ? '' : 's'} from {fmt(buildRecurringDates()[0])}</b><span>{recurring.frequency === 'weekly' ? `Weekly on ${selectedWeekdays.map(day => weekdayOptions.find(x => x.value === day)?.short).filter(Boolean).join(', ')}` : recurring.frequency} · same worker, client, time, address and service type.</span></div>
+            </div>}
+          </div>}
+        </div>
+        <div className="modal-foot">
+          <div className="invoice-total-display"><small>Scheduled Hours</small><b>{scheduledHours(draft).toFixed(1)} hrs</b></div>
+          <div className="modal-foot-actions">
+            <button onClick={closeShiftModal}>Cancel</button>
+            <button className="primary" onClick={saveShift} disabled={!activeWorkers.length || !activeClients.length}>{editingId ? 'Update Shift' : recurring.enabled ? `Create ${buildRecurringDates().length} Shifts` : 'Assign Shift'}</button>
+          </div>
+        </div>
       </div>
-      <Field label="Worker Instructions / Admin Notes" multiline value={draft.adminNotes || ''} onChange={e => updateDraft('adminNotes', e.target.value)} placeholder="Key risks, goals, transport notes, medication prompts, handover details…" />
-      {!editingId && <div className="recurring-shift-panel">
-        <label className="recurring-toggle"><input type="checkbox" checked={recurring.enabled} onChange={e => setRecurring(prev => ({ ...prev, enabled: e.target.checked }))} /><span>Create as recurring shift</span></label>
-        {recurring.enabled && <div className="recurring-grid">
-          <label><span>Repeat</span><select value={recurring.frequency} onChange={e => setRecurring(prev => ({ ...prev, frequency: e.target.value }))}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option></select></label>
-          <label><span>Number of shifts</span><input type="number" min="1" max="52" value={recurring.occurrences} onChange={e => setRecurring(prev => ({ ...prev, occurrences: e.target.value }))} /></label>
-          {recurring.frequency === 'weekly' && <div className="weekday-picker"><span>Repeat on</span><div>{weekdayOptions.map(day => <button type="button" key={day.value} className={selectedWeekdays.includes(day.value) ? 'active' : ''} onClick={() => toggleWeekday(day.value)} aria-label={day.label}>{day.short}</button>)}</div><small>Select one or more days. The app will create the next {recurringCount} matching shift{recurringCount === 1 ? '' : 's'} from the start date.</small></div>}
-          <div className="recurring-preview"><small>Preview</small><b>{buildRecurringDates().length} shift{buildRecurringDates().length === 1 ? '' : 's'} from {fmt(buildRecurringDates()[0])}</b><span>{recurring.frequency === 'weekly' ? `Weekly on ${selectedWeekdays.map(day => weekdayOptions.find(x => x.value === day)?.short).filter(Boolean).join(', ')}` : recurring.frequency} · same worker, client, time, address and service type.</span></div>
-        </div>}
-      </div>}
-      <div className="actions"><button className="primary" onClick={saveShift}>{editingId ? 'Update Shift' : recurring.enabled ? `Create ${buildRecurringDates().length} Recurring Shifts` : 'Assign Employee to Shift'}</button>{editingId && <button onClick={() => { setEditingId(null); setDraft(emptyShift()); }}>Cancel Edit</button>}</div>
-    </Card>
+    </div>}
 
     {view === 'Calendar' && <Card title="Today's Timeline" action={<small style={{ color: 'var(--muted)' }}>{new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</small>}>
       <div className="client-table"><div className="client-table-head" style={{ gridTemplateColumns: '120px 1fr 1fr 1fr auto' }}><span>Time</span><span>Worker</span><span>Participant</span><span>Service</span><span>Status</span></div>
@@ -3909,7 +3963,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
   function saveSupabaseSetup(e) {
     e.preventDefault();
     if (!setupUrl || !setupAnonKey) {
-      setMessage('Enter both Supabase URL and anon public key.');
+      setMessage('Enter both the cloud URL and public key.');
       return;
     }
     window.localStorage.setItem('lg_flow_supabase_config', JSON.stringify({
@@ -3921,12 +3975,12 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
 
   if (!supabase) {
     return <div className="auth-shell">
-      <section className="auth-hero"><BrandMark /><BrandWordmark hero /><p>Care • Connect • Empower</p><div className="auth-glass"><b>Supabase setup required</b><span>Paste your new Kajola Care project URL and anon public key once. The app will save it in this browser.</span></div></section>
+      <section className="auth-hero"><BrandMark /><BrandWordmark hero /><p>Care • Connect • Empower</p><div className="auth-glass"><b>Cloud setup required</b><span>Paste your Kajola Care cloud URL and public key once. The app will save it in this browser.</span></div></section>
       <form className="auth-card" onSubmit={saveSupabaseSetup}>
-        <h2>Connect Supabase</h2>
-        <p>You can also set these in Cloudflare Pages or public/supabase-config.js.</p>
-        <Field label="Supabase Project URL" value={setupUrl} onChange={e => setSetupUrl(e.target.value)} placeholder="https://your-project.supabase.co" />
-        <Field label="Anon public key" value={setupAnonKey} onChange={e => setSetupAnonKey(e.target.value)} placeholder="eyJ..." />
+        <h2>Connect Cloud</h2>
+        <p>Your administrator can provide these connection details.</p>
+        <Field label="Cloud URL" value={setupUrl} onChange={e => setSetupUrl(e.target.value)} placeholder="https://your-project.example.co" />
+        <Field label="Public key" value={setupAnonKey} onChange={e => setSetupAnonKey(e.target.value)} placeholder="eyJ..." />
         {message && <div className="auth-message">{message}</div>}
         <button className="primary">Save & Reload</button>
       </form>
@@ -3944,7 +3998,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
       else { setMessage('Signed in. Loading employee portal…'); onEmployeeLogin?.(result.session, result.payload); }
       return;
     }
-    if (!supabase) { setMessage('Supabase is not configured.'); return; }
+    if (!supabase) { setMessage('Cloud sync is not configured.'); return; }
     if (!email || !password) { setMessage('Enter your email and password.'); return; }
     window.localStorage.setItem('kajola_last_login_role', 'admin');
     setBusy(true); setMessage('');
@@ -3958,7 +4012,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
   }
 
   return <div className="auth-shell">
-    <section className="auth-hero"><BrandMark /><BrandWordmark hero /><p>Care • Connect • Empower</p><div className="auth-glass"><b>{loginRole === 'admin' ? 'Admin workspace' : 'Employee portal'}</b><span>{loginRole === 'admin' ? 'Participants, invoices, finance and snapshots protected by Supabase Auth.' : 'Workers can view assigned shifts, clock in/out and submit shift notes.'}</span></div></section>
+    <section className="auth-hero"><BrandMark /><BrandWordmark hero /><p>Care • Connect • Empower</p><div className="auth-glass"><b>{loginRole === 'admin' ? 'Admin workspace' : 'Employee portal'}</b><span>{loginRole === 'admin' ? 'Participants, invoices, finance and snapshots protected by secure cloud authentication.' : 'Workers can view assigned shifts, clock in/out and submit shift notes.'}</span></div></section>
     <form className="auth-card" onSubmit={submit}>
       {!forceRole && <div className="auth-role-tabs"><button type="button" className={loginRole === 'admin' ? 'active' : ''} onClick={() => { setLoginRole('admin'); setEmail(''); setPassword(''); }}>Admin Sign In</button><button type="button" className={loginRole === 'worker' ? 'active' : ''} onClick={() => { setLoginRole('worker'); setMode('signin'); setEmail(''); setPassword(''); }}>Employee Sign In</button></div>}
       <h2>{mode === 'signup' ? 'Create your account' : loginRole === 'admin' ? 'Admin sign in' : 'Employee sign in'}</h2>
