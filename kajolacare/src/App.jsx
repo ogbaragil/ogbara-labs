@@ -3,7 +3,18 @@ import { jsPDF } from 'jspdf';
 import { supabase, isSupabaseConfigured, supabaseConfigSource } from './supabaseClient';
 
 const STORAGE_KEY = 'lg_flow_pwa_v2_premium';
-const TABS = ['Dashboard', 'Participants', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Schedules', 'Settings'];
+const TABS = ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Settings'];
+const TAB_LABELS = {
+  Dashboard: 'Command Centre',
+  Participants: 'Participants',
+  Schedules: 'Operations',
+  Workers: 'Workers',
+  Invoices: 'Claims & Billing',
+  Finance: 'Finance',
+  Compliance: 'Compliance',
+  Reports: 'Reports & Insights',
+  Settings: 'Settings',
+};
 const DEFAULT_PRICING_ITEMS = [
   { id: 'selfcare-weekday-daytime', group: 'Self Care Supports', itemNumber: '01_011_0107_1_1', label: 'Assistance With Self-Care Activities - Standard - Weekday Daytime', unitType: 'Hour', rate: 70.23, archived: false },
   { id: 'selfcare-weekday-evening', group: 'Self Care Supports', itemNumber: '01_015_0107_1_1', label: 'Assistance With Self-Care Activities - Standard - Weekday Evening', unitType: 'Hour', rate: 77.38, archived: false },
@@ -389,6 +400,7 @@ const updateEmployeeShiftCloud = async (session, shiftId, patch) => {
 export default function App() {
   const [active, setActive] = useState('Dashboard');
   const [complianceSection, setComplianceSection] = useState('Employees');
+  const [focusWorker, setFocusWorker] = useState(null);
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -964,20 +976,21 @@ export default function App() {
 
   return <><div className="shell desktop-shell">
     <aside className="sidebar">
-      <div className="brand"><BrandMark /><div><BrandWordmark /><p>Care • Connect • Empower</p></div></div>
-      <nav>{TABS.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{t}</span></button>)}</nav>
+      <div className="brand"><BrandMark /><div><BrandWordmark /><p>{business.name || "Life's Good Disability Services"}</p></div></div>
+      <nav>{TABS.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>)}</nav>
       <div className="status-card"><span className={isSupabaseConfigured ? 'dot on' : 'dot'} /> <b>{isSupabaseConfigured ? 'Supabase Connected' : 'Local Mode'}</b><small>{isSupabaseConfigured ? 'Auto-load on sign-in • manual admin sync' : 'Cloud sync disabled'}</small></div>
       <div className="profile-card"><div className="avatar">{(user.email || 'KC').slice(0,2).toUpperCase()}</div><div><b>{user.email}</b><small>Signed in securely</small></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{business.name || 'Kajola Care Operations'}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>
+      <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>
       {notice && <div className="notice">{notice}</div>}
-      {active === 'Dashboard' && <Dashboard totals={totals} invoices={invoices.slice(0, 5)} transactions={transactions} clients={clients} business={business} workers={workers} setActive={setActive}/>} 
-      {active === 'Participants' && <Clients clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={() => { setEditingClient(null); setClientForm(emptyClient); }}/>} 
+      {active === 'Dashboard' && <Dashboard totals={totals} invoices={invoices.slice(0, 5)} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive}/>} 
+      {active === 'Participants' && <Clients clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={() => { setEditingClient(null); setClientForm(emptyClient); }} invoices={invoices} shifts={shifts} workers={workers}/>} 
+      {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={(worker) => { setFocusWorker(worker || 'new'); setComplianceSection('Employees'); setActive('Compliance'); }} />}
       {active === 'Invoices' && <Invoices pricingItems={pricingItems} clients={clients.filter(c => !c.archived)} invoices={invoices} form={invoiceForm} setForm={setInvoiceForm} editing={editingInvoice} setLine={setLine} selectItem={selectItem} addLine={() => setInvoiceForm(p => ({ ...p, lines: [...p.lines, emptyLine()] }))} removeLine={lid => setInvoiceForm(p => p.lines.length === 1 ? p : ({ ...p, lines: p.lines.filter(l => l.id !== lid) }))} save={saveInvoice} edit={editInvoice} del={id => { setInvoices(p => p.filter(i => i.id !== id)); setTransactions(p => p.filter(t => t.invoiceId !== id)); }} exportPDF={exportPDF} onStatusChange={updateInvoiceStatus} cancel={() => { setEditingInvoice(null); setInvoiceForm(emptyInvoice()); }}/>} 
       {active === 'Finance' && <FinanceWorkspace business={business} clients={clients.filter(c => !c.archived)} transactions={transactions} invoices={invoices} form={txnForm} setForm={setTxnForm} editing={editingTxn} save={saveTxn} edit={editTxn} updateStatus={updateTxnStatus} del={id => setTransactions(p => p.filter(t => t.id !== id))} cancel={() => { setEditingTxn(null); setTxnForm(emptyTxn); }}/>} 
-      {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} />}
-      {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} />}
+      {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} focusWorker={focusWorker} onWorkerFocusHandled={() => setFocusWorker(null)} />}
+      {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} shifts={shifts} invoices={invoices} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={publishScheduleChanges} />}
       {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear local data on this device? Your Supabase cloud snapshot will not be overwritten.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
     </main>
@@ -1092,6 +1105,7 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
       {active === 'Finance' && <MobileFinance business={business} clients={activeClients} transactions={transactions} form={txnForm} setForm={setTxnForm} editing={editingTxn} save={saveTxn} edit={editTxn} del={deleteTxn} cancel={cancelTxn} />}
       {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} />}
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} />}
+      {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={() => setActive('Compliance')} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={onPublishSchedule} />}
       {active === 'Settings' && <div className="mobile-settings"><MobileMore setActive={setActive} />{settings}</div>}
     </main>
@@ -1167,7 +1181,7 @@ function getMobileAlerts({ clients, invoices, totals, business, workers = [] }) 
 }
 
 function MobileMore({ setActive }) {
-  return <MobilePanel title="More"><div className="mobile-more-grid"><button onClick={() => setActive('Invoices')}>Invoices</button><button onClick={() => setActive('Compliance')}>Compliance</button><button onClick={() => setActive('Reports')}>Reports</button><button onClick={() => setActive('Schedules')}>Schedules</button><button onClick={() => setActive('Settings')}>Settings</button></div></MobilePanel>;
+  return <MobilePanel title="More"><div className="mobile-more-grid"><button onClick={() => setActive('Workers')}>Workers</button><button onClick={() => setActive('Invoices')}>Claims & Billing</button><button onClick={() => setActive('Compliance')}>Compliance</button><button onClick={() => setActive('Reports')}>Reports & Insights</button><button onClick={() => setActive('Schedules')}>Operations</button><button onClick={() => setActive('Settings')}>Settings</button></div></MobilePanel>;
 }
 
 function MobileHome({ welcomeMessage, totals, alerts, invoices, clients, setActive }) {
@@ -1277,7 +1291,7 @@ function MobileFinance({ business, clients, transactions, form, setForm, editing
   </section>;
 }
 
-function Icon({ name }) { return <span className="nav-icon">{({Dashboard:'⌂', Participants:'♙', Invoices:'▤', Finance:'↔', Compliance:'✓', Reports:'▥', Schedules:'◷', Settings:'⚙'})[name] || '•'}</span>; }
+function Icon({ name }) { return <span className="nav-icon">{({Dashboard:'◇', Participants:'◉', Schedules:'▦', Workers:'◈', Invoices:'▤', Finance:'◗', Compliance:'✓', Reports:'▥', Settings:'⚙'})[name] || '•'}</span>; }
 function Card({ title, action, children, className = '' }) { return <section className={`card ${className}`}><div className="card-head"><h3>{title}</h3>{action}</div>{children}</section>; }
 function Field({ label, multiline, ...props }) { return <label><span>{label}</span>{multiline ? <textarea {...props}/> : <input {...props}/>}</label>; }
 function Records({ rows, empty, render }) { return rows.length ? rows.map(render) : <p className="empty">{empty}</p>; }
@@ -1322,7 +1336,22 @@ function CashflowOverview({ transactions }) {
   </Card>;
 }
 
-function Dashboard({ totals, invoices, transactions, clients, business, workers = [], setActive }) {
+function ComplianceRing({ pct, label = 'Compliance Score', sub }) {
+  const r = 46, c = 2 * Math.PI * r, off = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+  const tone = pct >= 85 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+  return <div className="compliance-ring" style={{ display: 'grid', placeItems: 'center', gap: '10px' }}>
+    <svg viewBox="0 0 120 120" width="128" height="128">
+      <circle cx="60" cy="60" r={r} fill="none" stroke="var(--line)" strokeWidth="11" />
+      <circle cx="60" cy="60" r={r} fill="none" stroke={tone} strokeWidth="11" strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 60 60)" />
+      <text x="60" y="58" textAnchor="middle" fontSize="26" fontWeight="780" fill="var(--ink)">{pct}%</text>
+      <text x="60" y="76" textAnchor="middle" fontSize="10" fill="var(--muted)">overall</text>
+    </svg>
+    <div style={{ textAlign: 'center' }}><b style={{ display: 'block' }}>{label}</b>{sub && <small style={{ color: 'var(--muted)' }}>{sub}</small>}</div>
+  </div>;
+}
+
+function Dashboard({ totals, invoices, transactions, clients, business, workers = [], shifts = [], setActive }) {
   const activeParticipants = clients.filter(c => !c.archived);
   const clientSpend = (clientId) => invoices.filter(i => i.clientId === clientId).reduce((s, i) => s + Number(i.total || 0), 0);
   const totalBudget = activeParticipants.reduce((s, c) => s + Number(c.budget || 0), 0);
@@ -1334,18 +1363,84 @@ function Dashboard({ totals, invoices, transactions, clients, business, workers 
   const complianceDue = complianceItems.length;
   const topParticipants = [...activeParticipants].sort((a, b) => clientSpend(b.id) - clientSpend(a.id)).slice(0, 5);
 
+  // Compliance score: share of all tracked items that are current.
+  const allComplianceRows = [
+    ...buildParticipantComplianceRows(clients).flatMap(r => r.items),
+    ...buildWorkerComplianceRows(workers).flatMap(r => r.items),
+    ...buildBusinessComplianceRows(business),
+  ];
+  const currentCount = allComplianceRows.filter(i => (i.status?.tone || i.tone) === 'current').length;
+  const complianceScore = allComplianceRows.length ? Math.round((currentCount / allComplianceRows.length) * 100) : 100;
+
+  // Today's operations
+  const today = todayISO();
+  const todaysShifts = shifts.filter(s => s.date === today);
+  const onShift = todaysShifts.filter(s => ['In Progress', 'Started'].includes(s.status)).length;
+  const missingClockIns = todaysShifts.filter(s => ['Scheduled', 'Open'].includes(s.status)).length;
+  const pendingNotes = shifts.filter(s => s.status === 'Awaiting Notes' || (s.endedAt && !s.notes)).length;
+
+  // Action centre — derive from data, ordered by urgency
+  const expiredDocs = buildWorkerComplianceRows(workers).reduce((n, r) => n + r.items.filter(i => i.status.tone === 'overdue' || i.status.tone === 'missing').length, 0);
+  const overdueInvoices = pendingInvoices.filter(i => { const d = daysUntil(i.dueDate); return d !== null && d < 0; }).length;
+  const actions = [
+    expiredDocs && { tone: 'red', label: `${expiredDocs} worker document${expiredDocs > 1 ? 's' : ''} expired`, go: 'Workers' },
+    expiringParticipants.length && { tone: 'amber', label: `${expiringParticipants.length} service agreement${expiringParticipants.length > 1 ? 's' : ''} due`, go: 'Participants' },
+    overdueInvoices && { tone: 'red', label: `${overdueInvoices} unpaid invoice${overdueInvoices > 1 ? 's' : ''} overdue`, go: 'Invoices' },
+    complianceDue && { tone: 'amber', label: `${complianceDue} compliance item${complianceDue > 1 ? 's' : ''} need review`, go: 'Compliance' },
+    pendingNotes && { tone: 'blue', label: `${pendingNotes} shift note${pendingNotes > 1 ? 's' : ''} awaiting approval`, go: 'Schedules' },
+  ].filter(Boolean);
+
+  const ops = [
+    { icon: '◈', label: 'Workers on shift', value: onShift, go: 'Workers' },
+    { icon: '▦', label: 'Shifts today', value: todaysShifts.length, go: 'Schedules' },
+    { icon: '!', label: 'Missing clock-ins', value: missingClockIns, go: 'Schedules', tone: missingClockIns ? 'amber' : '' },
+    { icon: '✎', label: 'Pending notes', value: pendingNotes, go: 'Schedules', tone: pendingNotes ? 'amber' : '' },
+  ];
+
   return <>
     <div className="ops-hero-actions">
       <button className="primary" onClick={() => setActive('Participants')}>+ Participant</button>
+      <button onClick={() => setActive('Schedules')}>+ Shift</button>
       <button onClick={() => setActive('Invoices')}>+ Invoice</button>
-      <button onClick={() => setActive('Finance')}>+ Expense</button>
+      <button onClick={() => setActive('Compliance')}>+ Incident</button>
+      <button onClick={() => setActive('Workers')}>+ Worker</button>
     </div>
-    <div className="stat-grid ops-stat-grid">
-      <Stat label="Revenue" value={money(totals.income)} tone="navy" icon="$" trend="Income received" />
-      <Stat label="Expenses" value={money(totals.expenses)} tone="blue" icon="−" trend="Billing and outgoings" />
-      <Stat label="Net Position" value={money(totals.net)} tone="teal" icon="▣" trend="Revenue less expenses" />
-      <Stat label="Active Participants" value={totals.activeClients} tone="green" icon="♙" trend={`${totals.expiringPlans} plans due in 30 days`} />
+
+    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: '16px' }}>
+      <Card title="Action Centre" action={<button className="text-link" onClick={() => setActive('Compliance')}>View all</button>}>
+        <Records rows={actions} empty="Nothing needs your attention. You're all caught up." render={(a, idx) => (
+          <div className="invoice-row" key={idx} style={{ gridTemplateColumns: 'auto 1fr auto', cursor: 'pointer' }} onClick={() => setActive(a.go)}>
+            <span className={`pill ${a.tone}`} style={{ width: '24px', height: '24px', padding: 0, justifyContent: 'center', borderRadius: '7px' }}>!</span>
+            <b style={{ fontWeight: 600 }}>{a.label}</b>
+            <button className="ghost">›</button>
+          </div>
+        )} />
+      </Card>
+      <Card title="Today's Operations" action={<button className="text-link" onClick={() => setActive('Schedules')}>Operations centre</button>}>
+        {ops.map((o, idx) => (
+          <div className="invoice-row" key={idx} style={{ gridTemplateColumns: 'auto 1fr auto', cursor: 'pointer' }} onClick={() => setActive(o.go)}>
+            <span className="feed-icon" style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'var(--blue-50)', color: 'var(--blue)', display: 'grid', placeItems: 'center' }}>{o.icon}</span>
+            <span style={{ color: 'var(--ink-2)' }}>{o.label}</span>
+            <strong className={o.tone === 'amber' ? '' : ''} style={{ color: o.tone === 'amber' ? 'var(--amber)' : 'var(--ink)' }}>{o.value}</strong>
+          </div>
+        ))}
+      </Card>
     </div>
+
+    <div className="dashboard-grid" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '16px' }}>
+      <Card title="Financial Snapshot">
+        <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', margin: 0 }}>
+          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Revenue this month</small><b style={{ color: 'var(--green)' }}>{money(totals.income)}</b></div>
+          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Claims submitted</small><b style={{ color: 'var(--blue)' }}>{money(pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0))}</b></div>
+          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Claims paid</small><b style={{ color: 'var(--teal)' }}>{money(invoices.filter(i => normaliseInvoiceStatus(i.status) === 'Paid').reduce((s, i) => s + Number(i.total || 0), 0))}</b></div>
+          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Outstanding</small><b style={{ color: 'var(--amber)' }}>{money(totals.expenses)}</b></div>
+        </div>
+      </Card>
+      <Card title="Compliance Score" action={<button className="text-link" onClick={() => setActive('Compliance')}>Hub</button>}>
+        <ComplianceRing pct={complianceScore} label={complianceDue ? `${complianceDue} due soon` : 'All clear'} sub={`${currentCount} of ${allComplianceRows.length} current`} />
+      </Card>
+    </div>
+
     <div className="ops-insight-grid">
       <InsightCard label="NDIS Budget Usage" value={`${budgetPct}%`} sub={`${money(usedBudget)} used of ${money(totalBudget)}`} progress={budgetPct} />
       <InsightCard label="Plans Expiring Soon" value={expiringParticipants.length} sub="Within 30 days" />
@@ -1451,25 +1546,110 @@ function getComplianceItems({ clients, invoices, business, workers = [] }) {
   return items.sort((a, b) => a.sort - b.sort || a.title.localeCompare(b.title));
 }
 
-function Clients({ clients, form, setForm, editing, save, edit, archive, del, cancel }) {
+function ParticipantDetail({ client, invoices = [], shifts = [], workers = [], onBack, onEdit }) {
+  const c = client;
+  const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0);
+  const budget = Number(c.budget || 0);
+  const remaining = Math.max(0, budget - spent);
+  const usedPct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+  const daysLeft = daysUntil(c.planEndDate);
+  const findWorker = (id) => workers.find(w => w.id === id);
+  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+  const thisWeek = shifts.filter(s => s.participantId === c.id && (() => { const d = new Date(`${s.date}T00:00:00`); return d >= weekStart && d < weekEnd; })()).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
+  const recentInvoices = invoices.filter(i => i.clientId === c.id).slice(0, 4);
+  const status = c.archived ? 'Inactive' : 'Active';
+
+  return <>
+    <div className="ops-hero-actions" style={{ marginBottom: '14px' }}>
+      <button onClick={onBack}>← Participants</button>
+      <button className="primary" onClick={() => onEdit(c)}>Edit</button>
+    </div>
+    <Card>
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="big-avatar">{(c.name || 'P').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</div>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><h2 style={{ fontSize: '22px' }}>{c.name}</h2><span className={`pill ${c.archived ? 'grey' : 'green'}`}>{status}</span></div>
+          <small style={{ color: 'var(--muted)' }}>NDIS #{c.ndisNumber || '-'}</small>
+        </div>
+        <div style={{ textAlign: 'right' }}><small style={{ color: 'var(--muted)', display: 'block', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Plan</small><b>{fmt(c.planStartDate)} → {fmt(c.planEndDate)}</b></div>
+      </div>
+    </Card>
+    <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Budget</small><b>{money(budget)}</b></div>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Used</small><b style={{ color: 'var(--blue)' }}>{money(spent)}</b><div className="bar" style={{ marginTop: '8px' }}><span style={{ width: `${usedPct}%` }} /></div></div>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Remaining</small><b style={{ color: 'var(--green)' }}>{money(remaining)}</b></div>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Days Left</small><b style={{ color: daysLeft !== null && daysLeft < 30 ? 'var(--amber)' : 'var(--ink)' }}>{daysLeft === null ? '—' : daysLeft < 0 ? 'Ended' : daysLeft}</b></div>
+    </div>
+    <div className="bottom-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+      <Card title="About">
+        <div className="checkline" style={{ borderTop: 'none' }}><span style={{ color: 'var(--muted)', flex: 1 }}>Contact</span><b>{c.phone || '-'}</b></div>
+        <div className="checkline"><span style={{ color: 'var(--muted)', flex: 1 }}>Email</span><b style={{ wordBreak: 'break-all' }}>{c.email || '-'}</b></div>
+        <div className="checkline"><span style={{ color: 'var(--muted)', flex: 1 }}>Address</span><b style={{ textAlign: 'right' }}>{c.address || '-'}</b></div>
+      </Card>
+      <Card title="This Week's Services">
+        <Records rows={thisWeek} empty="No shifts scheduled this week." render={s => <div className="feed" key={s.id}><span>▦</span><div><b style={{ fontWeight: 600 }}>{s.supportType || 'Support'}</b><small>{fmtWeekday(s.date)} · {s.startTime}–{s.endTime} · {findWorker(s.workerId)?.name || 'Worker'}</small></div></div>} />
+      </Card>
+      <Card title="Recent Activity">
+        <Records rows={recentInvoices} empty="No recent invoices." render={i => <div className="feed" key={i.id}><span>▤</span><div><b style={{ fontWeight: 600 }}>{i.invoiceNumber}</b><small>{fmt(i.issueDate)} · {normaliseInvoiceStatus(i.status)}</small></div><time>{money(i.total)}</time></div>} />
+      </Card>
+    </div>
+  </>;
+}
+
+function Clients({ clients, form, setForm, editing, save, edit, archive, del, cancel, invoices = [], shifts = [], workers = [] }) {
+  const [detailId, setDetailId] = useState(null);
+  const detailClient = detailId ? clients.find(c => c.id === detailId) : null;
+  if (detailClient) return <ParticipantDetail client={detailClient} invoices={invoices} shifts={shifts} workers={workers} onBack={() => setDetailId(null)} onEdit={(c) => { setDetailId(null); edit(c); }} />;
   const active = clients.filter(c => !c.archived);
   const archived = clients.filter(c => c.archived);
-  const ClientTable = ({ rows, archivedView = false }) => <div className="client-table"><div className="client-table-head"><span>Participant</span><span>Plan</span><span>Budget</span><span>Contact</span><span>Actions</span></div><Records rows={rows} empty={archivedView ? 'No archived clients.' : 'No active participants added yet.'} render={c => <div className="client-table-row" key={c.id}><div><b>{c.name}</b><small>{c.address || '-'}</small></div><div><b>{c.ndisNumber || '-'}</b><small>{fmt(c.planStartDate)} → {fmt(c.planEndDate)}</small></div><div><b>{money(c.budget)}</b><small>{(() => { const d = daysUntil(c.planEndDate); return d === null ? 'No end date' : d < 0 ? 'Plan ended' : `${d} days left`; })()}</small></div><div><b>{c.email || '-'}</b><small>{c.phone || '-'}</small></div><div className="actions"><button onClick={() => edit(c)}>Edit</button><button onClick={() => archive(c.id)}>{archivedView ? 'Unarchive' : 'Archive'}</button><button className="danger" onClick={() => del(c.id)}>Delete</button></div></div>} /></div>;
+  const ClientTable = ({ rows, archivedView = false }) => <div className="client-table"><div className="client-table-head"><span>Participant</span><span>Plan</span><span>Budget</span><span>Contact</span><span>Actions</span></div><Records rows={rows} empty={archivedView ? 'No archived clients.' : 'No active participants added yet.'} render={c => { const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0); const budget = Number(c.budget || 0); const usedPct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0; return <div className="client-table-row" key={c.id}><div style={{ cursor: 'pointer' }} onClick={() => setDetailId(c.id)}><b>{c.name}</b><small>{c.ndisNumber ? `NDIS ${c.ndisNumber}` : (c.address || '-')}</small></div><div><b>{fmt(c.planEndDate)}</b><small>{(() => { const d = daysUntil(c.planEndDate); return d === null ? 'No end date' : d < 0 ? 'Plan ended' : `${d} days left`; })()}</small></div><div><b>{money(budget)}</b>{budget ? <div className="bar" style={{ marginTop: '6px' }}><span style={{ width: `${usedPct}%` }} /></div> : <small>No budget set</small>}</div><div><b>{c.email || '-'}</b><small>{c.phone || '-'}</small></div><div className="actions"><button onClick={() => setDetailId(c.id)}>View</button><button onClick={() => edit(c)}>Edit</button><button onClick={() => archive(c.id)}>{archivedView ? 'Unarchive' : 'Archive'}</button><button className="danger" onClick={() => del(c.id)}>Delete</button></div></div>; }} /></div>;
   return <><Card title={editing ? 'Edit Participant' : 'Add Participant'}><div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div><button className="primary" onClick={save}>{editing ? 'Update Participant' : 'Save Participant'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Participants" action={`${active.length} active`}><ClientTable rows={active} /></Card><Card title="Archived Participants" action={`${archived.length} archived`}><details className="archived-participants"><summary>Show archived participants</summary><ClientTable rows={archived} archivedView /></details></Card></>;
+}
+
+function BillingPipeline({ invoices }) {
+  // Map invoice statuses onto the NDIS claim pipeline.
+  const norm = (i) => normaliseInvoiceStatus(i.status);
+  const stages = [
+    { key: 'Delivered', label: 'Delivered', sub: 'Services provided', icon: '✓', match: () => true },
+    { key: 'Approved', label: 'Approved', sub: 'Ready to invoice', icon: '◷', match: (s) => !['Draft'].includes(s) },
+    { key: 'Generated', label: 'Invoice Created', sub: 'Waiting to claim', icon: '▤', match: (s) => !['Draft'].includes(s) },
+    { key: 'Submitted', label: 'Claim Submitted', sub: 'With NDIA', icon: '↗', match: (s) => ['Submitted', 'Paid'].includes(s) },
+    { key: 'Paid', label: 'Paid', sub: 'Payment received', icon: '$', match: (s) => s === 'Paid' },
+  ];
+  const counts = stages.map(st => ({ ...st, n: invoices.filter(i => st.match(norm(i))).length }));
+  return <div className="billing-pipeline" style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '6px 0 2px' }}>
+    {counts.map((st, idx) => <React.Fragment key={st.key}>
+      <div style={{ display: 'grid', placeItems: 'center', gap: '6px', minWidth: '96px', textAlign: 'center' }}>
+        <div style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: st.n ? 'var(--blue)' : 'var(--surface-2)', color: st.n ? '#fff' : 'var(--muted)', border: st.n ? 'none' : '1px solid var(--line-2)', fontSize: '17px', fontWeight: 700 }}>{st.icon}</div>
+        <div><b style={{ fontSize: '13px' }}>{st.label}</b><small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px' }}>{st.sub}</small><span className="pill grey" style={{ marginTop: '4px' }}>{st.n}</span></div>
+      </div>
+      {idx < counts.length - 1 && <div style={{ flex: 1, height: '2px', minWidth: '20px', background: 'var(--line-2)', alignSelf: 'flex-start', marginTop: '20px' }} />}
+    </React.Fragment>)}
+  </div>;
 }
 
 function Invoices({ pricingItems = DEFAULT_PRICING_ITEMS, clients, invoices, form, setForm, editing, setLine, selectItem, addLine, removeLine, save, edit, del, exportPDF, onStatusChange, cancel }) {
   const preview = form.lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.rate || 0), 0);
+  const norm = (i) => normaliseInvoiceStatus(i.status);
+  const sumWhere = (pred) => invoices.filter(pred).reduce((s, i) => s + Number(i.total || 0), 0);
+  const readyToClaim = invoices.filter(i => ['Generated', 'Approved'].includes(norm(i)));
+  const submitted = invoices.filter(i => norm(i) === 'Submitted');
+  const paid = invoices.filter(i => norm(i) === 'Paid');
+  const outstanding = invoices.filter(i => !['Paid', 'Cancelled'].includes(norm(i)));
   return <>
-    <Card title="Invoice Overview" className="invoice-overview-card" action={`${invoices.length} invoices`}>
-      <div className="finance-summary-grid">
-        <InsightCard label="Total Invoiced" value={money(invoices.reduce((s, i) => s + Number(i.total || 0), 0))} sub="All invoices" />
-        <InsightCard label="Outstanding" value={money(invoices.filter(i => !['Paid', 'Cancelled'].includes(normaliseInvoiceStatus(i.status))).reduce((s, i) => s + Number(i.total || 0), 0))} sub="Not paid or cancelled" />
-        <InsightCard label="Invoice Count" value={invoices.length} sub="Total invoices" />
-      </div>
-      <p>Create, review and update invoice payment status from the register below.</p>
+    <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+      <Stat label="Ready to Claim" value={money(sumWhere(i => ['Generated', 'Approved'].includes(norm(i))))} tone="blue" icon="▤" trend={`${readyToClaim.length} services`} />
+      <Stat label="Submitted" value={money(sumWhere(i => norm(i) === 'Submitted'))} tone="violet" icon="↗" trend={`${submitted.length} invoices`} />
+      <Stat label="Paid" value={money(sumWhere(i => norm(i) === 'Paid'))} tone="green" icon="$" trend={`${paid.length} invoices`} />
+      <Stat label="Outstanding" value={money(sumWhere(i => !['Paid', 'Cancelled'].includes(norm(i))))} tone="gold" icon="!" trend={`${outstanding.length} invoices`} />
+    </div>
+    <Card title="Claims Pipeline" action={<button className="primary" onClick={() => { const el = document.getElementById('invoice-form-anchor'); el?.scrollIntoView({ behavior: 'smooth' }); }}>+ Create Invoice</button>}>
+      <p style={{ marginTop: 0 }}>Track services through to payment.</p>
+      <BillingPipeline invoices={invoices} />
     </Card>
-    <Card title={editing ? 'Edit Invoice' : 'Generate Invoice'} className="invoice-form-card"><div className="grid"><label><span>Client</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">Select active client</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><Field type="date" label="Due Date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}/></div>{form.lines.map((line, idx) => <div className="line" key={line.id}><div className="line-head"><h4>Service Line {idx + 1}</h4><button className="danger" onClick={() => removeLine(line.id)}>Remove</button></div><div className="grid"><label><span>Support Item</span><select value={line.itemCode || line.itemLabel} onChange={e => selectItem(line.id, e.target.value)}>{pricingItems.map(i => <option key={i.id || i.itemNumber} value={i.itemNumber || i.id}>{i.itemNumber ? `${i.itemNumber} — ${i.label}` : i.label}</option>)}</select></label><Field type="date" label="Service Date" value={line.serviceDate} onChange={e => setLine(line.id, 'serviceDate', e.target.value)}/><Field label="Unit Type" value={line.unitType} onChange={e => setLine(line.id, 'unitType', e.target.value)}/><Field type="number" step="0.01" label="Quantity" value={line.quantity} onChange={e => setLine(line.id, 'quantity', e.target.value)}/><Field type="number" step="0.01" label="Rate" value={line.rate} onChange={e => setLine(line.id, 'rate', e.target.value)}/><Field label="Line Notes" value={line.notes || ''} onChange={e => setLine(line.id, 'notes', e.target.value)} placeholder="Optional notes for this support item" /></div><b className="subtotal">Subtotal {money(Number(line.quantity || 0) * Number(line.rate || 0))}</b></div>)}<button onClick={addLine}>+ Add Another Service</button><Field label="Notes" multiline value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}/><div className="total">Invoice total: {money(preview)}</div><button className="primary" onClick={save}>{editing ? 'Update Invoice' : 'Generate Invoice'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Invoice Register" className="invoice-register-card" action={`${invoices.length} invoices`}><Records rows={invoices} empty="No invoices created yet." render={i => <details className="invoice-tile" key={i.id}><summary><div><b>{i.invoiceNumber}</b><small>{i.clientName}</small></div><strong>{money(i.total)}</strong><span className="pill">{i.status || 'Generated'}</span></summary><p>Issue: {fmt(i.issueDate)} · Due: {fmt(i.dueDate)} · NDIS: {i.ndisNumber || '-'}</p>{i.lines.map((l, idx) => <p key={l.id || idx}>{idx + 1}. {l.itemCode ? `${l.itemCode} · ` : ''}{l.itemLabel} · {fmt(l.serviceDate)} · {l.quantity} {l.unitType} @ {money(l.rate)} = {money(l.lineTotal)}</p>)}{i.notes && <p>Notes: {i.notes}</p>}<InvoiceStatusControls invoice={i} onChange={onStatusChange} /><div className="actions"><button onClick={() => edit(i)}>Edit</button><button onClick={() => exportPDF(i)}>Export PDF</button><button className="danger" onClick={() => del(i.id)}>Delete</button></div></details>}/></Card></>;
+    <span id="invoice-form-anchor" />
+    <Card title={editing ? 'Edit Invoice' : 'Generate Invoice'} className="invoice-form-card"><div className="grid"><label><span>Client</span><select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}><option value="">Select active client</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><Field type="date" label="Due Date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}/></div>{form.lines.map((line, idx) => <div className="line" key={line.id}><div className="line-head"><h4>Service Line {idx + 1}</h4><button className="danger" onClick={() => removeLine(line.id)}>Remove</button></div><div className="grid"><label><span>Support Item</span><select value={line.itemCode || line.itemLabel} onChange={e => selectItem(line.id, e.target.value)}>{pricingItems.map(i => <option key={i.id || i.itemNumber} value={i.itemNumber || i.id}>{i.itemNumber ? `${i.itemNumber} — ${i.label}` : i.label}</option>)}</select></label><Field type="date" label="Service Date" value={line.serviceDate} onChange={e => setLine(line.id, 'serviceDate', e.target.value)}/><Field label="Unit Type" value={line.unitType} onChange={e => setLine(line.id, 'unitType', e.target.value)}/><Field type="number" step="0.01" label="Quantity" value={line.quantity} onChange={e => setLine(line.id, 'quantity', e.target.value)}/><Field type="number" step="0.01" label="Rate" value={line.rate} onChange={e => setLine(line.id, 'rate', e.target.value)}/><Field label="Line Notes" value={line.notes || ''} onChange={e => setLine(line.id, 'notes', e.target.value)} placeholder="Optional notes for this support item" /></div><b className="subtotal">Subtotal {money(Number(line.quantity || 0) * Number(line.rate || 0))}</b></div>)}<button onClick={addLine}>+ Add Another Service</button><Field label="Notes" multiline value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}/><div className="total">Invoice total: {money(preview)}</div><button className="primary" onClick={save}>{editing ? 'Update Invoice' : 'Generate Invoice'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Invoice Register" className="invoice-register-card" action={`${invoices.length} invoices`}><Records rows={invoices} empty="No invoices created yet." render={i => <details className="invoice-tile" key={i.id}><summary><div><b>{i.invoiceNumber}</b><small>{i.clientName}</small></div><strong>{money(i.total)}</strong><span className={`pill ${({ Paid: 'green', Submitted: 'violet', Cancelled: 'grey' }[norm(i)]) || 'amber'}`}>{i.status || 'Generated'}</span></summary><p>Issue: {fmt(i.issueDate)} · Due: {fmt(i.dueDate)} · NDIS: {i.ndisNumber || '-'}</p>{i.lines.map((l, idx) => <p key={l.id || idx}>{idx + 1}. {l.itemCode ? `${l.itemCode} · ` : ''}{l.itemLabel} · {fmt(l.serviceDate)} · {l.quantity} {l.unitType} @ {money(l.rate)} = {money(l.lineTotal)}</p>)}{i.notes && <p>Notes: {i.notes}</p>}<InvoiceStatusControls invoice={i} onChange={onStatusChange} /><div className="actions"><button onClick={() => edit(i)}>Edit</button><button onClick={() => exportPDF(i)}>Export PDF</button><button className="danger" onClick={() => del(i.id)}>Delete</button></div></details>}/></Card></>;
 }
 
 
@@ -2068,12 +2248,35 @@ function exportRegisterPdf({ business = {}, title, rows = [], cols = [] }) {
 }
 function cleanFile(value) { return String(value || 'kajola-care').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase(); }
 
-function ReportsWorkspace({ business, transactions = [], clients = [], risks = [], incidents = [], complaints = [], improvements = [], audits = [], auditReports = [], governanceReviews = [], documents = [], workers = [] }) {
+function ReportsWorkspace({ business, transactions = [], clients = [], risks = [], incidents = [], complaints = [], improvements = [], audits = [], auditReports = [], governanceReviews = [], documents = [], workers = [], shifts = [], invoices = [] }) {
   const [period, setPeriod] = useState('1m');
   const rows = getTransactionReportRows(transactions, period);
   const summary = transactionReportSummary(rows);
   const recentRows = rows.slice(0, 12);
+
+  // Insight KPIs
+  const now = new Date();
+  const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const incomeIn = (key) => transactions.filter(t => t.type === 'income' && (t.date || '').slice(0, 7) === key).reduce((s, t) => s + Number(t.amount || 0), 0);
+  const thisRev = incomeIn(thisMonthKey), lastRev = incomeIn(lastMonthKey);
+  const revenueGrowth = lastRev ? Math.round(((thisRev - lastRev) / lastRev) * 100) : (thisRev ? 100 : 0);
+  const completed = shifts.filter(s => s.status === 'Completed');
+  const clockedIn = completed.filter(s => s.startedAt);
+  const clockInPct = completed.length ? Math.round((clockedIn.length / completed.length) * 100) : 100;
+  const plansExpiring = clients.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d >= 0 && d <= 60; }).length;
+  const incidentsThisMonth = incidents.filter(i => (i.date || i.createdAt || '').slice(0, 7) === thisMonthKey).length;
+
   return <>
+    <Card title="Reports & Insights" action="Your key insights at a glance">
+      <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', margin: '4px 0 0' }}>
+        <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Revenue Growth</small><b style={{ color: revenueGrowth >= 0 ? 'var(--green)' : 'var(--red)' }}>{revenueGrowth >= 0 ? '▲' : '▼'} {Math.abs(revenueGrowth)}%</b><small style={{ color: 'var(--muted)' }}>vs last month</small></div>
+        <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Clock-in Compliance</small><b>{clockInPct}%</b><small style={{ color: 'var(--muted)' }}>Completed shifts</small></div>
+        <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Plans Expiring Soon</small><b style={{ color: plansExpiring ? 'var(--amber)' : 'var(--ink)' }}>{plansExpiring}</b><small style={{ color: 'var(--muted)' }}>Within 60 days</small></div>
+        <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Incidents This Month</small><b style={{ color: incidentsThisMonth ? 'var(--red)' : 'var(--ink)' }}>{incidentsThisMonth}</b><small style={{ color: 'var(--muted)' }}>Logged this month</small></div>
+      </div>
+    </Card>
     <Card title="Reports" action="PDF & CSV exports">
       <p>Generate professional transaction reports for management records, bookkeeping and reconciliation.</p>
       <div className="report-periods">
@@ -2104,6 +2307,99 @@ function ReportsWorkspace({ business, transactions = [], clients = [], risks = [
 function ComplianceExportButton({ business, title, rows, cols }) { return <span className="report-button-row"><button onClick={() => exportRegisterPdf({ business, title, rows, cols })}>{title} PDF</button><button onClick={() => downloadCsv(`${cleanFile(title)}.csv`, rows, cols)}>CSV</button></span>; }
 
 
+function MiniLineChart({ points = [], height = 200, stroke = 'var(--blue)' }) {
+  if (!points.length) return <p className="empty">No data for this period.</p>;
+  const max = Math.max(...points.map(p => p.value), 1);
+  const min = Math.min(...points.map(p => p.value), 0);
+  const range = max - min || 1;
+  const w = 600, h = height, pad = 24;
+  const x = (i) => pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
+  const y = (v) => h - pad - ((v - min) / range) * (h - pad * 2);
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
+  const area = `${line} L${x(points.length - 1).toFixed(1)} ${h - pad} L${x(0).toFixed(1)} ${h - pad} Z`;
+  return <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height }}>
+    <defs><linearGradient id="rt-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={stroke} stopOpacity="0.18" /><stop offset="100%" stopColor={stroke} stopOpacity="0" /></linearGradient></defs>
+    <path d={area} fill="url(#rt-fill)" />
+    <path d={line} fill="none" stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+    {points.map((p, i) => <g key={i}><circle cx={x(i)} cy={y(p.value)} r="3.5" fill="#fff" stroke={stroke} strokeWidth="2" /><text x={x(i)} y={h - 6} textAnchor="middle" fontSize="10" fill="var(--muted)">{p.label}</text></g>)}
+  </svg>;
+}
+
+function DonutChart({ segments = [], size = 180 }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const r = size / 2 - 16, cx = size / 2, cy = size / 2, sw = 26;
+  let acc = 0;
+  const arcs = segments.map((seg, idx) => {
+    const frac = seg.value / total;
+    const start = acc * 2 * Math.PI - Math.PI / 2;
+    acc += frac;
+    const end = acc * 2 * Math.PI - Math.PI / 2;
+    const large = frac > 0.5 ? 1 : 0;
+    const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+    return <path key={idx} d={`M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`} fill="none" stroke={seg.color} strokeWidth={sw} strokeLinecap="butt" />;
+  });
+  return <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>{arcs}</svg>
+    <div style={{ display: 'grid', gap: '8px', flex: 1, minWidth: '160px' }}>
+      {segments.map((seg, idx) => <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '13px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--ink-2)' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: seg.color }} />{seg.label}</span>
+        <b>{Math.round((seg.value / total) * 100)}%</b>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function BusinessPerformance({ business, transactions = [], invoices = [], clients = [] }) {
+  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount || 0), 0);
+  const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount || 0), 0);
+  const profit = income - expenses;
+  const outstanding = invoices.filter(i => !['Paid', 'Cancelled'].includes(normaliseInvoiceStatus(i.status))).reduce((s, i) => s + Number(i.total || 0), 0);
+
+  // Revenue trend: last 6 months of income transactions.
+  const months = [];
+  const base = new Date();
+  for (let k = 5; k >= 0; k--) {
+    const d = new Date(base.getFullYear(), base.getMonth() - k, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    months.push({ key, label: d.toLocaleString('en-AU', { month: 'short' }), value: 0 });
+  }
+  transactions.filter(t => t.type === 'income').forEach(t => {
+    const key = (t.date || '').slice(0, 7);
+    const m = months.find(x => x.key === key);
+    if (m) m.value += Number(t.amount || 0);
+  });
+
+  // Revenue by service type (from invoice line item labels).
+  const palette = ['#1d4ed8', '#10b6b0', '#7c3aed', '#16a34a', '#d97706', '#6b7a90'];
+  const byService = {};
+  invoices.forEach(inv => (inv.lines || []).forEach(l => {
+    const label = (l.itemLabel || l.itemCode || 'Other').split('—')[0].trim();
+    byService[label] = (byService[label] || 0) + Number(l.lineTotal || (Number(l.quantity || 0) * Number(l.rate || 0)) || 0);
+  }));
+  const serviceSegments = Object.entries(byService).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value], i) => ({ label, value, color: palette[i % palette.length] }));
+
+  return <Card title="Business Performance" action="Financial overview">
+    <p style={{ marginTop: 0 }}>Financial overview of your organisation.</p>
+    <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', margin: '0 0 16px' }}>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Revenue</small><b style={{ color: 'var(--green)' }}>{money(income)}</b></div>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Expenses</small><b style={{ color: 'var(--red)' }}>{money(expenses)}</b></div>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Profit</small><b style={{ color: profit >= 0 ? 'var(--blue)' : 'var(--red)' }}>{money(profit)}</b></div>
+      <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Outstanding</small><b style={{ color: 'var(--amber)' }}>{money(outstanding)}</b></div>
+    </div>
+    <div className="two">
+      <div className="card" style={{ margin: 0, boxShadow: 'none', background: 'var(--surface-2)' }}>
+        <div className="card-head"><h3>Revenue Trend</h3></div>
+        <MiniLineChart points={months} />
+      </div>
+      <div className="card" style={{ margin: 0, boxShadow: 'none', background: 'var(--surface-2)' }}>
+        <div className="card-head"><h3>Revenue by Service Type</h3></div>
+        {serviceSegments.length ? <DonutChart segments={serviceSegments} /> : <p className="empty">No invoiced services yet.</p>}
+      </div>
+    </div>
+  </Card>;
+}
+
 function FinanceWorkspace({ business, clients, transactions, invoices = [], form, setForm, editing, save, edit, updateStatus = () => {}, del, cancel }) {
   const [filters, setFilters] = useState({ type: 'all', status: 'all', clientId: 'all', sort: 'date_desc', query: '' });
   const [page, setPage] = useState(1);
@@ -2116,6 +2412,7 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
   const businessLabel = business?.name || 'Business';
   const changeTxnType = (value) => setForm(p => ({ ...p, type: value, clientId: value === 'expense' ? p.clientId : (p.clientId === BUSINESS_TXN_CLIENT_ID ? '' : p.clientId) }));
   return <>
+    <BusinessPerformance business={business} transactions={transactions} invoices={invoices} clients={clients} />
     <Card title="Finance Overview" className="finance-overview-card" action={`${rows.length} transactions`}>
       <div className="finance-summary-grid">
         <InsightCard label="Income" value={money(income)} sub="Filtered register" />
@@ -2142,7 +2439,50 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
 }
 
 
-function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness, saveBusiness, workers = [], setWorkers = () => {}, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, initialSection = 'Employees', onSectionChange = () => {} }) {
+function WorkersWorkspace({ workers = [], shifts = [], clients = [], onManage = () => {} }) {
+  const [query, setQuery] = useState('');
+  const rows = buildWorkerComplianceRows(workers);
+  const today = todayISO();
+  const onShiftIds = new Set(shifts.filter(s => s.date === today && ['In Progress', 'Started', 'Scheduled'].includes(s.status)).map(s => s.workerId));
+  const expiringDocs = rows.reduce((n, r) => n + r.items.filter(i => i.status.tone === 'due' || i.status.tone === 'overdue').length, 0);
+  const openActions = rows.filter(r => r.overall.tone === 'overdue' || r.overall.tone === 'missing').length;
+  const filtered = rows.filter(r => !query || (r.worker.name || '').toLowerCase().includes(query.toLowerCase()) || (r.worker.role || '').toLowerCase().includes(query.toLowerCase()));
+  const toneClass = (tone) => ({ current: 'green', due: 'amber', overdue: 'red', missing: 'red' }[tone] || 'grey');
+
+  return <>
+    <div className="ops-stat-grid">
+      <Stat label="Active Workers" value={workers.length} tone="navy" icon="◈" trend="On your team" />
+      <Stat label="On Shift Now" value={onShiftIds.size} tone="green" icon="●" trend="Currently working" />
+      <Stat label="Expiring Docs" value={expiringDocs} tone="gold" icon="!" trend="Due or overdue soon" />
+      <Stat label="Open Actions" value={openActions} tone="violet" icon="◎" trend="Workers needing review" />
+    </div>
+    <Card
+      title="Workers"
+      action={<div className="filters"><div className="search inline-search"><input placeholder="Search workers…" value={query} onChange={e => setQuery(e.target.value)} /></div><button className="primary" onClick={() => onManage()}>+ Add Worker</button></div>}
+    >
+      <Records rows={filtered} empty="No workers yet. Add your first team member to get started." render={({ worker, items, overall }) => (
+        <div className="client-table-row worker-roster-row" key={worker.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '14px', alignItems: 'center', padding: '14px 6px' }}>
+          <div className="mini-avatar">{(worker.name || 'W').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</div>
+          <div>
+            <b>{worker.name || 'Unnamed worker'}</b>
+            <small style={{ display: 'block', color: 'var(--muted)' }}>{worker.role || 'Support Worker'}{worker.email ? ` · ${worker.email}` : ''}</small>
+          </div>
+          <div className="worker-compliance-dots" style={{ display: 'flex', gap: '6px' }}>
+            {items.slice(0, 5).map((it, idx) => (
+              <span key={idx} className={`pill ${toneClass(it.status.tone)}`} title={`${it.label}: ${it.status.label}`} style={{ width: '26px', height: '26px', padding: 0, justifyContent: 'center', borderRadius: '8px' }}>{it.label?.[0] || '•'}</span>
+            ))}
+          </div>
+          <div className="actions" style={{ margin: 0 }}>
+            <span className={`pill ${toneClass(overall.tone)}`}>{overall.label}</span>
+            <button className="ghost" onClick={() => onManage(worker)}>Manage</button>
+          </div>
+        </div>
+      )} />
+    </Card>
+  </>;
+}
+
+function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness, saveBusiness, workers = [], setWorkers = () => {}, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, initialSection = 'Employees', onSectionChange = () => {}, focusWorker = null, onWorkerFocusHandled = () => {} }) {
   const [section, setSectionState] = useState(initialSection || 'Employees');
   useEffect(() => { if (initialSection && initialSection !== section) setSectionState(initialSection); }, [initialSection]);
   const setSection = (next) => { setSectionState(next); onSectionChange(next); };
@@ -2188,10 +2528,57 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
     setWorkerDraft(emptyWorker()); setEditingWorkerId(null); setWorkerFormOpen(false);
   };
   const editWorker = (worker) => { setWorkerDraft(normaliseWorker(worker)); setEditingWorkerId(worker.id); setSection('Employees'); setWorkerFormOpen(true); window.scrollTo(0, 0); };
+  useEffect(() => {
+    if (!focusWorker) return;
+    if (focusWorker === 'new') { setSection('Employees'); setWorkerDraft(emptyWorker()); setEditingWorkerId(null); setWorkerFormOpen(true); }
+    else { setWorkerDraft(normaliseWorker(focusWorker)); setEditingWorkerId(focusWorker.id); setSection('Employees'); setWorkerFormOpen(true); }
+    window.scrollTo(0, 0);
+    onWorkerFocusHandled();
+  }, [focusWorker]);
   const deleteWorker = (id) => { if (confirm('Delete this worker profile?')) setWorkers(prev => prev.filter(w => w.id !== id)); if (editingWorkerId === id) { setWorkerDraft(emptyWorker()); setEditingWorkerId(null); } };
   const updateWorkerDraft = (field, value) => setWorkerDraft(prev => ({ ...prev, [field]: value }));
 
+  const overallScore = allStatuses.length ? Math.round((counts.current / allStatuses.length) * 100) : 100;
+  const docsExpiring = items.filter(i => i.tone === 'due').length;
+  const policiesDue = businessRows.filter(r => r.status.tone === 'due' || r.status.tone === 'overdue').length;
+  const auditsDue = audits.filter(a => a.status !== 'Closed').length;
+  const incidentsOpen = incidents.filter(i => i.status !== 'Closed').length;
+  const hubDomains = [
+    { key: 'People', icon: '◉', desc: 'Workers, participants and documents', tone: workerRows.some(r => r.overall.tone === 'overdue') ? 'red' : workerRows.some(r => r.overall.tone === 'due') ? 'amber' : 'green', go: 'Employees' },
+    { key: 'Quality', icon: '✦', desc: 'Incidents, complaints and improvements', tone: incidentsOpen ? 'amber' : 'green', go: 'Incidents' },
+    { key: 'Governance', icon: '▤', desc: 'Policies, audits and governance', tone: policiesDue ? 'amber' : 'green', go: 'Governance' },
+    { key: 'Risk', icon: '⚠', desc: 'Risk register and management', tone: risks.some(r => r.status !== 'Closed' && (r.rating === 'High' || r.rating === 'Extreme')) ? 'red' : 'green', go: 'Risks' },
+  ];
+
   return <>
+    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'start', marginBottom: '16px' }}>
+      <Card title="Compliance Hub">
+        <p style={{ marginTop: 0 }}>Monitor quality, risk and governance.</p>
+        <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', margin: 0 }}>
+          {hubDomains.map(d => (
+            <button key={d.key} onClick={() => setSection(d.go)} style={{ display: 'block', textAlign: 'left', padding: '16px', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--surface)', boxShadow: 'none' }}>
+              <span style={{ display: 'grid', placeItems: 'center', width: '40px', height: '40px', borderRadius: '11px', background: `var(--${d.tone === 'red' ? 'red' : d.tone === 'amber' ? 'amber' : 'green'}-50)`, color: `var(--${d.tone === 'red' ? 'red' : d.tone === 'amber' ? 'amber' : 'green'})`, fontSize: '18px', marginBottom: '10px' }}>{d.icon}</span>
+              <b style={{ display: 'block', fontSize: '15px' }}>{d.key}</b>
+              <small style={{ color: 'var(--muted)', display: 'block', marginTop: '4px' }}>{d.desc}</small>
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card title="Overall Score" className="">
+        <ComplianceRing pct={overallScore} label="" sub={`${counts.current} of ${allStatuses.length} current`} />
+      </Card>
+    </div>
+    <div className="two" style={{ marginBottom: '16px' }}>
+      <Card title="Compliance Overview">
+        <div className="checkline"><span style={{ flex: 1 }}>Documents expiring</span><span className={`pill ${docsExpiring ? 'amber' : 'green'}`}>{docsExpiring}</span><small style={{ color: 'var(--muted)' }}>Within 30 days</small></div>
+        <div className="checkline"><span style={{ flex: 1 }}>Policies due for review</span><span className={`pill ${policiesDue ? 'amber' : 'green'}`}>{policiesDue}</span><small style={{ color: 'var(--muted)' }}>Within 30 days</small></div>
+        <div className="checkline"><span style={{ flex: 1 }}>Audits due</span><span className={`pill ${auditsDue ? 'red' : 'green'}`}>{auditsDue}</span><small style={{ color: 'var(--muted)' }}>{auditsDue ? 'Open' : 'Up to date'}</small></div>
+        <div className="checkline"><span style={{ flex: 1 }}>Incidents open</span><span className={`pill ${incidentsOpen ? 'amber' : 'green'}`}>{incidentsOpen}</span><small style={{ color: 'var(--muted)' }}>{incidentsOpen ? 'Requires action' : 'Clear'}</small></div>
+      </Card>
+      <Card title="Upcoming" action={<button className="text-link" onClick={() => setSection('Audits')}>View all</button>}>
+        <ComplianceItemsReport items={items.slice(0, 6)} compact empty="Nothing due soon." />
+      </Card>
+    </div>
     <Card title="Compliance Workspace" action={`${items.length + openActionCount} needs review`}>
       <p>Run business compliance from daily records. Each register below becomes audit evidence automatically: risks, incidents, complaints, CAPA, internal audits, governance reviews and document control.</p>
       <div className="compliance-tabs">{COMPLIANCE_NAV.map(tab => <button key={tab} className={section === tab ? 'active' : ''} onClick={() => setSection(tab)}>{tab}</button>)}</div>
@@ -2352,6 +2739,21 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
   const updateDraft = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
   return <>
+    <Card title="Settings" action="Manage your organisation settings">
+      <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(2,1fr)', margin: '4px 0 0' }}>
+        {[
+          { icon: '▤', title: 'Business', desc: 'Business details, NDIS provider info, locations', go: () => setBusinessOpen(true) },
+          { icon: '◉', title: 'Pricing & Rates', desc: 'Manage NDIS support items and rates', go: () => setPricingOpen(true) },
+          { icon: '☁', title: 'Cloud & Sync', desc: 'Back up and restore your data', go: () => { const el = document.getElementById('settings-cloud-anchor'); el?.scrollIntoView({ behavior: 'smooth' }); } },
+          { icon: '⤓', title: 'Backup & Restore', desc: 'Export, import and system tools', go: () => { const el = document.getElementById('settings-cloud-anchor'); el?.scrollIntoView({ behavior: 'smooth' }); } },
+        ].map((s, i) => (
+          <button key={i} onClick={s.go} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', textAlign: 'left', padding: '16px', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--surface)', boxShadow: 'none' }}>
+            <span style={{ display: 'grid', placeItems: 'center', width: '40px', height: '40px', borderRadius: '11px', background: 'var(--blue-50)', color: 'var(--blue)', fontSize: '18px', flex: 'none' }}>{s.icon}</span>
+            <span><b style={{ display: 'block', fontSize: '15px' }}>{s.title}</b><small style={{ color: 'var(--muted)' }}>{s.desc}</small></span>
+          </button>
+        ))}
+      </div>
+    </Card>
     <Card title="Business Profile" action={<button type="button" className="text-link" onClick={() => setBusinessOpen(open => !open)}>{businessOpen ? 'Collapse' : 'Edit Profile'}</button>}>
       <div className="settings-summary">
         <div className="logo-preview compact">{draft.logoUrl ? <img src={draft.logoUrl} alt="Business logo" /> : <span>{(draft.name || 'KC').slice(0,2).toUpperCase()}</span>}</div>
@@ -2390,6 +2792,7 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
         onSave={() => saveBusiness({ ...draft, pricingItems: draft.pricingItems || DEFAULT_PRICING_ITEMS })}
       />}
     </Card>
+    <span id="settings-cloud-anchor" />
     <Card title="Backup, Restore & Cloud Sync"><p>Works offline with local storage. Supabase sync is tied to your signed-in account and includes your full workspace. Cloud sync is manual only. Local saves stay on this device until you press Sync to Supabase; Load from Supabase is manual.</p><button onClick={backup}>Export Backup JSON</button><label className="file">Import Backup JSON<input type="file" accept="application/json" onChange={e => e.target.files?.[0] && restore(e.target.files[0])}/></label><button className="primary" onClick={sync}>Sync to Supabase</button><button onClick={load}>Load from Supabase</button><button className="danger" onClick={clear}>Clear All Data</button></Card>
     <Card title="Data Summary"><div className="mini-stats"><b>Business: {business.name || 'Not set'}</b><b>Pricing Items: {getPricingItems(business).length}</b><b>Clients: {clients.length}</b><b>Invoices: {invoices.length}</b><b>Transactions: {transactions.length}</b></div></Card>
     <Card title="Cloud Status"><p><b>{isSupabaseConfigured ? 'Supabase Connected' : 'Local Mode'}</b></p><p>{isSupabaseConfigured ? `Signed in as ${user?.email || 'your account'}. Your cloud snapshot is private to this login.` : 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Cloudflare Pages variables, public/supabase-config.js, or the app setup screen.'}</p><p><small>Config source: {supabaseConfigSource}</small></p><button onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button></Card>
@@ -2654,8 +3057,49 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
   }).filter(x => x.rows.length);
   const viewRows = view === 'In Progress' ? filteredShifts.filter(s => s.status === 'In Progress') : view === 'Completed' ? completedShifts : view === 'Review' ? reviewQueue : view === 'Timesheets' ? completedShifts.filter(s => s.reviewStatus === 'Reviewed') : filteredShifts;
 
+  // Operations Centre alerts: late check-ins, missing notes, expired worker/participant items.
+  const now = new Date();
+  const lateCheckIns = todayShifts.filter(s => {
+    if (s.status !== 'Scheduled') return false;
+    const start = new Date(`${s.date}T${s.startTime || '00:00'}:00`);
+    return start < now;
+  });
+  const missingNotes = todayShifts.filter(s => (s.status === 'Completed' || s.endedAt) && !(s.notes || '').trim());
+  const expiredWorkerDocs = buildWorkerComplianceRows(safeWorkers).flatMap(r => r.items.filter(i => i.status.tone === 'overdue').map(i => ({ worker: r.worker, item: i })));
+  const opsAlerts = [
+    ...lateCheckIns.map(s => ({ tone: 'red', title: `${findWorker(s.workerId)?.name || 'Worker'} late check-in`, sub: `${findClient(s.participantId)?.name || 'Client'} · ${s.startTime}` })),
+    ...(missingNotes.length ? [{ tone: 'amber', title: `${missingNotes.length} shift${missingNotes.length > 1 ? 's' : ''} missing notes`, sub: 'Awaiting submission' }] : []),
+    ...expiredWorkerDocs.slice(0, 3).map(x => ({ tone: 'red', title: `${x.item.label} expired`, sub: x.worker.name || 'Worker' })),
+  ];
+
   return <>
-    <Card title="Scheduling Command Centre" action={`${filteredShifts.length} visible · ${coverageHours.toFixed(1)} scheduled hrs`}>
+    <div className="ops-stat-grid">
+      <Stat label="Today's Shifts" value={todayShifts.length} tone="navy" icon="▦" trend="Assigned today" />
+      <Stat label="Live Now" value={liveShifts.length} tone="green" icon="●" trend="Clocked in" />
+      <Stat label="Missing Clock-ins" value={lateCheckIns.length} tone="gold" icon="!" trend="Past start time" />
+      <Stat label="Pending Notes" value={reviewQueue.length} tone="violet" icon="✎" trend="Completed, need review" />
+    </div>
+    <div className="dashboard-grid" style={{ gridTemplateColumns: '2.2fr 1fr', marginBottom: '16px' }}>
+      <Card title="Operations Centre" action={`${filteredShifts.length} visible · ${coverageHours.toFixed(1)} hrs`}>
+        <p style={{ marginTop: 0 }}>Real-time overview of today's shifts and activities.</p>
+        <div className="schedule-toolbar">
+          <div className="segmented-control">{['Calendar','Assigned','In Progress','Completed','Review','Timesheets'].map(tab => <button key={tab} className={view === tab ? 'active' : ''} onClick={() => setView(tab)}>{tab}</button>)}</div>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search worker, client, notes, location…" />
+          <select value={filterWorker} onChange={e => setFilterWorker(e.target.value)}><option value="all">All workers</option>{activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name || w.email || w.employeeUsername}</option>)}</select>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="all">All statuses</option>{statusList.map(x => <option key={x}>{x}</option>)}</select>
+        </div>
+      </Card>
+      <Card title="Today's Alerts" action={opsAlerts.length ? `${opsAlerts.length}` : ''}>
+        <Records rows={opsAlerts} empty="No alerts. Today's running smoothly." render={(a, idx) => (
+          <div className="feed" key={idx}>
+            <span className={`pill ${a.tone}`} style={{ width: '32px', height: '32px', padding: 0, justifyContent: 'center', borderRadius: '9px' }}>!</span>
+            <div><b style={{ fontWeight: 600 }}>{a.title}</b><small>{a.sub}</small></div>
+          </div>
+        )} />
+      </Card>
+    </div>
+    <span style={{ display: 'none' }} aria-hidden="true">
+      <Card title="Scheduling Command Centre" action={`${filteredShifts.length} visible · ${coverageHours.toFixed(1)} scheduled hrs`}>
       <p>Manage the full shift lifecycle: assign a client shift, let the worker clock in/out, collect shift notes, review evidence, then generate timesheet and invoice/payroll status.</p>
       <div className="schedule-command-centre">
         <InsightCard label="Today" value={todayShifts.length} sub="Assigned shifts" />
