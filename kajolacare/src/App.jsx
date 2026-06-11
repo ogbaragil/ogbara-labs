@@ -1652,14 +1652,56 @@ function ParticipantDetail({ client, invoices = [], shifts = [], workers = [], o
   </>;
 }
 
+function ParticipantRow({ c, invoices, onView, onEdit, onArchive, onDelete, archivedView }) {
+  const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0);
+  const budget = Number(c.budget || 0);
+  const usedPct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+  const d = daysUntil(c.planEndDate);
+  const planTone = d === null ? 'grey' : d < 0 ? 'red' : d <= 30 ? 'amber' : 'green';
+  const planLabel = d === null ? 'No end date' : d < 0 ? 'Plan ended' : `${d} days left`;
+  const initials = (c.name || 'P').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div className="p-row">
+      <button className="p-row-main" onClick={() => onView(c.id)}>
+        <span className="p-avatar">{initials}</span>
+        <span className="p-id">
+          <b>{c.name || 'Unnamed participant'}</b>
+          <small>NDIS {c.ndisNumber || '—'}</small>
+        </span>
+        <span className="p-plan">
+          <span className={`pill ${planTone}`}>{archivedView ? 'Archived' : planLabel}</span>
+          <small>{c.planEndDate ? `Ends ${fmt(c.planEndDate)}` : 'No plan end set'}</small>
+        </span>
+        <span className="p-budget">
+          <b>{money(budget)}</b>
+          {budget ? <span className="p-bar"><span style={{ width: `${usedPct}%` }} /></span> : <small>No budget set</small>}
+          {budget ? <small>{money(spent)} used · {usedPct}%</small> : null}
+        </span>
+        <span className="p-contact">
+          <b>{c.email || '—'}</b>
+          <small>{c.phone || 'No phone'}</small>
+        </span>
+      </button>
+      <div className="p-actions">
+        <button className="ghost" onClick={() => onView(c.id)} title="View">View</button>
+        <button className="ghost" onClick={() => onEdit(c)} title="Edit">Edit</button>
+        <button className="ghost" onClick={() => onArchive(c.id)} title={archivedView ? 'Unarchive' : 'Archive'}>{archivedView ? 'Unarchive' : 'Archive'}</button>
+        <button className="ghost danger-ghost" onClick={() => onDelete(c.id)} title="Delete">Delete</button>
+      </div>
+    </div>
+  );
+}
+
 function Clients({ clients, form, setForm, editing, save, edit, archive, del, cancel, invoices = [], shifts = [], workers = [] }) {
   const [detailId, setDetailId] = useState(null);
-  const detailClient = detailId ? clients.find(c => c.id === detailId) : null;
-  if (detailClient) return <ParticipantDetail client={detailClient} invoices={invoices} shifts={shifts} workers={workers} onBack={() => setDetailId(null)} onEdit={(c) => { setDetailId(null); edit(c); }} />;
-  const active = clients.filter(c => !c.archived);
-  const archived = clients.filter(c => c.archived);
+  const [showForm, setShowForm] = useState(false);
   const [query, setQuery] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
+  const [showArchived, setShowArchived] = useState(false);
+  const detailClient = detailId ? clients.find(c => c.id === detailId) : null;
+  if (detailClient) return <ParticipantDetail client={detailClient} invoices={invoices} shifts={shifts} workers={workers} onBack={() => setDetailId(null)} onEdit={(c) => { setDetailId(null); edit(c); setShowForm(true); }} />;
+  const active = clients.filter(c => !c.archived);
+  const archived = clients.filter(c => c.archived);
   const matchesQuery = (c) => !query || [c.name, c.ndisNumber, c.email, c.phone, c.address].join(' ').toLowerCase().includes(query.toLowerCase());
   const matchesPlan = (c) => {
     if (planFilter === 'all') return true;
@@ -1670,9 +1712,48 @@ function Clients({ clients, form, setForm, editing, save, edit, archive, del, ca
     return true;
   };
   const filteredActive = active.filter(c => matchesQuery(c) && matchesPlan(c));
-  const ClientTable = ({ rows, archivedView = false }) => <div className="client-table"><div className="client-table-head"><span>Participant</span><span>Plan</span><span>Budget</span><span>Contact</span><span>Actions</span></div><Records rows={rows} empty={archivedView ? 'No archived clients.' : (query || planFilter !== 'all' ? 'No participants match your filters.' : 'No active participants added yet.')} render={c => { const spent = invoices.filter(i => i.clientId === c.id).reduce((s, i) => s + Number(i.total || 0), 0); const budget = Number(c.budget || 0); const usedPct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0; return <div className="client-table-row" key={c.id}><div style={{ cursor: 'pointer' }} onClick={() => setDetailId(c.id)}><b>{c.name}</b><small>{c.ndisNumber ? `NDIS ${c.ndisNumber}` : (c.address || '-')}</small></div><div><b>{fmt(c.planEndDate)}</b><small>{(() => { const d = daysUntil(c.planEndDate); return d === null ? 'No end date' : d < 0 ? 'Plan ended' : `${d} days left`; })()}</small></div><div><b>{money(budget)}</b>{budget ? <div className="bar" style={{ marginTop: '6px' }}><span style={{ width: `${usedPct}%` }} /></div> : <small>No budget set</small>}</div><div><b>{c.email || '-'}</b><small>{c.phone || '-'}</small></div><div className="actions"><button onClick={() => setDetailId(c.id)}>View</button><button onClick={() => edit(c)}>Edit</button><button onClick={() => archive(c.id)}>{archivedView ? 'Unarchive' : 'Archive'}</button><button className="danger" onClick={() => del(c.id)}>Delete</button></div></div>; }} /></div>;
-  const participantFilters = <div className="filters"><div className="search inline-search"><input placeholder="Search participants…" value={query} onChange={e => setQuery(e.target.value)} /></div><select value={planFilter} onChange={e => setPlanFilter(e.target.value)} style={{ width: 'auto', minWidth: '150px' }}><option value="all">All plans</option><option value="active">Active plans</option><option value="expiring">Expiring (30 days)</option><option value="ended">Ended plans</option></select></div>;
-  return <><Card title={editing ? 'Edit Participant' : 'Add Participant'}><div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div><button className="primary" onClick={save}>{editing ? 'Update Participant' : 'Save Participant'}</button>{editing && <button onClick={cancel}>Cancel Edit</button>}</Card><Card title="Participants" action={participantFilters}><div style={{ marginBottom: '6px', color: 'var(--muted)', fontSize: '13px' }}>{filteredActive.length} of {active.length} shown</div><ClientTable rows={filteredActive} /></Card><Card title="Archived Participants" action={`${archived.length} archived`}><details className="archived-participants"><summary>Show archived participants</summary><ClientTable rows={archived} archivedView /></details></Card></>;
+  const formIsOpen = showForm || editing;
+
+  // Summary stats
+  const totalBudget = active.reduce((s, c) => s + Number(c.budget || 0), 0);
+  const expiringSoon = active.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d >= 0 && d <= 30; }).length;
+
+  return <>
+    <div className="ops-stat-grid">
+      <Stat label="Active Participants" value={active.length} tone="navy" icon="◉" trend="Currently supported" />
+      <Stat label="Total Plan Budget" value={money(totalBudget)} tone="teal" icon="$" trend="Across active plans" />
+      <Stat label="Plans Expiring" value={expiringSoon} tone="gold" icon="!" trend="Within 30 days" />
+      <Stat label="Archived" value={archived.length} tone="violet" icon="▢" trend="Past participants" />
+    </div>
+
+    <Card
+      title="Participants"
+      action={<div className="filters">
+        <div className="search inline-search"><input placeholder="Search participants…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+        <select value={planFilter} onChange={e => setPlanFilter(e.target.value)} className="filter-select"><option value="all">All plans</option><option value="active">Active plans</option><option value="expiring">Expiring (30 days)</option><option value="ended">Ended plans</option></select>
+        <button className="primary" onClick={() => { setShowForm(true); if (editing) cancel(); setTimeout(() => document.getElementById('participant-form-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); }}>+ Add Participant</button>
+      </div>}
+    >
+      <div className="list-meta">{filteredActive.length} of {active.length} shown</div>
+      <div className="p-list">
+        {filteredActive.length
+          ? filteredActive.map(c => <ParticipantRow key={c.id} c={c} invoices={invoices} onView={setDetailId} onEdit={(x) => { edit(x); setShowForm(true); setTimeout(() => document.getElementById('participant-form-anchor')?.scrollIntoView({ behavior: 'smooth' }), 30); }} onArchive={archive} onDelete={del} />)
+          : <p className="empty">{query || planFilter !== 'all' ? 'No participants match your filters.' : 'No active participants yet. Add your first to get started.'}</p>}
+      </div>
+    </Card>
+
+    {archived.length > 0 && <Card title="Archived Participants" action={<button className="text-link" onClick={() => setShowArchived(v => !v)}>{showArchived ? 'Hide' : `Show ${archived.length}`}</button>}>
+      {showArchived
+        ? <div className="p-list">{archived.map(c => <ParticipantRow key={c.id} c={c} invoices={invoices} onView={setDetailId} onEdit={(x) => { edit(x); setShowForm(true); }} onArchive={archive} onDelete={del} archivedView />)}</div>
+        : <p className="empty">{archived.length} archived participant{archived.length > 1 ? 's' : ''}. Click "Show" to view.</p>}
+    </Card>}
+
+    <span id="participant-form-anchor" />
+    {formIsOpen && <Card title={editing ? 'Edit Participant' : 'Add Participant'} action={<button className="ghost" onClick={() => { setShowForm(false); if (editing) cancel(); }}>Close</button>}>
+      <div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div>
+      <button className="primary" onClick={() => { save(); setShowForm(false); }}>{editing ? 'Update Participant' : 'Save Participant'}</button>{editing && <button onClick={() => { cancel(); setShowForm(false); }}>Cancel Edit</button>}
+    </Card>}
+  </>;
 }
 
 function BillingPipeline({ invoices }) {
@@ -2528,24 +2609,25 @@ function WorkersWorkspace({ workers = [], shifts = [], clients = [], onManage = 
       title="Workers"
       action={<div className="filters"><div className="search inline-search"><input placeholder="Search workers…" value={query} onChange={e => setQuery(e.target.value)} /></div><button className="primary" onClick={() => onManage()}>+ Add Worker</button></div>}
     >
-      <Records rows={filtered} empty="No workers yet. Add your first team member to get started." render={({ worker, items, overall }) => (
-        <div className="client-table-row worker-roster-row" key={worker.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '14px', alignItems: 'center', padding: '14px 6px' }}>
-          <div className="mini-avatar">{(worker.name || 'W').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</div>
-          <div>
-            <b>{worker.name || 'Unnamed worker'}</b>
-            <small style={{ display: 'block', color: 'var(--muted)' }}>{worker.role || 'Support Worker'}{worker.email ? ` · ${worker.email}` : ''}</small>
-          </div>
-          <div className="worker-compliance-dots" style={{ display: 'flex', gap: '6px' }}>
-            {items.slice(0, 5).map((it, idx) => (
-              <span key={idx} className={`pill ${toneClass(it.status.tone)}`} title={`${it.label}: ${it.status.label}`} style={{ width: '26px', height: '26px', padding: 0, justifyContent: 'center', borderRadius: '8px' }}>{it.label?.[0] || '•'}</span>
-            ))}
-          </div>
-          <div className="actions" style={{ margin: 0 }}>
+      <div className="list-meta">{filtered.length} of {workers.length} shown</div>
+      <div className="p-list">
+        <Records rows={filtered} empty="No workers yet. Add your first team member to get started." render={({ worker, items, overall }) => (
+          <div className="w-row" key={worker.id}>
+            <span className="p-avatar">{(worker.name || 'W').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</span>
+            <div className="w-id">
+              <b>{worker.name || 'Unnamed worker'}</b>
+              <small>{worker.role || 'Support Worker'}{worker.email ? ` · ${worker.email}` : ''}</small>
+            </div>
+            <div className="w-dots">
+              {items.slice(0, 5).map((it, idx) => (
+                <span key={idx} className={`doc-dot ${toneClass(it.status.tone)}`} title={`${it.label}: ${it.status.label}`}>{it.label?.[0] || '•'}</span>
+              ))}
+            </div>
             <span className={`pill ${toneClass(overall.tone)}`}>{overall.label}</span>
             <button className="ghost" onClick={() => onManage(worker)}>Manage</button>
           </div>
-        </div>
-      )} />
+        )} />
+      </div>
     </Card>
   </>;
 }
@@ -3211,22 +3293,48 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
         <button type="button" onClick={clearShiftSelection} disabled={!selectedShiftIds.length}>Clear</button>
         <button type="button" className="danger" onClick={deleteSelectedShifts} disabled={!selectedShiftIds.length}>Delete selected</button>
       </div>
-      <div className="client-table schedule-register"><div className="client-table-head"><span>Select</span><span>Shift</span><span>Worker</span><span>Client / Service</span><span>Evidence</span><span>Actions</span></div><Records rows={viewRows} empty="No shifts match this view." render={shift => {
+      <div className="shift-list"><Records rows={viewRows} empty="No shifts match this view." render={shift => {
         const worker = findWorker(shift.workerId);
         const client = findClient(shift.participantId);
         const late = (shift.status || 'Scheduled') === 'Scheduled' && `${shift.date || ''}T${shift.startTime || '00:00'}` < nowKey;
         const opened = detailId === shift.id;
-        return <div className="client-table-row schedule-row-expanded" key={shift.id}>
-          <label className="shift-select-cell"><input type="checkbox" checked={selectedShiftIds.includes(shift.id)} onChange={() => toggleShiftSelection(shift.id)} /><span>Select</span></label>
-          <div><b>{fmt(shift.date)} · {shift.startTime}–{shift.endTime}</b><small>{shift.location || client?.address || 'No address'} · {scheduledHours(shift).toFixed(1)} scheduled hrs{shift.recurrenceLabel ? ` · ${shift.recurrenceLabel}` : ''}</small></div>
-          <div><b>{worker?.name || shift.workerName || 'Unassigned'}</b><small>{worker?.employeeUsername ? `@${worker.employeeUsername}` : (worker?.email || shift.workerEmail || 'No login')}</small></div>
-          <div><b>{client?.name || shift.participantName || 'Participant missing'}</b><small>{shift.supportType || 'No service type'} · {shift.adminNotes || 'No admin notes'}</small></div>
-          <div><span className={`traffic-pill ${late ? 'overdue' : getShiftTone(shift.status)}`}>{late ? 'Needs review' : shift.status || 'Scheduled'}</span><small>In {timeOnly(shift.startedAt)} · Out {timeOnly(shift.endedAt)} · Actual {(actualHours(shift) || 0).toFixed(2)} hrs</small></div>
-          <div className="actions"><button onClick={() => setDetailId(opened ? null : shift.id)}>{opened ? 'Hide' : 'Details'}</button><button onClick={() => editShift(shift)}>Edit</button><button onClick={() => duplicateShift(shift)}>Duplicate</button><button className="danger" onClick={() => deleteShift(shift.id)}>Delete</button></div>
-          {opened && <div className="shift-detail-drawer">
-            <div><small>Clock-in</small><b>{dateTime(shift.startedAt)}</b></div><div><small>Clock-out</small><b>{dateTime(shift.endedAt)}</b></div><div><small>Actual duration</small><b>{(actualHours(shift) || 0).toFixed(2)} hrs</b></div><div><small>Review status</small><b>{shift.reviewStatus || 'Not reviewed'}</b></div>
-            <section><small>Worker shift notes</small><p>{shift.notes || 'No worker notes submitted yet.'}</p></section>
-            <section><small>Admin instructions</small><p>{shift.adminNotes || 'No admin instructions entered.'}</p></section>
+        const tone = late ? 'red' : ({ Completed: 'green', 'In Progress': 'blue', Cancelled: 'grey', Missed: 'red', 'Awaiting Notes': 'amber' }[shift.status]) || 'amber';
+        const statusLabel = late ? 'Needs review' : (shift.status === 'In Progress' ? 'Live' : shift.status || 'Scheduled');
+        return <div className={`shift-card ${opened ? 'open' : ''}`} key={shift.id}>
+          <div className="shift-card-top">
+            <label className="shift-check" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedShiftIds.includes(shift.id)} onChange={() => toggleShiftSelection(shift.id)} /></label>
+            <div className="shift-time">
+              <b>{shift.startTime}–{shift.endTime}</b>
+              <small>{fmt(shift.date)}</small>
+            </div>
+            <div className="shift-people">
+              <div className="shift-line"><span className="shift-ic">◈</span><b>{worker?.name || shift.workerName || 'Unassigned'}</b>{worker?.employeeUsername ? <small>@{worker.employeeUsername}</small> : null}</div>
+              <div className="shift-line"><span className="shift-ic">◉</span><b>{client?.name || shift.participantName || 'Participant missing'}</b><small>· {shift.supportType || 'No service'}</small></div>
+            </div>
+            <div className="shift-meta">
+              <span className={`pill ${tone}`}>{statusLabel}</span>
+              <small>{scheduledHours(shift).toFixed(1)} hrs scheduled</small>
+              <small>{(actualHours(shift) ? `${actualHours(shift).toFixed(2)} hrs actual` : 'Not clocked')}</small>
+            </div>
+            <div className="shift-actions">
+              <button className="ghost" onClick={() => setDetailId(opened ? null : shift.id)}>{opened ? 'Hide' : 'Details'}</button>
+              <button className="ghost" onClick={() => editShift(shift)}>Edit</button>
+              <button className="ghost" onClick={() => duplicateShift(shift)}>Duplicate</button>
+              <button className="ghost danger-ghost" onClick={() => deleteShift(shift.id)}>Delete</button>
+            </div>
+          </div>
+          {shift.location && <div className="shift-loc">📍 {shift.location || client?.address}</div>}
+          {opened && <div className="shift-drawer">
+            <div className="shift-drawer-grid">
+              <div><small>Clock-in</small><b>{dateTime(shift.startedAt)}</b></div>
+              <div><small>Clock-out</small><b>{dateTime(shift.endedAt)}</b></div>
+              <div><small>Actual duration</small><b>{(actualHours(shift) || 0).toFixed(2)} hrs</b></div>
+              <div><small>Review status</small><b>{shift.reviewStatus || 'Not reviewed'}</b></div>
+            </div>
+            <div className="shift-drawer-notes">
+              <div><small>Worker shift notes</small><p>{shift.notes || 'No worker notes submitted yet.'}</p></div>
+              <div><small>Admin instructions</small><p>{shift.adminNotes || 'No admin instructions entered.'}</p></div>
+            </div>
             <div className="actions"><button disabled={shift.status !== 'Completed'} onClick={() => reviewShift(shift)}>Mark Reviewed</button><button disabled={shift.reviewStatus !== 'Reviewed'} onClick={() => generateTimesheet(shift)}>Generate Timesheet</button><button disabled={shift.reviewStatus !== 'Reviewed'} onClick={() => markInvoiceReady(shift)}>Mark Invoice Ready</button></div>
           </div>}
         </div>;
