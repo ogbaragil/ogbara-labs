@@ -442,20 +442,6 @@ function renderForm(editing=false) {
     <label>Birth month (1–12)</label><input type="number" id="fMonth" placeholder="e.g. 7" min="1" max="12">
     <label>Birth year</label><input type="number" id="fYear" placeholder="e.g. 1995">
     <div class="err" id="fErr" hidden></div>`;
-  if (!editing && window.Cloud) {
-    // Returning user on a new device: sign in first and the cloud profile +
-    // grid load straight in (the post-sign-in pull applies them and re-renders).
-    const alt = el("div","signin-alt");
-    alt.appendChild(el("p","alt-q","Already using Life Grid on another device?"));
-    const sb = el("button","btn btn-soft alt-btn","☁️ Sign in to restore your grid");
-    sb.onclick = () => {
-      const chip = document.getElementById("cloudChip");
-      if (chip) chip.click();
-      else confirmDialog("Cloud sync isn't configured on this deployment.", "OK", false);
-    };
-    alt.appendChild(sb);
-    card.appendChild(alt);
-  }
   const nameI = card.querySelector("#fName"), monI = card.querySelector("#fMonth"), yrI = card.querySelector("#fYear"), err = card.querySelector("#fErr");
   if (editing && profile){ nameI.value=profile.name; monI.value=profile.birthMonthIndex+1; yrI.value=profile.birthYear; }
   const submit = () => {
@@ -475,7 +461,21 @@ function renderForm(editing=false) {
     const save = el("button","btn btn-save","Save"); save.onclick = submit;
     row.append(cancel,save); card.appendChild(row);
   } else {
-    const go = el("button","btn btn-primary","Continue to my life grid"); go.onclick = submit; card.appendChild(go);
+    const go = el("button","btn btn-primary","Create my life grid"); go.onclick = submit; card.appendChild(go);
+    if (window.Cloud) {
+      // Returning user on a new device: sign in first and the cloud profile +
+      // grid load straight in (the post-sign-in pull applies them and re-renders).
+      const alt = el("div","signin-alt");
+      alt.appendChild(el("p","alt-q","Already using Life Grid on another device?"));
+      const sb = el("button","btn btn-soft alt-btn","☁️ Sign in to restore your grid");
+      sb.onclick = () => {
+        const chip = document.getElementById("cloudChip");
+        if (chip) chip.click();
+        else confirmDialog("Cloud sync isn't configured on this deployment.", "OK", false);
+      };
+      alt.appendChild(sb);
+      card.appendChild(alt);
+    }
   }
   root.appendChild(card);
 }

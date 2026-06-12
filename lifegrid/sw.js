@@ -1,5 +1,5 @@
 /* Life Grid — your life in months service worker */
-const CACHE = "lifegrid-v25";
+const CACHE = "lifegrid-v26";
 const ASSETS = ["./","./manifest.webmanifest","./supabase-config.js","./cloud.js",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
   "./icons/apple-touch-icon.png","./icons/favicon-32.png"];
