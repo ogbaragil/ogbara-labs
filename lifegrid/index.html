@@ -1021,14 +1021,13 @@ function renderGrid() {
   const rb2 = reflectButton(); if (rb2) root.appendChild(rb2);
 
 
-  root.appendChild(el("div","legend",
+  const scroll = el("div","grid-scroll");
+  // Legend scrolls away with the content; only the month row stays pinned.
+  scroll.appendChild(el("div","legend",
     `<span><i class="swatch"></i>Empty</span>
      <span><i class="swatch filled"></i>Story / photos</span>
      <span><i class="swatch mile"></i>Milestone</span>
      <span><i class="swatch today"></i>Today</span>`));
-
-
-  const scroll = el("div","grid-scroll");
   // Floating calendar-month header. Column 0 of every row is the user's birth
   // month, so a single 12-label strip (offset from the birth month) labels them all.
   const bmi = (profile && Number.isInteger(profile.birthMonthIndex)) ? profile.birthMonthIndex : 0;
