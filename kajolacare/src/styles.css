@@ -451,7 +451,10 @@ textarea{min-height:96px;resize:vertical}
 .compact-actions button{width:auto;padding:8px 10px;margin:0;font-size:12px}
 :root[data-theme="light"] .brand h1,:root[data-theme="light"] .crown,:root[data-theme="light"] .nav-icon{filter:none}
 :root[data-theme="light"] input,:root[data-theme="light"] select,:root[data-theme="light"] textarea,:root[data-theme="light"] .search,:root[data-theme="light"] .period-select{box-shadow:0 1px 0 rgba(255,255,255,.9)}
-.kajola-mark.compact{width:38px;height:38px;border-radius:12px}
+.kajola-mark{display:inline-flex;flex:none;align-items:center;justify-content:center}
+.kajola-mark img{width:40px;height:40px;border-radius:11px;background:#fff;padding:5px;display:block;object-fit:contain;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.kajola-mark.compact img{width:36px;height:36px;border-radius:10px;padding:4px}
+.kajola-mark.compact{width:auto;height:auto;border-radius:0}
 .kajola-wordmark.compact{font-size:20px}
 .mobile-brand .kajola-wordmark{font-size:18px}
 .client-table,.txn-table,.pricing-table-wrap{overflow:auto;border:1px solid var(--line2);border-radius:18px;background:var(--panel2)}
@@ -1392,3 +1395,91 @@ label.field{display:flex;flex-direction:column;gap:6px}
 .worker-search input{width:100%;height:44px;padding:0 40px 0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:14px}
 .worker-search-clear{position:absolute;right:6px;top:6px;width:32px;height:32px;border-radius:8px;padding:0;font-size:20px;line-height:1;justify-content:center;color:var(--muted);background:transparent;border:0;box-shadow:none}
 .worker-search-clear:hover{background:var(--surface-2);box-shadow:none}
+
+/* ============================================================================
+   WORKER PORTAL — modern redesign (page by page). Overrides earlier rules.
+   ========================================================================== */
+.worker-shell{min-height:100vh;background:var(--canvas);padding-bottom:84px}
+.worker-main{max-width:760px;margin:0 auto;padding:18px 16px 40px;background:transparent;min-height:0}
+
+/* Header */
+.worker-top{padding:14px 20px;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.worker-top b{font-size:15px;color:var(--ink)}
+.worker-top small{text-transform:uppercase;letter-spacing:.14em;font-weight:700;font-size:10px;color:var(--muted)}
+.worker-top .ghost{padding:8px 14px;font-size:13px}
+
+/* Dashboard hero (fixes the 0Today glitch) */
+.worker-hero.worker-dashboard-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px;border-radius:18px;margin:0 0 14px;background:linear-gradient(135deg,var(--navy),#13407e);border:0;box-shadow:var(--shadow)}
+.worker-dashboard-hero>div{min-width:0}
+.worker-dashboard-hero small{color:rgba(255,255,255,.7);font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.worker-dashboard-hero h1{color:#fff;font-size:24px;margin:4px 0 8px;line-height:1.1}
+.worker-dashboard-hero p{color:rgba(255,255,255,.82);font-size:13.5px;line-height:1.45;margin:0}
+.worker-hero-card{flex:none;width:84px;height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:16px;box-shadow:none}
+.worker-hero-card span{font-size:30px;font-weight:800;color:#fff;line-height:1}
+.worker-hero-card small{font-size:11px;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+
+/* Next shift card */
+.worker-next-shift{display:flex;justify-content:space-between;gap:16px;align-items:center;border-radius:16px;padding:18px;margin:0 0 14px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+.worker-next-shift small{text-transform:uppercase;letter-spacing:.06em;font-size:11px;font-weight:700;color:var(--blue)}
+.worker-next-shift h2{margin:6px 0 4px;font-size:18px;color:var(--ink)}
+.worker-next-shift p{margin:0;color:var(--muted);font-size:13.5px}
+.worker-next-shift .primary{flex:none;padding:12px 20px;border-radius:12px}
+
+/* Summary stat grid */
+.worker-summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 14px}
+.worker-summary-grid>div{border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.worker-summary-grid small{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.worker-summary-grid b{display:block;font-size:26px;margin-top:6px;color:var(--ink);font-weight:800}
+
+/* View heading (Week/Month/Notes/All) */
+.worker-view-heading{border-radius:16px;padding:20px;margin-bottom:14px;background:linear-gradient(135deg,var(--navy),#13407e);border:0}
+.worker-view-heading small{color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:700}
+.worker-view-heading h1{color:#fff;font-size:22px;margin:4px 0 8px}
+.worker-view-heading p{color:rgba(255,255,255,.82);font-size:13.5px;line-height:1.45;margin:0}
+
+/* Notices */
+.worker-notice{border-radius:14px;padding:16px 18px;margin:0 0 14px;background:var(--amber-50);border:1px solid #f5dcb3}
+.worker-notice b{display:block;margin-bottom:4px;color:var(--ink)}
+.worker-notice span{display:block;line-height:1.5;color:var(--ink-2);font-size:13.5px}
+
+/* Shift list + cards */
+.worker-shift-list{background:transparent;border:0;box-shadow:none;padding:0}
+.worker-shift-card{border:1px solid var(--line);border-radius:16px;padding:18px;margin:0 0 12px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.worker-shift-head h3{margin:4px 0 0;font-size:19px;letter-spacing:-.01em;color:var(--ink)}
+.worker-client-block h3{font-size:18px;margin:2px 0;color:var(--ink)}
+.worker-client-block p{margin:0;font-weight:600;color:var(--muted);font-size:13.5px}
+
+/* Quick details */
+.worker-quick-details{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.worker-quick-details>div{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--surface-2)}
+.worker-quick-details small{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.worker-quick-details b{font-size:14px;color:var(--ink);margin-top:5px}
+.worker-quick-details span{font-size:12px;color:var(--muted);margin-top:3px}
+
+/* Single action buttons */
+.worker-single-action button{min-height:50px;border-radius:12px;font-size:15px;font-weight:700}
+
+/* Empty / collapse groups */
+.worker-empty-state{border:1px dashed var(--line-2);border-radius:14px;padding:24px;text-align:center;color:var(--muted);font-weight:600;background:var(--surface);margin:0}
+.worker-collapse-group{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm)}
+.worker-collapse-head{padding:15px 16px;background:var(--surface)}
+.worker-collapse-head:hover{background:var(--surface-2)}
+.worker-collapse-head b{font-size:15px;color:var(--ink)}
+.worker-collapse-head small{font-weight:600;color:var(--muted);font-size:12.5px}
+.worker-collapse-head em{width:30px;height:30px;border-radius:9px;background:var(--surface-2);color:var(--muted);font-size:16px}
+
+/* Bottom nav */
+.worker-bottom-nav{padding:6px 8px;box-shadow:0 -2px 12px rgba(15,27,45,.06)}
+.worker-bottom-nav button{flex:1;border:0;background:transparent;box-shadow:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;color:var(--muted);font-size:11px;border-radius:10px}
+.worker-bottom-nav button span{font-size:18px}
+.worker-bottom-nav button small{font-size:11px;font-weight:600}
+.worker-bottom-nav button.active{color:var(--blue);background:var(--blue-50)}
+
+@media(max-width:560px){
+  .worker-dashboard-hero{flex-direction:column;align-items:flex-start}
+  .worker-hero-card{flex-direction:row;width:auto;height:auto;gap:8px;padding:8px 14px;align-self:stretch;justify-content:center}
+  .worker-hero-card span{font-size:22px}
+  .worker-next-shift{flex-direction:column;align-items:stretch}
+  .worker-next-shift .primary{width:100%}
+  .worker-quick-details{grid-template-columns:1fr}
+}
