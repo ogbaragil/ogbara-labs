@@ -304,14 +304,37 @@ const normaliseInvoiceStatus = (status) => {
 async function syncSnapshot(payload, user) {
   if (!supabase) return { ok: false, message: 'Cloud sync is not configured.' };
   if (!user?.id) return { ok: false, message: 'Please sign in first.' };
+  // Resolve the LIVE authenticated user. RLS on app_snapshots requires the row's
+  // user_id to equal auth.uid(); if the session token has expired, the React `user`
+  // can be stale while auth.uid() is null, which causes "new row violates RLS policy".
+  let authId = user.id;
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id) {
+      authId = authData.user.id;
+    } else {
+      // Try to refresh an expired session before giving up.
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed?.user?.id) authId = refreshed.user.id;
+      else return { ok: false, message: 'Your session has expired. Please sign out and sign in again to sync.' };
+    }
+  } catch {
+    return { ok: false, message: 'Could not verify your session. Please sign in again to sync.' };
+  }
   const safePayload = normalisePayload(payload);
   const { error } = await supabase.from('app_snapshots').upsert({
-    id: user.id,
-    user_id: user.id,
+    id: authId,
+    user_id: authId,
     payload: safePayload,
     updated_at: new Date().toISOString(),
-  });
-  return error ? { ok: false, message: error.message } : { ok: true, message: 'Cloud sync complete.' };
+  }, { onConflict: 'id' });
+  if (error) {
+    const msg = /row-level security/i.test(error.message || '')
+      ? 'Cloud sync was blocked by a security policy. Please sign out and sign in again; if it persists, re-run the latest database schema in Supabase.'
+      : error.message;
+    return { ok: false, message: msg };
+  }
+  return { ok: true, message: 'Cloud sync complete.' };
 }
 async function loadSnapshot(user) {
   if (!supabase) return { ok: false, message: 'Cloud sync is not configured.' };

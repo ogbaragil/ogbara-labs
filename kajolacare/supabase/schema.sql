@@ -64,11 +64,14 @@ create table if not exists public.transactions (
 
 create table if not exists public.app_snapshots (
   id text primary key,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- If the table already exists from an earlier version, ensure the default is set.
+alter table public.app_snapshots alter column user_id set default auth.uid();
 
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -106,7 +109,14 @@ drop policy if exists transactions_policy on public.transactions;
 create policy transactions_policy on public.transactions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists app_snapshots_policy on public.app_snapshots;
-create policy app_snapshots_policy on public.app_snapshots for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists app_snapshots_select on public.app_snapshots;
+drop policy if exists app_snapshots_insert on public.app_snapshots;
+drop policy if exists app_snapshots_update on public.app_snapshots;
+drop policy if exists app_snapshots_delete on public.app_snapshots;
+create policy app_snapshots_select on public.app_snapshots for select using (auth.uid() = user_id);
+create policy app_snapshots_insert on public.app_snapshots for insert with check (auth.uid() = user_id);
+create policy app_snapshots_update on public.app_snapshots for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy app_snapshots_delete on public.app_snapshots for delete using (auth.uid() = user_id);
 
 drop policy if exists invoice_lines_policy on public.invoice_lines;
 create policy invoice_lines_policy
