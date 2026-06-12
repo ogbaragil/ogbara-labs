@@ -612,6 +612,37 @@ export default function App() {
   const showNotice = (message) => { setNotice(message); setTimeout(() => setNotice(''), 4200); };
 
 
+  // Publish worker/employee changes (e.g. password reset) to the cloud immediately,
+  // so employee-portal logins authenticate against the updated credentials.
+  const publishWorkers = async (nextWorkers) => {
+    const cleanWorkers = normaliseWorkers(nextWorkers || workers);
+    if (!user?.id || !supabase) {
+      showNotice('Saved locally. Connect cloud sync so employees can sign in from their own devices.');
+      return { ok: false, message: 'Cloud sync is not configured.' };
+    }
+    try {
+      const cloud = await loadSnapshot(user);
+      const base = cloud.ok && cloud.payload ? normalisePayload(cloud.payload) : currentPayload();
+      const nextPayload = normalisePayload({
+        ...base,
+        workers: cleanWorkers,
+        _meta: { sectionsUpdatedAt: { ...(base._meta?.sectionsUpdatedAt || {}), workers: new Date().toISOString() } }
+      });
+      const r = await syncSnapshot(nextPayload, user);
+      if (r.ok) {
+        lastCloudSnapshotRef.current = serialisePayload(nextPayload);
+        showNotice('Employee login updated. The worker can now sign in with their new password.');
+      } else {
+        showNotice(`Saved locally, but cloud update failed: ${r.message}. Employees may not be able to sign in until you Sync to Cloud.`);
+      }
+      return r;
+    } catch (error) {
+      const msg = error?.message || 'Unknown error';
+      showNotice(`Saved locally, but cloud update failed: ${msg}.`);
+      return { ok: false, message: msg };
+    }
+  };
+
   const publishScheduleChanges = async ({ nextShifts, nextInvoices = invoices, message = 'Schedule changes published to employee portal.' } = {}) => {
     const cleanShifts = normaliseShifts(nextShifts || shifts);
     const cleanInvoices = Array.isArray(nextInvoices) ? nextInvoices : invoices;
@@ -987,7 +1018,7 @@ export default function App() {
       {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={(worker) => { setFocusWorker(worker || 'new'); setComplianceSection('Employees'); setActive('Compliance'); }} />}
       {active === 'Invoices' && <Invoices pricingItems={pricingItems} clients={clients.filter(c => !c.archived)} invoices={invoices} form={invoiceForm} setForm={setInvoiceForm} editing={editingInvoice} setLine={setLine} selectItem={selectItem} addLine={() => setInvoiceForm(p => ({ ...p, lines: [...p.lines, emptyLine()] }))} removeLine={lid => setInvoiceForm(p => p.lines.length === 1 ? p : ({ ...p, lines: p.lines.filter(l => l.id !== lid) }))} save={saveInvoice} edit={editInvoice} del={id => { setInvoices(p => p.filter(i => i.id !== id)); setTransactions(p => p.filter(t => t.invoiceId !== id)); }} exportPDF={exportPDF} onStatusChange={updateInvoiceStatus} cancel={() => { setEditingInvoice(null); setInvoiceForm(emptyInvoice()); }}/>} 
       {active === 'Finance' && <FinanceWorkspace business={business} clients={clients.filter(c => !c.archived)} transactions={transactions} invoices={invoices} form={txnForm} setForm={setTxnForm} editing={editingTxn} save={saveTxn} edit={editTxn} updateStatus={updateTxnStatus} del={id => setTransactions(p => p.filter(t => t.id !== id))} cancel={() => { setEditingTxn(null); setTxnForm(emptyTxn); }}/>} 
-      {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} focusWorker={focusWorker} onWorkerFocusHandled={() => setFocusWorker(null)} />}
+      {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} focusWorker={focusWorker} onWorkerFocusHandled={() => setFocusWorker(null)} onPublishWorkers={publishWorkers} />}
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} shifts={shifts} invoices={invoices} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={publishScheduleChanges} />}
       {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
@@ -1100,7 +1131,7 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
       {active === 'Participants' && <MobileParticipants clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={cancelClient} />}
       {active === 'Invoices' && <MobileInvoices pricingItems={pricingItems} clients={activeClients} invoices={invoices} form={invoiceForm} setForm={setInvoiceForm} editing={editingInvoice} setLine={setLine} selectItem={selectItem} addLine={addLine} removeLine={removeLine} save={saveInvoice} edit={editInvoice} del={deleteInvoice} exportPDF={exportPDF} onStatusChange={updateInvoiceStatus} cancel={cancelInvoice} />}
       {active === 'Finance' && <MobileFinance business={business} clients={activeClients} transactions={transactions} form={txnForm} setForm={setTxnForm} editing={editingTxn} save={saveTxn} edit={editTxn} del={deleteTxn} cancel={cancelTxn} />}
-      {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} />}
+      {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} onPublishWorkers={publishWorkers} />}
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} />}
       {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={() => setActive('Compliance')} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={onPublishSchedule} />}
@@ -2733,7 +2764,7 @@ function WorkersWorkspace({ workers = [], shifts = [], clients = [], onManage = 
   </>;
 }
 
-function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness, saveBusiness, workers = [], setWorkers = () => {}, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, initialSection = 'Employees', onSectionChange = () => {}, focusWorker = null, onWorkerFocusHandled = () => {} }) {
+function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness, saveBusiness, workers = [], setWorkers = () => {}, onPublishWorkers = null, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, initialSection = 'Employees', onSectionChange = () => {}, focusWorker = null, onWorkerFocusHandled = () => {} }) {
   const [section, setSectionState] = useState(initialSection || 'Employees');
   useEffect(() => { if (initialSection && initialSection !== section) setSectionState(initialSection); }, [initialSection]);
   const setSection = (next) => { setSectionState(next); onSectionChange(next); };
@@ -2767,16 +2798,26 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
     const savedWorker = normaliseWorker(workerDraft);
     savedWorker.employeeUsername = normaliseUsername(savedWorker.employeeUsername || savedWorker.username);
     if (savedWorker.employeeUsername && workers.some(w => w.id !== editingWorkerId && normaliseUsername(w.employeeUsername || w.username) === savedWorker.employeeUsername)) return alert('Employee username must be unique.');
+    let passwordChanged = false;
     if (savedWorker.temporaryPassword) {
       savedWorker.employeePasswordHash = employeePasswordHash(savedWorker.temporaryPassword);
       savedWorker.mustChangePassword = true;
       savedWorker.lastPasswordResetAt = new Date().toISOString();
       delete savedWorker.temporaryPassword;
+      passwordChanged = true;
     }
     if (savedWorker.employeeUsername && !savedWorker.employeePasswordHash) return alert('Set or generate a password for this employee login.');
-    if (editingWorkerId) setWorkers(prev => prev.map(w => w.id === editingWorkerId ? { ...savedWorker, id: editingWorkerId, updatedAt: new Date().toISOString() } : w));
-    else setWorkers(prev => [{ ...savedWorker, id: savedWorker.id || makeId('worker'), createdAt: new Date().toISOString() }, ...prev]);
+    const nextWorkers = editingWorkerId
+      ? workers.map(w => w.id === editingWorkerId ? { ...savedWorker, id: editingWorkerId, updatedAt: new Date().toISOString() } : w)
+      : [{ ...savedWorker, id: savedWorker.id || makeId('worker'), createdAt: new Date().toISOString() }, ...workers];
+    setWorkers(nextWorkers);
     setWorkerDraft(emptyWorker()); setEditingWorkerId(null); setWorkerFormOpen(false);
+    // Push to the cloud so the employee portal (which authenticates against the
+    // cloud snapshot) sees the new credentials immediately. Without this, a password
+    // reset stays local and the worker keeps getting "Password is incorrect".
+    if (onPublishWorkers && (passwordChanged || savedWorker.employeeUsername)) {
+      onPublishWorkers(nextWorkers);
+    }
   };
   const editWorker = (worker) => { setWorkerDraft(normaliseWorker(worker)); setEditingWorkerId(worker.id); setSection('Employees'); setWorkerFormOpen(true); window.scrollTo(0, 0); };
   useEffect(() => {
@@ -2848,6 +2889,7 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
           <div className="grid"><Field label="Worker Name" value={workerDraft.name} onChange={e => updateWorkerDraft('name', e.target.value)} /><Field label="Role" value={workerDraft.role} onChange={e => updateWorkerDraft('role', e.target.value)} /><Field label="Email (optional)" type="email" value={workerDraft.email} onChange={e => updateWorkerDraft('email', e.target.value)} /><Field label="Phone" value={workerDraft.phone} onChange={e => updateWorkerDraft('phone', e.target.value)} /></div>
           <h4 className="section-label">Employee portal login</h4>
           <div className="grid"><Field label="Unique Username" value={workerDraft.employeeUsername || ''} onChange={e => updateWorkerDraft('employeeUsername', e.target.value)} placeholder="e.g. john.smith" /><Field label={editingWorkerId ? 'New Password / Reset Password' : 'Password'} type="text" value={workerDraft.temporaryPassword || ''} onChange={e => updateWorkerDraft('temporaryPassword', e.target.value)} placeholder={editingWorkerId ? 'Leave blank to keep existing password' : 'Set employee password'} /><label className="field"><span>Login Enabled</span><select value={workerDraft.loginEnabled === false ? 'no' : 'yes'} onChange={e => updateWorkerDraft('loginEnabled', e.target.value === 'yes')}><option value="yes">Enabled</option><option value="no">Disabled</option></select></label><label className="field"><span>Generate Password</span><button type="button" onClick={() => updateWorkerDraft('temporaryPassword', Math.random().toString(36).slice(2, 6).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase())}>Generate New Password</button></label></div>
+          <p className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>Saving publishes the login to the cloud so the employee can sign in from their own device. Share the password with them directly — it isn't shown again after saving.</p>
           <p className="muted">Employee usernames and passwords are separate from admin email sign-in. These credentials only open the employee portal.</p>
           <h4 className="section-label">Worker compliance dates</h4>
           <div className="grid">{DEFAULT_WORKER_COMPLIANCE_ITEMS.map(item => <Field key={item.key} type="date" label={`${item.label}${item.optional ? ' (optional)' : ''}`} value={workerDraft[item.key] || ''} onChange={e => updateWorkerDraft(item.key, e.target.value)} />)}<Field label="Notes" multiline value={workerDraft.notes || ''} onChange={e => updateWorkerDraft('notes', e.target.value)} /></div>
