@@ -8,7 +8,7 @@ import { UpgradeWall } from './UpgradeWall';
 // supabase/subscriptions.sql, (2) deployed the Stripe edge functions, and
 // (3) created your Stripe products. While false, the app behaves exactly as it
 // did before — nothing is locked, no subscription queries run.
-const ENFORCE_BILLING = false;
+const ENFORCE_BILLING = true;
 
 const STORAGE_KEY = 'lg_flow_pwa_v2_premium';
 const TABS = ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Settings'];
