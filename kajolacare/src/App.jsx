@@ -8,7 +8,7 @@ import { UpgradeWall } from './UpgradeWall';
 // supabase/subscriptions.sql, (2) deployed the Stripe edge functions, and
 // (3) created your Stripe products. While false, the app behaves exactly as it
 // did before — nothing is locked, no subscription queries run.
-const ENFORCE_BILLING = false;
+const ENFORCE_BILLING = true;
 
 // Starter dropped: the operational app is free. Compliance is the Pro paywall and
 // unlimited workers is Practice. So we do NOT lock the whole app on expiry —
