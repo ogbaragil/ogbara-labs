@@ -28,6 +28,7 @@ const anonKey =
   storedConfig.anonKey ||
   '';
 
+export const supabaseUrl = url;
 export const isSupabaseConfigured = Boolean(url && anonKey);
 export const supabase = isSupabaseConfigured ? createClient(url, anonKey) : null;
 export const supabaseConfigSource = import.meta.env.VITE_SUPABASE_URL
