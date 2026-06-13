@@ -28,6 +28,7 @@
   button,input,textarea{font-family:inherit;}
   button{cursor:pointer; border:none;}
   .wrap{flex:1; width:100%; max-width:720px; margin:0 auto; padding:8px 16px 24px; display:flex; flex-direction:column;}
+  .wrap.grid-mode{min-height:0;}   /* only the months grid scrolls internally, so its sticky month row can float */
 
   h1.app{font-family:var(--display); font-weight:700; font-size:clamp(26px,6vw,34px); margin:4px 0 2px; letter-spacing:-.3px;}
   .tagline{color:var(--muted); margin:0 0 18px; font-size:15px;}
@@ -64,7 +65,7 @@
   .swatch.today{background:transparent; border:2px solid var(--mint);}
 
   /* The grid */
-  .grid-scroll{flex:1; overflow-y:auto; padding:0 2px 10px; -webkit-overflow-scrolling:touch;}
+  .grid-scroll{flex:1; min-height:0; overflow-y:auto; padding:0 2px calc(78px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling:touch;}
   /* Floating calendar-month header for the zoomed-in grid */
   .month-head{position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:8px;
     padding:7px 0 6px; margin-bottom:6px; background:var(--bg);
@@ -430,6 +431,7 @@ const b64ToBlob = (b64, type) => fetch(`data:${type || "image/jpeg"};base64,${b6
 /* ---------- Screens ---------- */
 function render() {
   root.innerHTML = "";
+  root.classList.remove("grid-mode");
   editingForm = false;
   if (!profile) { renderForm(); }
   else if (tab === "memories") renderMemories();
@@ -1016,6 +1018,7 @@ function openMemoryView(m) {
 
 function renderGrid() {
   const cur = currentAbsoluteIndex();
+  root.classList.add("grid-mode");
   root.appendChild(el("h1","tab-title","Life in Months"));
   root.appendChild(el("p","tab-sub","Tap a month to add a story"));
   const rb2 = reflectButton(); if (rb2) root.appendChild(rb2);
@@ -1063,8 +1066,8 @@ function renderGrid() {
     row.append(lbl,mwrap); frag.appendChild(row);
   }
   scroll.appendChild(frag);
+  scroll.appendChild(el("p","footer","Life Grid by Ogbara · works offline · optional cloud backup"));
   root.appendChild(scroll);
-  root.appendChild(el("p","footer","Life Grid by Ogbara · works offline · optional cloud backup"));
   // auto-scroll: to the tapped year (with a flash) when arriving via zoom, else to today
   const targetYear = detailTargetYear != null ? detailTargetYear : (cur != null ? Math.floor(cur/12) : null);
   const flash = detailTargetYear != null;
