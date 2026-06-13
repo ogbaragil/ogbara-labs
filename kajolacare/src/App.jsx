@@ -14,7 +14,7 @@ const ENFORCE_BILLING = true;
 // unlimited workers is Practice. So we do NOT lock the whole app on expiry —
 // expired/free users keep operations (10-worker cap) with Compliance locked.
 // Set true only if you want to force Pro as the minimum to use the app at all.
-const GATE_OPERATIONS_ON_EXPIRY = true;
+const GATE_OPERATIONS_ON_EXPIRY = false;
 
 const STORAGE_KEY = 'lg_flow_pwa_v2_premium';
 const TABS = ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Settings'];
