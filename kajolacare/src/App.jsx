@@ -8,7 +8,13 @@ import { UpgradeWall } from './UpgradeWall';
 // supabase/subscriptions.sql, (2) deployed the Stripe edge functions, and
 // (3) created your Stripe products. While false, the app behaves exactly as it
 // did before — nothing is locked, no subscription queries run.
-const ENFORCE_BILLING = true;
+const ENFORCE_BILLING = false;
+
+// Starter dropped: the operational app is free. Compliance is the Pro paywall and
+// unlimited workers is Practice. So we do NOT lock the whole app on expiry —
+// expired/free users keep operations (10-worker cap) with Compliance locked.
+// Set true only if you want to force Pro as the minimum to use the app at all.
+const GATE_OPERATIONS_ON_EXPIRY = false;
 
 const STORAGE_KEY = 'lg_flow_pwa_v2_premium';
 const TABS = ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Settings'];
@@ -455,6 +461,9 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('lg_flow_theme') || 'light');
   const [user, setUser] = useState(null);
+  // App-level access gate (operational app). Dormant unless both switches are on.
+  const { appAccess, plan: userPlan } = usePlan(user, ENFORCE_BILLING);
+  const appGated = ENFORCE_BILLING && GATE_OPERATIONS_ON_EXPIRY && !appAccess;
   const [employeeSession, setEmployeeSession] = useState(() => { try { return JSON.parse(localStorage.getItem(EMPLOYEE_SESSION_KEY) || 'null'); } catch { return null; } });
   const [authLoading, setAuthLoading] = useState(true);
   const [storageLoaded, setStorageLoaded] = useState(false);
@@ -1044,6 +1053,8 @@ export default function App() {
     <main className="main">
       <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>
       {notice && <div className="notice">{notice}</div>}
+      {appGated && <UpgradeWall reason="app" plan={userPlan} user={user} />}
+      {!appGated && <>
       {active === 'Dashboard' && <Dashboard totals={totals} invoices={invoices.slice(0, 5)} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive}/>} 
       {active === 'Participants' && <Clients clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={() => { setEditingClient(null); setClientForm(emptyClient); }} invoices={invoices} shifts={shifts} workers={workers}/>} 
       {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={(worker) => { setFocusWorker(worker || 'new'); setComplianceSection('Employees'); setActive('Compliance'); }} />}
@@ -1053,6 +1064,7 @@ export default function App() {
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} shifts={shifts} invoices={invoices} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={publishScheduleChanges} />}
       {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
+      </>}
     </main>
   </div>
   <MobileShell
@@ -1145,6 +1157,8 @@ function BrandMark({ compact = false }) {
 
 function MobileShell({ active, setActive, complianceSection, setComplianceSection, displayName, welcomeMessage, business, setBusiness, saveBusiness, pricingItems, totals, clients, invoices, transactions, workers, setWorkers, setInvoices = () => {}, shifts = [], setShifts = () => {}, onPublishSchedule = async () => {}, onPublishWorkers = async () => {}, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, notice, user, theme, toggleTheme, onSignOut, clientForm, setClientForm, editingClient, saveClient, editClient, archiveClient, deleteClient, cancelClient, invoiceForm, setInvoiceForm, editingInvoice, setLine, selectItem, addLine, removeLine, saveInvoice, editInvoice, deleteInvoice, exportPDF, updateInvoiceStatus, cancelInvoice, txnForm, setTxnForm, editingTxn, saveTxn, editTxn, deleteTxn, cancelTxn, settings }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const { appAccess: mobileAppAccess, plan: mobileUserPlan } = usePlan(user, ENFORCE_BILLING);
+  const mobileAppGated = ENFORCE_BILLING && GATE_OPERATIONS_ON_EXPIRY && !mobileAppAccess;
   const activeClients = clients.filter(c => c && !c.archived);
   const alerts = getMobileAlerts({ clients, invoices, totals, business, workers });
   const recentInvoices = invoices.slice(0, 4);
@@ -1159,6 +1173,8 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
     </header>
     <main className="mobile-main">
       {notice && <div className="notice mobile-notice">{notice}</div>}
+      {mobileAppGated && <UpgradeWall reason="app" plan={mobileUserPlan} user={user} />}
+      {!mobileAppGated && <>
       {active === 'Dashboard' && <MobileHome welcomeMessage={welcomeMessage} totals={totals} alerts={alerts} invoices={recentInvoices} clients={activeClients} setActive={setActive} />}
       {active === 'Participants' && <MobileParticipants clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={cancelClient} />}
       {active === 'Invoices' && <MobileInvoices pricingItems={pricingItems} clients={activeClients} invoices={invoices} form={invoiceForm} setForm={setInvoiceForm} editing={editingInvoice} setLine={setLine} selectItem={selectItem} addLine={addLine} removeLine={removeLine} save={saveInvoice} edit={editInvoice} del={deleteInvoice} exportPDF={exportPDF} onStatusChange={updateInvoiceStatus} cancel={cancelInvoice} />}
@@ -1168,6 +1184,7 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
       {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={() => setActive('Compliance')} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={onPublishSchedule} />}
       {active === 'Settings' && <div className="mobile-settings">{settings}</div>}
+      </>}
     </main>
     {moreOpen && <MobileSideDrawer active={active} setActive={openAction} onClose={() => setMoreOpen(false)} onSignOut={onSignOut} business={business} onComplianceSection={openComplianceSection} />}
     <nav className="mobile-bottom">
@@ -2798,9 +2815,9 @@ function WorkersWorkspace({ workers = [], shifts = [], clients = [], onManage = 
 
 function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness, saveBusiness, workers = [], setWorkers = () => {}, onPublishWorkers = null, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, initialSection = 'Employees', onSectionChange = () => {}, focusWorker = null, onWorkerFocusHandled = () => {}, user = null }) {
   // Pro-gate: dormant while ENFORCE_BILLING is false (hook stays silent and
-  // returns proAccess=true). Works on both desktop and mobile shells because
-  // the guard lives in the workspace itself.
-  const { proAccess, plan } = usePlan(user, ENFORCE_BILLING);
+  // returns full access). complianceAccess covers trial/pro/practice; Starter
+  // is excluded. workerLimit enforces the 10-worker cap below Practice.
+  const { complianceAccess, workerLimit, plan } = usePlan(user, ENFORCE_BILLING);
   const [section, setSectionState] = useState(initialSection || 'Employees');
   useEffect(() => { if (initialSection && initialSection !== section) setSectionState(initialSection); }, [initialSection]);
   const setSection = (next) => { setSectionState(next); onSectionChange(next); };
@@ -2831,6 +2848,11 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
   const saveCompliance = () => saveBusiness({ ...EMPTY_BUSINESS, ...business, businessCompliance: getBusinessComplianceItems(business) });
   const saveWorker = () => {
     if (!workerDraft.name.trim()) return alert('Please enter the worker name.');
+    // Worker cap: only blocks ADDING new workers past the plan limit (editing is
+    // always allowed). workerLimit is Infinity on Practice and when billing is off.
+    if (!editingWorkerId && workers.length >= workerLimit) {
+      return alert(`Your plan includes up to ${workerLimit} workers. Upgrade to Practice for unlimited workers to add more.`);
+    }
     const savedWorker = normaliseWorker(workerDraft);
     savedWorker.employeeUsername = normaliseUsername(savedWorker.employeeUsername || savedWorker.username);
     if (savedWorker.employeeUsername && workers.some(w => w.id !== editingWorkerId && normaliseUsername(w.employeeUsername || w.username) === savedWorker.employeeUsername)) return alert('Employee username must be unique.');
@@ -2878,9 +2900,8 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
     { key: 'Risk', icon: '⚠', desc: 'Risk register and management', tone: risks.some(r => r.status !== 'Closed' && (r.rating === 'High' || r.rating === 'Extreme')) ? 'red' : 'green', go: 'Risks' },
   ];
 
-  // Pro-gate wall (only active when ENFORCE_BILLING is true and the user's plan
-  // doesn't include the compliance suite). proAccess is always true otherwise.
-  if (!proAccess) return <UpgradeWall feature="Compliance" plan={plan} user={user} />;
+  // Compliance wall — shown to free, expired, and no-plan users.
+  if (!complianceAccess) return <UpgradeWall feature="Compliance" plan={plan} user={user} reason="compliance" />;
 
   return <>
     <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'start', marginBottom: '16px' }}>

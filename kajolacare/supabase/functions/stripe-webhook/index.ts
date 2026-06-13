@@ -23,9 +23,10 @@ const admin = createClient(
 );
 
 const PLAN_BY_PRICE: Record<string, string> = {
-  [Deno.env.get('PRICE_STARTER')  ?? '_s']: 'starter',
-  [Deno.env.get('PRICE_PRO')      ?? '_p']: 'pro',
-  [Deno.env.get('PRICE_PRACTICE') ?? '_x']: 'practice',
+  [Deno.env.get('PRICE_PRO')             ?? '_p']:  'pro',
+  [Deno.env.get('PRICE_PRO_ANNUAL')      ?? '_pa']: 'pro',
+  [Deno.env.get('PRICE_PRACTICE')        ?? '_x']:  'practice',
+  [Deno.env.get('PRICE_PRACTICE_ANNUAL') ?? '_xa']: 'practice',
 };
 
 Deno.serve(async (req) => {
@@ -60,9 +61,9 @@ Deno.serve(async (req) => {
 });
 
 async function upsert(userId: string | null | undefined, sub: Stripe.Subscription, deleted = false) {
-  if (!userId) return;
+  if (!userId) { console.error('No userId on event — checkout created without client_reference_id'); return; }
   const priceId = sub.items?.data?.[0]?.price?.id ?? '';
-  await admin.from('subscriptions').upsert({
+  const { error } = await admin.from('subscriptions').upsert({
     user_id: userId,
     plan: deleted ? 'expired' : (PLAN_BY_PRICE[priceId] ?? 'starter'),
     status: deleted ? 'canceled' : sub.status,
@@ -72,4 +73,5 @@ async function upsert(userId: string | null | undefined, sub: Stripe.Subscriptio
       ? new Date(sub.current_period_end * 1000).toISOString() : null,
     updated_at: new Date().toISOString(),
   });
+  if (error) console.error('subscriptions upsert failed:', error.message, (error as any).details);
 }

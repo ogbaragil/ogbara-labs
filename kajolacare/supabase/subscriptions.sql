@@ -10,7 +10,7 @@ create table if not exists public.subscriptions (
   status                 text not null default 'trialing',
   stripe_customer_id     text,
   stripe_subscription_id text,
-  trial_ends_at          timestamptz default (now() + interval '21 days'),
+  trial_ends_at          timestamptz default (now() + interval '30 days'),
   current_period_end     timestamptz,
   updated_at             timestamptz default now()
 );

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Plans that grant access to Pro-only features (Compliance suite, etc.).
-// Trial counts as Pro-equivalent during the trial window.
-const PRO_PLANS = ['trial', 'pro', 'practice'];
+// Plans are evaluated below. Trial counts as full (compliance-equivalent) access.
 
 /**
  * Reads the signed-in user's subscription and derives access flags.
@@ -46,15 +44,26 @@ export function usePlan(user, enabled = true) {
   const periodEnd = sub?.current_period_end || sub?.trial_ends_at;
   const withinWindow = !periodEnd || new Date(periodEnd).getTime() >= now;
   const active = !!sub && ['active', 'trialing'].includes(sub.status) && withinWindow;
+  const planId = sub?.plan;
 
-  // When billing isn't ready, everything is unlocked (fail open).
-  const proAccess = !billingReady ? true : (active && PRO_PLANS.includes(sub.plan));
-  const plan = !billingReady ? 'unknown' : (active ? sub.plan : 'expired');
+  // Two access axes (both fail OPEN when billing isn't ready):
+  //   appAccess        — any active paid plan or trial → use the operational app
+  //   complianceAccess — trial / pro / practice        → the Compliance suite
+  // and one numeric limit:
+  //   workerLimit      — 10 for trial/free/pro, unlimited for practice
+  const COMPLIANCE_PLANS = ['trial', 'pro', 'practice'];
+  const APP_PLANS = ['trial', 'pro', 'practice'];
+
+  const complianceAccess = !billingReady ? true : (active && COMPLIANCE_PLANS.includes(planId));
+  const appAccess        = !billingReady ? true : (active && APP_PLANS.includes(planId));
+  const workerLimit      = !billingReady ? Infinity : ((active && planId === 'practice') ? Infinity : 10);
+  const plan = !billingReady ? 'unknown' : (active ? planId : 'expired');
 
   // Days left in trial, for the "X days left" banner. null when N/A.
-  const trialDaysLeft = (billingReady && sub?.plan === 'trial' && sub?.trial_ends_at)
+  const trialDaysLeft = (billingReady && planId === 'trial' && sub?.trial_ends_at)
     ? Math.max(0, Math.ceil((new Date(sub.trial_ends_at).getTime() - now) / 86400000))
     : null;
 
-  return { loading, plan, proAccess, billingReady, trialDaysLeft, sub };
+  // proAccess kept as an alias for backwards compatibility (== complianceAccess).
+  return { loading, plan, appAccess, complianceAccess, proAccess: complianceAccess, workerLimit, billingReady, trialDaysLeft, sub };
 }

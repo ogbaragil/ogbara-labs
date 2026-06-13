@@ -13,9 +13,10 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 });
 
 const PRICE: Record<string, string> = {
-  starter:  Deno.env.get('PRICE_STARTER')  ?? '',
-  pro:      Deno.env.get('PRICE_PRO')       ?? '',
-  practice: Deno.env.get('PRICE_PRACTICE')  ?? '',
+  pro_month:      Deno.env.get('PRICE_PRO')              ?? '',
+  pro_year:       Deno.env.get('PRICE_PRO_ANNUAL')       ?? '',
+  practice_month: Deno.env.get('PRICE_PRACTICE')         ?? '',
+  practice_year:  Deno.env.get('PRICE_PRACTICE_ANNUAL')  ?? '',
 };
 
 const SITE = Deno.env.get('SITE_URL') ?? 'https://kajolacare.ogbara.com.au';
@@ -29,8 +30,8 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
-    const { plan, userId, email } = await req.json();
-    const price = PRICE[plan];
+    const { plan, interval, userId, email } = await req.json();
+    const price = PRICE[`${plan}_${interval === 'year' ? 'year' : 'month'}`];
     if (!price) {
       return new Response(JSON.stringify({ error: 'Unknown plan' }),
         { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
