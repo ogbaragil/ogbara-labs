@@ -63,14 +63,17 @@ Deno.serve(async (req) => {
 async function upsert(userId: string | null | undefined, sub: Stripe.Subscription, deleted = false) {
   if (!userId) { console.error('No userId on event — checkout created without client_reference_id'); return; }
   const priceId = sub.items?.data?.[0]?.price?.id ?? '';
+  // current_period_end moved onto subscription items in newer API versions, so
+  // read both. Without this it can be null, which can mis-flag an active sub.
+  const periodEndUnix = (sub as any).current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
   const { error } = await admin.from('subscriptions').upsert({
     user_id: userId,
-    plan: deleted ? 'expired' : (PLAN_BY_PRICE[priceId] ?? 'starter'),
+    plan: deleted ? 'expired' : (PLAN_BY_PRICE[priceId] ?? 'pro'),
     status: deleted ? 'canceled' : sub.status,
     stripe_customer_id: sub.customer as string,
     stripe_subscription_id: sub.id,
-    current_period_end: sub.current_period_end
-      ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    current_period_end: periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null,
+    trial_ends_at: deleted ? null : (sub.status === 'trialing' && sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null),
     updated_at: new Date().toISOString(),
   });
   if (error) console.error('subscriptions upsert failed:', error.message, (error as any).details);

@@ -41,8 +41,12 @@ export function usePlan(user, enabled = true) {
   }, [user?.id, enabled]);
 
   const now = Date.now();
-  const periodEnd = sub?.current_period_end || sub?.trial_ends_at;
-  const withinWindow = !periodEnd || new Date(periodEnd).getTime() >= now;
+  // Pick the date relevant to the subscription's STATE. A paid 'active' sub is
+  // governed by current_period_end and is valid even if that's absent (Stripe
+  // already says it's active); only a 'trialing' sub is gated by trial_ends_at.
+  // This prevents a stale trial_ends_at from locking out an active paid plan.
+  const endDate = sub?.status === 'trialing' ? sub?.trial_ends_at : sub?.current_period_end;
+  const withinWindow = !endDate || new Date(endDate).getTime() >= now;
   const active = !!sub && ['active', 'trialing'].includes(sub.status) && withinWindow;
   const planId = sub?.plan;
 
