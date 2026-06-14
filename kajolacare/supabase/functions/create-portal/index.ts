@@ -3,10 +3,8 @@
 // Secrets needed (already set for the other functions):
 //   STRIPE_SECRET_KEY, SB_URL, SB_SERVICE_ROLE_KEY, SITE_URL
 //
-// Opens the Stripe Customer Portal so the user can update their card,
-// view invoices, or cancel/change their subscription. We look up the
-// stored stripe_customer_id for the signed-in user (service role) and
-// return a one-time portal URL; the React app redirects to it.
+// Opens the Stripe Customer Portal for the signed-in user. Looks up the
+// stored stripe_customer_id (service role), then creates a portal session.
 
 import Stripe from 'https://esm.sh/stripe@14?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2?target=deno';
@@ -28,39 +26,57 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  try {
-    const { userId } = await req.json();
-    if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing userId' }),
-        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
-    }
 
-    // Find the Stripe customer id stored by the webhook.
+  // 1) Read the user id.
+  let userId = '';
+  try {
+    const body = await req.json();
+    userId = body?.userId ?? '';
+  } catch (_) { /* ignore */ }
+  if (!userId) return json({ error: 'Missing userId.' }, 400);
+
+  // 2) Look up the stored Stripe customer id.
+  let customer = '';
+  try {
     const { data, error } = await admin
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', userId)
       .maybeSingle();
-
-    if (error) throw error;
-    const customer = data?.stripe_customer_id;
-    if (!customer) {
-      return new Response(JSON.stringify({ error: 'No billing account found. Start a subscription first.' }),
-        { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } });
+    if (error) {
+      console.error('DB lookup error:', error.message);
+      return json({ error: `Database error: ${error.message}` }, 500);
     }
+    customer = data?.stripe_customer_id ?? '';
+  } catch (e) {
+    console.error('DB lookup threw:', e?.message ?? e);
+    return json({ error: `Database error: ${String(e?.message ?? e)}` }, 500);
+  }
+  if (!customer) {
+    return json({ error: 'No billing account on file yet. Start a subscription first.' }, 404);
+  }
 
+  // 3) Create the portal session.
+  try {
     const session = await stripe.billingPortal.sessions.create({
       customer,
       return_url: `${SITE}/?tab=settings`,
     });
-
-    return new Response(JSON.stringify({ url: session.url }),
-      { headers: { ...cors, 'Content-Type': 'application/json' } });
+    return json({ url: session.url });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e?.message ?? e) }),
-      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+    const msg = String(e?.message ?? e);
+    console.error('Stripe portal error:', msg, '| customer:', customer);
+    if (/No configuration provided|customer portal settings/i.test(msg)) {
+      return json({ error: 'Stripe Customer Portal is not saved in this mode. Open dashboard.stripe.com/test/settings/billing/portal and click Save.' }, 500);
+    }
+    if (/No such customer/i.test(msg)) {
+      return json({ error: 'The stored Stripe customer is not valid for this Stripe key/mode. Re-subscribe in test mode or clear the placeholder stripe_customer_id.' }, 500);
+    }
+    return json({ error: msg }, 500);
   }
 });

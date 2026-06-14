@@ -66,6 +66,11 @@ export function usePlan(user, enabled = true) {
     : (active && planId === 'practice') ? Infinity
     : (active && (planId === 'trial' || planId === 'pro')) ? 10
     : FREE_WORKER_CAP;
+  // Office-user seats (counts the Owner): Free/expired 1, Trial & Pro 5, Practice unlimited.
+  const userLimit = !billingReady ? Infinity
+    : (active && planId === 'practice') ? Infinity
+    : (active && (planId === 'trial' || planId === 'pro')) ? 5
+    : 1;
   const plan = !billingReady ? 'unknown' : (active ? planId : 'expired');
 
   // Days left in trial, for the "X days left" banner. null when N/A.
@@ -74,5 +79,5 @@ export function usePlan(user, enabled = true) {
     : null;
 
   // proAccess kept as an alias for backwards compatibility (== complianceAccess).
-  return { loading, plan, appAccess, complianceAccess, proAccess: complianceAccess, workerLimit, billingReady, trialDaysLeft, sub };
+  return { loading, plan, appAccess, complianceAccess, proAccess: complianceAccess, workerLimit, userLimit, billingReady, trialDaysLeft, sub };
 }

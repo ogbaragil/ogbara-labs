@@ -272,6 +272,23 @@ const emptyInvoice = () => ({ clientId: '', dueDate: addDaysISO(7), notes: '', l
 const emptyTxn = { clientId: '', type: 'expense', status: 'pending', category: '', description: '', amount: '', date: todayISO() };
 const emptyWorker = () => Object.fromEntries([['id', makeId('worker')], ['name', ''], ['role', ''], ['email', ''], ['phone', ''], ['employeeUsername', ''], ['employeePasswordHash', ''], ['temporaryPassword', ''], ['mustChangePassword', false], ['loginEnabled', true], ['lastPasswordResetAt', ''], ['notes', ''], ...DEFAULT_WORKER_COMPLIANCE_ITEMS.map(item => [item.key, ''])]);
 
+// Office users (non support-worker staff) and their permission roles.
+const OFFICE_ROLES = ['Owner', 'Admin', 'Coordinator', 'Finance'];
+const ROLE_DESC = {
+  Owner: 'Full access including billing, settings and danger zone.',
+  Admin: 'Everything operational and manage users — no billing or workspace deletion.',
+  Coordinator: 'Participants, schedules, workers, invoices, compliance and reports.',
+  Finance: 'Invoices, finance and reports only.',
+};
+// Tabs each role may open. (Gating is applied to office sign-ins in the next phase.)
+const ROLE_ACCESS = {
+  Owner: ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Settings'],
+  Admin: ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Finance', 'Compliance', 'Reports', 'Settings'],
+  Coordinator: ['Dashboard', 'Participants', 'Schedules', 'Workers', 'Invoices', 'Compliance', 'Reports'],
+  Finance: ['Dashboard', 'Invoices', 'Finance', 'Reports'],
+};
+const emptyOfficeUser = () => ({ id: makeId('user'), name: '', email: '', role: 'Coordinator', employeeUsername: '', temporaryPassword: '', employeePasswordHash: '', loginEnabled: true, createdAt: new Date().toISOString() });
+
 const parseShiftStartMs = (shift) => {
   if (!shift?.date || !shift?.startTime) return NaN;
   const ms = new Date(`${shift.date}T${shift.startTime}`).getTime();
@@ -1065,7 +1082,7 @@ export default function App() {
       </div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>
+      {active !== 'Settings' && <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>}
       {notice && <div className="notice">{notice}</div>}
       <SubscriptionBanner plan={userPlan} trialDaysLeft={userTrialDaysLeft} sub={userSub} onView={() => setActive('Settings')} />
       {appGated && <UpgradeWall reason="app" plan={userPlan} user={user} />}
@@ -3571,7 +3588,23 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
   const [deleteText, setDeleteText] = useState('');
   const [portalBusy, setPortalBusy] = useState(false);
   const importRef = useRef(null);
-  const { plan, sub, billingReady, workerLimit } = usePlan(user, true);
+  const { plan, sub, billingReady, workerLimit, userLimit } = usePlan(user, true);
+  const [usersOpen, setUsersOpen] = useState(false);
+  const [userDraft, setUserDraft] = useState(null);
+  const officeUsers = business.users || [];
+  const seatCount = 1 + officeUsers.length; // Owner + office users
+  const seatsFull = userLimit !== Infinity && seatCount >= userLimit;
+  const saveOfficeUser = (u) => {
+    const name = (u.name || '').trim();
+    if (!name) { window.alert('Enter the user\u2019s name.'); return; }
+    const exists = officeUsers.some(x => x.id === u.id);
+    if (!exists && seatsFull) { setUsersOpen(true); setUserDraft(null); window.alert('You have reached your plan\u2019s user limit. Upgrade to add more.'); return; }
+    const prepared = { ...u, name, employeePasswordHash: u.temporaryPassword ? employeePasswordHash(u.temporaryPassword) : (u.employeePasswordHash || '') };
+    const next = exists ? officeUsers.map(x => x.id === u.id ? prepared : x) : [...officeUsers, prepared];
+    saveBusiness({ ...business, users: next });
+    setUserDraft(null);
+  };
+  const removeOfficeUser = (id) => { if (window.confirm('Remove this user? They will no longer be able to sign in.')) { saveBusiness({ ...business, users: officeUsers.filter(x => x.id !== id) }); } };
 
   useEffect(() => { setDraft({ ...EMPTY_BUSINESS, ...business }); }, [business]);
   const updateDraft = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
@@ -3611,8 +3644,8 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
     { icon: '▥', tone: 'amber', title: 'Documents', desc: 'Manage documents, reports and compliance exports.', link: 'Open documents', onLink: () => setActive('Reports'), items: [
       { label: 'Invoice PDFs', go: () => setActive('Invoices') }, { label: 'Compliance Registers', go: () => setActive('Compliance') }, { label: 'Financial Reports', go: () => setActive('Reports') }, { label: 'Audit Logs', go: () => setActive('Compliance') }, { label: 'Export History', soon: true },
     ] },
-    { icon: '◷', tone: 'violet', title: 'Users & Permissions', desc: 'Manage users, roles and permissions.', link: 'Manage users', onLink: () => setActive('Workers'), items: [
-      { label: 'Users & Staff', go: () => setActive('Workers') }, { label: 'Roles & Permissions', soon: true }, { label: 'Access Levels', soon: true }, { label: 'Activity Logs', go: () => setActive('Dashboard') }, { label: 'API Access', soon: true },
+    { icon: '◷', tone: 'violet', title: 'Users & Permissions', desc: 'Manage users, roles and permissions.', link: 'Manage users', onLink: () => setUsersOpen(true), items: [
+      { label: 'Users & Roles', go: () => setUsersOpen(true) }, { label: 'Support Workers', go: () => setActive('Workers') }, { label: 'Roles & Permissions', soon: true }, { label: 'Activity Logs', go: () => setActive('Dashboard') }, { label: 'API Access', soon: true },
     ] },
   ];
 
@@ -3624,9 +3657,9 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
     { label: 'Export Workspace', sub: 'Download all data', icon: '⤓', go: backup },
   ];
 
-  const usersCap = (workerLimit === Infinity || workerLimit == null) ? null : workerLimit;
+  const usersCap = (userLimit === Infinity || userLimit == null) ? null : userLimit;
   const usage = [
-    { label: 'Users', icon: '◉', used: activeWorkers.length, cap: usersCap },
+    { label: 'Users', icon: '◉', used: seatCount, cap: usersCap },
     { label: 'Storage', icon: '☁', soon: true },
     { label: 'API Calls', icon: '⌁', soon: true },
     { label: 'Invoices', icon: '▤', used: invoices.length, cap: null },
@@ -3777,6 +3810,48 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
         </div>
       </div>
     </div>}
+    {/* Users & Roles modal */}
+    {usersOpen && <div className="modal-overlay" onClick={() => { setUsersOpen(false); setUserDraft(null); }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+        <div className="modal-head">
+          <div><h3>Users &amp; Roles</h3><small>{userLimit === Infinity ? `${seatCount} user${seatCount === 1 ? '' : 's'}` : `${seatCount} of ${userLimit} seat${userLimit === 1 ? '' : 's'} used`}</small></div>
+          <button className="modal-close" onClick={() => { setUsersOpen(false); setUserDraft(null); }} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">
+          {userDraft ? <div className="user-form">
+            <div className="grid">
+              <Field label="Full name" value={userDraft.name} onChange={e => setUserDraft({ ...userDraft, name: e.target.value })} />
+              <Field label="Email" type="email" value={userDraft.email} onChange={e => setUserDraft({ ...userDraft, email: e.target.value })} />
+              <label><span>Role</span><select value={userDraft.role} onChange={e => setUserDraft({ ...userDraft, role: e.target.value })}>{OFFICE_ROLES.filter(r => r !== 'Owner').map(r => <option key={r} value={r}>{r}</option>)}</select></label>
+              <Field label="Username (for sign-in)" value={userDraft.employeeUsername} onChange={e => setUserDraft({ ...userDraft, employeeUsername: e.target.value })} />
+              <Field label="Temporary password" value={userDraft.temporaryPassword} onChange={e => setUserDraft({ ...userDraft, temporaryPassword: e.target.value })} placeholder={userDraft.employeePasswordHash ? 'Leave blank to keep current' : ''} />
+            </div>
+            <p className="role-desc">{ROLE_DESC[userDraft.role]}</p>
+            <label className="user-login-toggle"><input type="checkbox" checked={userDraft.loginEnabled !== false} onChange={e => setUserDraft({ ...userDraft, loginEnabled: e.target.checked })} /> Sign-in enabled</label>
+          </div> : <div className="user-list">
+            <div className="user-row owner">
+              <span className="p-avatar sm">{(user?.user_metadata?.full_name || business.name || user?.email || 'O').slice(0, 2).toUpperCase()}</span>
+              <div className="user-meta"><b>{user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : 'Account owner')}</b><small>{user?.email || 'Account owner'}</small></div>
+              <span className="user-role-pill owner">Owner</span>
+            </div>
+            <Records rows={officeUsers} empty="No additional users yet. Add your first team member." render={u => <div className="user-row" key={u.id}>
+              <span className="p-avatar sm">{(u.name || 'U').slice(0, 2).toUpperCase()}</span>
+              <div className="user-meta"><b>{u.name}</b><small>{u.email || u.employeeUsername || 'No email'}{u.loginEnabled === false ? ' · sign-in off' : ''}</small></div>
+              <span className="user-role-pill">{u.role}</span>
+              <button className="user-edit" onClick={() => setUserDraft({ ...u })}>Edit</button>
+              <button className="user-remove" onClick={() => removeOfficeUser(u.id)} aria-label="Remove">×</button>
+            </div>} />
+            {seatsFull && <p className="seat-note">You've used all {userLimit} seat{userLimit === 1 ? '' : 's'} on your plan. <button className="text-link" onClick={() => { setUsersOpen(false); manageSubscription(); }}>Upgrade for more →</button></p>}
+          </div>}
+        </div>
+        <div className="modal-foot">
+          {userDraft
+            ? <div className="modal-foot-actions"><button onClick={() => setUserDraft(null)}>Cancel</button><button className="primary" onClick={() => saveOfficeUser(userDraft)}>Save user</button></div>
+            : <div className="modal-foot-actions"><button onClick={() => setUsersOpen(false)}>Done</button><button className="primary" disabled={seatsFull} onClick={() => setUserDraft(emptyOfficeUser())}>+ Add user</button></div>}
+        </div>
+      </div>
+    </div>}
+
     {/* Plan picker modal */}
     {subOpen && <div className="modal-overlay" onClick={() => setSubOpen(false)}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '780px' }}>
