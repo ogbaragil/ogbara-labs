@@ -1070,7 +1070,7 @@ export default function App() {
       <SubscriptionBanner plan={userPlan} trialDaysLeft={userTrialDaysLeft} sub={userSub} onView={() => setActive('Settings')} />
       {appGated && <UpgradeWall reason="app" plan={userPlan} user={user} />}
       {!appGated && <>
-      {active === 'Dashboard' && <Dashboard totals={totals} invoices={invoices.slice(0, 5)} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive}/>} 
+      {active === 'Dashboard' && <CommandCentre totals={totals} invoices={invoices} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive}/>} 
       {active === 'Participants' && <Clients clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={() => { setEditingClient(null); setClientForm(emptyClient); }} invoices={invoices} shifts={shifts} workers={workers}/>} 
       {active === 'Workers' && <WorkersWorkspace workers={workers} shifts={shifts} clients={clients} onManage={(worker) => { setFocusWorker(worker || 'new'); setComplianceSection('Employees'); setActive('Compliance'); }} />}
       {active === 'Invoices' && <Invoices pricingItems={pricingItems} clients={clients.filter(c => !c.archived)} invoices={invoices} form={invoiceForm} setForm={setInvoiceForm} editing={editingInvoice} setLine={setLine} selectItem={selectItem} addLine={() => setInvoiceForm(p => ({ ...p, lines: [...p.lines, emptyLine()] }))} removeLine={lid => setInvoiceForm(p => p.lines.length === 1 ? p : ({ ...p, lines: p.lines.filter(l => l.id !== lid) }))} save={saveInvoice} edit={editInvoice} del={id => { setInvoices(p => p.filter(i => i.id !== id)); setTransactions(p => p.filter(t => t.invoiceId !== id)); }} exportPDF={exportPDF} onStatusChange={updateInvoiceStatus} cancel={() => { setEditingInvoice(null); setInvoiceForm(emptyInvoice()); }}/>} 
@@ -1484,6 +1484,244 @@ function ComplianceRing({ pct, label = 'Compliance Score', sub }) {
     </svg>
     <div style={{ textAlign: 'center' }}><b style={{ display: 'block' }}>{label}</b>{sub && <small style={{ color: 'var(--muted)' }}>{sub}</small>}</div>
   </div>;
+}
+
+function MiniSpark({ values = [], color = 'var(--blue)' }) {
+  const vals = values.length ? values : [0, 0];
+  const max = Math.max(1, ...vals);
+  const min = Math.min(0, ...vals);
+  const span = max - min || 1;
+  const pts = vals.map((v, i) => {
+    const x = vals.length === 1 ? 0 : (i / (vals.length - 1)) * 100;
+    const y = 28 - ((v - min) / span) * 26 - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="mini-spark"><polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function weeklySeries(items, dateGet, amountGet, weeks = 8) {
+  const now = new Date();
+  const buckets = Array.from({ length: weeks }, () => 0);
+  items.forEach(it => {
+    const raw = dateGet(it);
+    if (!raw) return;
+    const d = new Date(`${String(raw).slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return;
+    const weeksAgo = Math.floor((now - d) / (7 * 86400000));
+    if (weeksAgo < 0 || weeksAgo >= weeks) return;
+    buckets[weeks - 1 - weeksAgo] += Number(amountGet(it) || 0);
+  });
+  return buckets;
+}
+
+function CommandCentre({ totals, invoices = [], transactions = [], clients = [], business = {}, workers = [], shifts = [], setActive }) {
+  const activeParticipants = clients.filter(c => c && !c.archived);
+  const clientSpend = (clientId) => invoices.filter(i => i.clientId === clientId).reduce((s, i) => s + Number(i.total || 0), 0);
+  const invStatus = (i) => normaliseInvoiceStatus(i.status);
+  const pendingInvoices = invoices.filter(i => !['Paid', 'Cancelled'].includes(invStatus(i)));
+  const overdueInvoiceList = pendingInvoices.filter(i => { const d = daysUntil(i.dueDate); return d !== null && d < 0; });
+  const expiringParticipants = activeParticipants.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d >= 0 && d <= 30; });
+
+  // Compliance breakdown
+  const allComplianceRows = [
+    ...buildParticipantComplianceRows(clients).flatMap(r => r.items),
+    ...buildWorkerComplianceRows(workers).flatMap(r => r.items),
+    ...buildBusinessComplianceRows(business),
+  ];
+  const toneOf = (i) => (i.status?.tone || i.tone);
+  const compliantCount = allComplianceRows.filter(i => toneOf(i) === 'current').length;
+  const expiredCount = allComplianceRows.filter(i => toneOf(i) === 'overdue' || toneOf(i) === 'missing').length;
+  const dueSoonCount = allComplianceRows.filter(i => toneOf(i) === 'due').length;
+  const complianceScore = allComplianceRows.length ? Math.round((compliantCount / allComplianceRows.length) * 100) : 100;
+  const complianceDue = getComplianceItems({ clients, invoices, totals, business, workers }).length;
+  const expiredDocs = buildWorkerComplianceRows(workers).reduce((n, r) => n + r.items.filter(i => i.status.tone === 'overdue' || i.status.tone === 'missing').length, 0);
+
+  // Today's operations
+  const today = todayISO();
+  const todaysShifts = shifts.filter(s => s.date === today);
+  const onShift = todaysShifts.filter(s => ['In Progress', 'Started'].includes(s.status)).length;
+  const missingClockIns = todaysShifts.filter(s => ['Scheduled', 'Open'].includes(s.status)).length;
+  const pendingNotes = shifts.filter(s => s.status === 'Awaiting Notes' || (s.endedAt && !s.notes)).length;
+
+  // Action required tiles
+  const actionTiles = [
+    { value: expiredDocs, label: 'Worker documents expired', tone: expiredDocs ? 'red' : 'grey', icon: '👤', go: 'Workers' },
+    { value: complianceDue, label: 'Compliance items need review', tone: complianceDue ? 'amber' : 'grey', icon: '✓', go: 'Compliance' },
+    { value: expiringParticipants.length, label: 'Plans expiring soon', tone: expiringParticipants.length ? 'amber' : 'grey', icon: '◷', go: 'Participants' },
+    { value: overdueInvoiceList.length, label: 'Invoices overdue', tone: overdueInvoiceList.length ? 'red' : 'grey', icon: '$', go: 'Invoices' },
+  ];
+  const actionTotal = actionTiles.reduce((s, t) => s + t.value, 0);
+
+  // Financial overview
+  const revenueEarned = invoices.reduce((s, i) => s + Number(i.total || 0), 0);
+  const claimsSubmitted = pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0) + invoices.filter(i => invStatus(i) === 'Paid').reduce((s, i) => s + Number(i.total || 0), 0);
+  const claimsPaid = invoices.filter(i => invStatus(i) === 'Paid').reduce((s, i) => s + Number(i.total || 0), 0);
+  const outstanding = totals.outstanding || pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0);
+  const cashPosition = (totals.income || 0) - (totals.expenses || 0);
+  const collectionRate = claimsSubmitted ? Math.round((claimsPaid / claimsSubmitted) * 100) : 0;
+  // Average payment time from invoices carrying both an issue and paid date.
+  const paidWithDates = invoices.filter(i => invStatus(i) === 'Paid' && (i.paidDate || i.paidAt) && (i.date || i.issueDate));
+  const avgPayDays = paidWithDates.length ? Math.round(paidWithDates.reduce((s, i) => s + Math.max(0, (new Date(i.paidDate || i.paidAt) - new Date(i.date || i.issueDate)) / 86400000), 0) / paidWithDates.length) : null;
+
+  const incomeSeries = weeklySeries(transactions.filter(t => t.type === 'income'), t => t.date || t.createdAt, t => t.amount);
+  const expenseSeries = weeklySeries(transactions.filter(t => t.type === 'expense'), t => t.date || t.createdAt, t => t.amount);
+  const invoiceSeries = weeklySeries(invoices, i => i.date || i.createdAt, i => i.total);
+
+  const monthSum = (items, dateGet, amountGet, monthsBack) => {
+    const ref = new Date(); ref.setMonth(ref.getMonth() - monthsBack);
+    const y = ref.getFullYear(), m = ref.getMonth();
+    return items.reduce((s, it) => { const raw = dateGet(it); if (!raw) return s; const d = new Date(`${String(raw).slice(0, 10)}T00:00:00`); return (d.getFullYear() === y && d.getMonth() === m) ? s + Number(amountGet(it) || 0) : s; }, 0);
+  };
+  const delta = (cur, prev) => prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : (cur > 0 ? 100 : 0);
+  const revThis = monthSum(invoices, i => i.date || i.createdAt, i => i.total, 0);
+  const revLast = monthSum(invoices, i => i.date || i.createdAt, i => i.total, 1);
+  const revDelta = delta(revThis, revLast);
+
+  const finTiles = [
+    { label: 'Revenue earned', value: revenueEarned, color: 'var(--green)', series: invoiceSeries, delta: revDelta, tone: 'green' },
+    { label: 'Claims submitted', value: claimsSubmitted, color: 'var(--blue)', series: invoiceSeries, delta: revDelta, tone: 'green' },
+    { label: 'Claims paid', value: claimsPaid, color: 'var(--green)', series: incomeSeries, delta: delta(monthSum(transactions.filter(t => t.type === 'income'), t => t.date, t => t.amount, 0), monthSum(transactions.filter(t => t.type === 'income'), t => t.date, t => t.amount, 1)), tone: 'green' },
+    { label: 'Outstanding', value: outstanding, color: 'var(--amber)', series: expenseSeries, delta: -Math.abs(revDelta), tone: 'amber' },
+  ];
+
+  // Funding at risk: participants over 80% of their plan budget
+  const atRisk = activeParticipants.map(c => { const b = Number(c.budget || 0); const spent = clientSpend(c.id); return { c, b, spent, pct: b ? Math.round((spent / b) * 100) : 0, remaining: b - spent }; }).filter(x => x.b > 0 && x.pct >= 80).sort((a, b) => b.pct - a.pct);
+  const atRiskTotal = atRisk.reduce((s, x) => s + Math.max(0, x.remaining), 0);
+
+  // Recent activity (derived)
+  const findClientName = (id) => (clients.find(c => c.id === id) || {}).name || '';
+  const activity = [
+    ...invoices.map(i => ({ ts: i.createdAt || (i.date ? `${i.date}T09:00:00` : ''), icon: '$', title: `Invoice ${i.invoiceNumber || ''} ${invStatus(i).toLowerCase()}`.trim(), detail: `${money(i.total)}${i.clientName ? ` for ${i.clientName}` : ''}` })),
+    ...shifts.filter(s => s.status === 'Completed').map(s => ({ ts: s.endedAt || (s.date ? `${s.date}T17:00:00` : ''), icon: '✓', title: 'Shift completed', detail: `Support shift${findClientName(s.participantId) ? ` for ${findClientName(s.participantId)}` : ''}` })),
+  ].filter(a => a.ts).sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 6);
+  const relTime = (ts) => { const d = new Date(ts); if (Number.isNaN(d.getTime())) return ''; const diff = (Date.now() - d) / 3600000; if (diff < 24) return `${Math.max(1, Math.round(diff))}h ago`; if (diff < 48) return 'Yesterday'; return fmt(String(ts).slice(0, 10)); };
+
+  const revVsTarget = totals.totalBudget ? Math.round((revenueEarned / totals.totalBudget) * 100) : 0;
+  const budgetUtil = totals.totalBudget ? Math.round((revenueEarned / totals.totalBudget) * 100) : 0;
+  const onTrack = complianceScore >= 60 && collectionRate >= 70;
+
+  return <>
+    <div className="ops-hero-actions">
+      <button className="primary" onClick={() => setActive('Participants')}>+ Participant</button>
+      <button onClick={() => setActive('Schedules')}>+ Shift</button>
+      <button onClick={() => setActive('Invoices')}>+ Invoice</button>
+      <button onClick={() => setActive('Compliance')}>+ Incident</button>
+      <button onClick={() => setActive('Workers')}>+ Worker</button>
+    </div>
+
+    <div className="cc-grid-3">
+      <Card title={<span className="cc-title-badge">Action required <span className="cc-badge">{actionTotal}</span></span>} action={<button className="text-link" onClick={() => setActive('Compliance')}>View all</button>}>
+        <div className="cc-action-tiles">
+          {actionTiles.map(t => <button key={t.label} className={`cc-action-tile ${t.tone}`} onClick={() => setActive(t.go)}>
+            <span className="cc-action-icon">{t.icon}</span>
+            <b>{t.value}</b>
+            <small>{t.label}</small>
+          </button>)}
+        </div>
+      </Card>
+
+      <Card title="Compliance score" action={<button className="text-link" onClick={() => setActive('Compliance')}>View hub</button>}>
+        <div className="cc-compliance">
+          <ComplianceRing pct={complianceScore} label="" sub="" />
+          <ul className="cc-compliance-legend">
+            <li><span className="dot red" />{expiredCount} Documents expired</li>
+            <li><span className="dot amber" />{dueSoonCount} Due within 14 days</li>
+            <li><span className="dot green" />{compliantCount} Compliant</li>
+          </ul>
+        </div>
+        <small className="cc-compliance-foot">{compliantCount} of {allComplianceRows.length} current</small>
+      </Card>
+
+      <Card title="Today's operations" action={<button className="text-link" onClick={() => setActive('Schedules')}>Operations centre</button>}>
+        <div className="cc-ops">
+          {[
+            { v: onShift, l: 'Workers on shift', go: 'Workers' },
+            { v: todaysShifts.length, l: 'Shifts scheduled', go: 'Schedules' },
+            { v: missingClockIns, l: 'Missing clock-ins', go: 'Schedules' },
+            { v: pendingNotes, l: 'Notes pending', go: 'Schedules' },
+          ].map(o => <button key={o.l} className="cc-op" onClick={() => setActive(o.go)}><b>{o.v}</b><small>{o.l}</small></button>)}
+        </div>
+      </Card>
+    </div>
+
+    <Card title="Financial overview">
+      <div className="cc-fin">
+        <div className="cc-fin-tiles">
+          {finTiles.map((t, idx) => <React.Fragment key={t.label}>
+            <div className={`cc-fin-tile ${t.tone}`}>
+              <small>{t.label}</small>
+              <b>{money(t.value)}</b>
+              <span className="cc-fin-delta">{t.delta >= 0 ? '▲' : '▼'} {Math.abs(t.delta)}% <i>vs last month</i></span>
+              <MiniSpark values={t.series} color={t.color} />
+            </div>
+            {idx < finTiles.length - 1 && <span className="cc-fin-arrow">→</span>}
+          </React.Fragment>)}
+        </div>
+        <div className="cc-fin-side">
+          <div className="cc-fin-side-row"><span className="cc-fin-side-ic">▣</span><div><small>Cash position</small><b>{money(cashPosition)}</b><i>Available cash balance</i></div></div>
+          <div className="cc-fin-side-row"><span className="cc-fin-side-ic">◎</span><div><small>Collection rate</small><b>{collectionRate}%</b><i>Claims paid of submitted</i></div></div>
+          <div className="cc-fin-side-row"><span className="cc-fin-side-ic">◷</span><div><small>Avg payment time</small><b>{avgPayDays === null ? '—' : `${avgPayDays} days`}</b><i>From paid invoices</i></div></div>
+        </div>
+      </div>
+    </Card>
+
+    <div className="cc-grid-3">
+      <Card title="Funding at risk" action={<button className="text-link" onClick={() => setActive('Participants')}>Go to participant tracker →</button>}>
+        <div className="cc-funding">
+          <div className="cc-funding-head"><b>{atRisk.length}</b><small>participants</small><strong className="red">{money(atRiskTotal)}</strong><small>at risk of overspend</small></div>
+          <Records rows={atRisk.slice(0, 3)} empty="No participants over 80% of budget." render={x => <div className="cc-mini-row" key={x.c.id}><span className="p-avatar sm">{(x.c.name || 'P').split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase()}</span><div><b>{x.c.name}</b><small>Plan budget {x.pct}% used</small></div><strong>{money(x.remaining)}</strong></div>} />
+        </div>
+      </Card>
+
+      <Card title="Plans expiring soon" action={<button className="text-link" onClick={() => setActive('Participants')}>Manage plans →</button>}>
+        <div className="cc-funding">
+          <div className="cc-funding-head"><b>{expiringParticipants.length}</b><small>plans</small><small>within 30 days</small></div>
+          <Records rows={expiringParticipants.slice(0, 3)} empty="No plans expiring in 30 days." render={c => <div className="cc-mini-row" key={c.id}><div><b>{c.name}</b><small>Plan ends {fmt(c.planEndDate)}</small></div><strong>{money(c.budget)}</strong></div>} />
+        </div>
+      </Card>
+
+      <Card title="Invoices overdue" action={<button className="text-link" onClick={() => setActive('Invoices')}>Go to invoices →</button>}>
+        <div className="cc-funding">
+          <div className="cc-funding-head"><b>{overdueInvoiceList.length}</b><small>invoices</small><strong className="red">{money(overdueInvoiceList.reduce((s, i) => s + Number(i.total || 0), 0))}</strong><small>total overdue</small></div>
+          <Records rows={overdueInvoiceList.slice(0, 3)} empty="No overdue invoices." render={i => { const d = daysUntil(i.dueDate); return <div className="cc-mini-row" key={i.id || i.invoiceNumber}><div><b>Invoice {i.invoiceNumber || ''}</b><small>{d !== null ? `${Math.abs(d)} days overdue` : 'Overdue'}</small></div><strong>{money(i.total)}</strong></div>; }} />
+        </div>
+      </Card>
+    </div>
+
+    <Card title="Participant plan & budget tracker" action={<button className="text-link" onClick={() => setActive('Participants')}>View full tracker →</button>}>
+      <div className="client-table"><div className="client-table-head" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1.1fr 1fr 1fr' }}><span>Participant</span><span>Spent</span><span>Balance</span><span>% Used</span><span>Plan end date</span><span>Status</span></div>
+        <Records rows={activeParticipants} empty="No participants yet." render={c => {
+          const spent = clientSpend(c.id);
+          const budget = Number(c.budget || 0);
+          const pct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+          const dleft = daysUntil(c.planEndDate);
+          const over = budget > 0 && spent > budget;
+          const status = over || pct >= 84 ? 'At risk' : (dleft !== null && dleft >= 0 && dleft <= 14) ? 'Review' : 'On track';
+          const stTone = status === 'At risk' ? 'red' : status === 'Review' ? 'amber' : 'green';
+          return <div className="client-table-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1.1fr 1fr 1fr', alignItems: 'center' }} key={c.id}>
+            <div className="cc-mini-row" style={{ padding: 0 }}><span className="p-avatar sm">{(c.name || 'P').split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase()}</span><div><b>{c.name}</b><small>NDIS {c.ndisNumber || '—'}</small></div></div>
+            <span>{money(spent)}</span>
+            <span style={{ color: (budget - spent) < 0 ? 'var(--red)' : 'var(--ink)' }}>{money(budget - spent)}</span>
+            <span><span className="p-bar" style={{ display: 'inline-block', width: '60px', verticalAlign: 'middle', marginRight: '8px' }}><span style={{ width: `${pct}%`, background: over ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--green)' }} /></span>{pct}%</span>
+            <span>{dleft === null ? 'No end date' : fmt(c.planEndDate)}</span>
+            <span className={`traffic-pill ${stTone}`}>{status}</span>
+          </div>;
+        }} />
+      </div>
+    </Card>
+
+    <Card title="Recent activity" action={<button className="text-link" onClick={() => setActive('Invoices')}>View all activity →</button>}>
+      <Records rows={activity} empty="No recent activity yet." render={(a, idx) => <div className="cc-activity-row" key={idx}><span className="cc-activity-time">{relTime(a.ts)}</span><span className="cc-activity-ic">{a.icon}</span><div><b>{a.title}</b><small>{a.detail}</small></div></div>} />
+    </Card>
+
+    <div className={`cc-status-strip ${onTrack ? 'good' : 'warn'}`}>
+      <div className="cc-status-head"><span className="cc-status-ic">{onTrack ? '✓' : '!'}</span><div><b>{onTrack ? 'Your organisation is on track' : 'Some metrics need attention'}</b><small>{onTrack ? 'Key metrics are healthy.' : 'Review the action centre above.'}</small></div></div>
+      <div className="cc-status-metric"><small>Revenue vs target</small><b>{revVsTarget}%</b></div>
+      <div className="cc-status-metric"><small>Claims collection</small><b>{collectionRate}%</b></div>
+      <div className="cc-status-metric"><small>Compliance score</small><b>{complianceScore}%</b></div>
+      <div className="cc-status-metric"><small>Budget utilisation</small><b>{budgetUtil}%</b></div>
+    </div>
+  </>;
 }
 
 function Dashboard({ totals, invoices, transactions, clients, business, workers = [], shifts = [], setActive }) {
@@ -2781,6 +3019,131 @@ function BusinessPerformance({ business, transactions = [], invoices = [], clien
   </Card>;
 }
 
+function FinanceDashboard({ transactions = [], invoices = [], clients = [], business = {} }) {
+  const [mode, setMode] = useState('line');     // 'line' | 'bar'
+  const [groupBy, setGroupBy] = useState('day'); // 'day' | 'week' | 'month'
+  const lbl = (d) => new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(d);
+  const cfg = groupBy === 'day' ? { n: 30, days: 1 } : groupBy === 'week' ? { n: 12, days: 7 } : { n: 12, days: 30 };
+
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const buckets = Array.from({ length: cfg.n }, (_, i) => {
+    const start = new Date(now); start.setDate(now.getDate() - (cfg.n - 1 - i) * cfg.days);
+    return { start, income: 0, expenses: 0 };
+  });
+  const first = buckets[0].start.getTime();
+  transactions.forEach(t => {
+    const raw = t.date || t.createdAt; if (!raw) return;
+    const d = new Date(`${String(raw).slice(0, 10)}T00:00:00`); if (Number.isNaN(d.getTime())) return;
+    const idx = Math.floor((d.getTime() - first) / (cfg.days * 86400000));
+    if (idx < 0 || idx >= buckets.length) return;
+    if (t.type === 'income') buckets[idx].income += Number(t.amount || 0);
+    else if (t.type === 'expense') buckets[idx].expenses += Number(t.amount || 0);
+  });
+
+  const periodDays = cfg.n * cfg.days;
+  const totalIncome = buckets.reduce((s, b) => s + b.income, 0);
+  const totalExpenses = buckets.reduce((s, b) => s + b.expenses, 0);
+  const net = totalIncome - totalExpenses;
+  const avgDailyNet = Math.round(net / periodDays);
+  const maxVal = Math.max(1, ...buckets.map(b => Math.max(b.income, b.expenses)));
+
+  const W = 700, H = 240, padL = 8, padR = 8, innerW = W - padL - padR;
+  const xAt = (i) => buckets.length === 1 ? padL : padL + (i / (buckets.length - 1)) * innerW;
+  const yAt = (v) => 220 - (v / maxVal) * 200;
+  const poly = (key) => buckets.map((b, i) => `${xAt(i).toFixed(1)},${yAt(b[key]).toFixed(1)}`).join(' ');
+  const netPoly = buckets.map((b, i) => `${xAt(i).toFixed(1)},${yAt(Math.max(0, b.income - b.expenses)).toFixed(1)}`).join(' ');
+  const barW = Math.max(2, (innerW / buckets.length) * 0.34);
+  const axisIdx = [0, Math.floor(buckets.length / 4), Math.floor(buckets.length / 2), Math.floor(3 * buckets.length / 4), buckets.length - 1];
+
+  // Weekly bars (last 5 weeks)
+  const weeks = Array.from({ length: 5 }, (_, i) => ({ income: 0, expenses: 0, label: '' }));
+  transactions.forEach(t => {
+    const raw = t.date || t.createdAt; if (!raw) return;
+    const d = new Date(`${String(raw).slice(0, 10)}T00:00:00`); if (Number.isNaN(d.getTime())) return;
+    const wAgo = Math.floor((now - d) / (7 * 86400000));
+    if (wAgo < 0 || wAgo >= 5) return;
+    const w = weeks[4 - wAgo];
+    if (t.type === 'income') w.income += Number(t.amount || 0); else if (t.type === 'expense') w.expenses += Number(t.amount || 0);
+  });
+  const weekMax = Math.max(1, ...weeks.map(w => Math.max(w.income, w.expenses)));
+
+  // Top expense categories
+  const catMap = {};
+  transactions.filter(t => t.type === 'expense').forEach(t => { const k = t.category || 'Other'; catMap[k] = (catMap[k] || 0) + Number(t.amount || 0); });
+  const cats = Object.entries(catMap).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+  const topCats = cats.slice(0, 3);
+  const otherTotal = cats.slice(3).reduce((s, c) => s + c.amount, 0);
+  if (otherTotal > 0) topCats.push({ name: 'Other', amount: otherTotal });
+  const catTotal = cats.reduce((s, c) => s + c.amount, 0) || 1;
+
+  // Bottom banner figures
+  const claimsSubmitted = invoices.filter(i => !['Cancelled', 'Draft'].includes(normaliseInvoiceStatus(i.status))).reduce((s, i) => s + Number(i.total || 0), 0);
+  const outstanding = invoices.filter(i => !['Paid', 'Cancelled'].includes(normaliseInvoiceStatus(i.status))).reduce((s, i) => s + Number(i.total || 0), 0);
+  const renewals = clients.filter(c => !c.archived).filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d >= 0 && d <= 30; }).length;
+  const incomePctOfClaims = claimsSubmitted ? Math.round((totalIncome / claimsSubmitted) * 100) : 0;
+  const healthy = net >= 0;
+
+  return <>
+    <Card title={<span>Cashflow over time <i className="cc-sub-label">Income and expenses</i></span>} action={<div className="fin-toggles">
+      <select className="period-select" value={groupBy} onChange={e => setGroupBy(e.target.value)}><option value="day">Group by: Day</option><option value="week">Group by: Week</option><option value="month">Group by: Month</option></select>
+      <div className="fin-seg"><button className={mode === 'line' ? 'active' : ''} onClick={() => setMode('line')}>Line</button><button className={mode === 'bar' ? 'active' : ''} onClick={() => setMode('bar')}>Bar</button></div>
+    </div>}>
+      <div className="fin-chart">
+        <div className="axis"><span>{money(maxVal)}</span><span>{money(maxVal * .75)}</span><span>{money(maxVal * .5)}</span><span>{money(maxVal * .25)}</span><span>$0</span></div>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="fin-svg">
+          {[0, .25, .5, .75, 1].map(g => <line key={g} x1={padL} x2={W - padR} y1={yAt(maxVal * g)} y2={yAt(maxVal * g)} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 4" />)}
+          {mode === 'bar'
+            ? buckets.map((b, i) => <g key={i}><rect x={xAt(i) - barW} y={yAt(b.income)} width={barW} height={Math.max(0, 220 - yAt(b.income))} fill="var(--green)" rx="2" /><rect x={xAt(i) + 1} y={yAt(b.expenses)} width={barW} height={Math.max(0, 220 - yAt(b.expenses))} fill="var(--blue)" rx="2" /></g>)
+            : <><polyline points={poly('income')} fill="none" stroke="var(--green)" strokeWidth="3" strokeLinejoin="round" /><polyline points={poly('expenses')} fill="none" stroke="var(--blue)" strokeWidth="3" strokeLinejoin="round" /><polyline points={netPoly} fill="none" stroke="var(--ink)" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" /></>}
+        </svg>
+        <div className="fin-xaxis">{axisIdx.map(i => <span key={i}>{lbl(buckets[i].start)}</span>)}</div>
+        <div className="legend"><span className="dot-green">Income</span><span className="dot-blue">Expenses</span><span className="dot-ink">Net Cashflow</span></div>
+      </div>
+    </Card>
+
+    <div className="cc-grid-3">
+      <Card title={<span>Cashflow summary <i className="cc-sub-label">For the selected period</i></span>}>
+        <div className="fin-summary">
+          <div className="fin-sum-row"><span className="dot green" />Total income<b>{money(totalIncome)}</b></div>
+          <div className="fin-sum-row"><span className="dot blue" />Total expenses<b>{money(totalExpenses)}</b></div>
+          <div className="fin-sum-divider" />
+          <div className="fin-sum-row big">Net cashflow<b className={net >= 0 ? 'green' : 'red'}>{net >= 0 ? '+' : ''}{money(net)}</b></div>
+          <div className="fin-sum-row">Average daily net<b className={avgDailyNet >= 0 ? 'green' : 'red'}>{avgDailyNet >= 0 ? '+' : ''}{money(avgDailyNet)}</b></div>
+        </div>
+      </Card>
+
+      <Card title={<span>Cashflow by week <i className="cc-sub-label">Income vs expenses</i></span>}>
+        <div className="fin-weekly">
+          {weeks.map((w, i) => <div className="fin-week" key={i}>
+            <div className="fin-week-bars">
+              <span className="fin-bar green" style={{ height: `${(w.income / weekMax) * 100}%` }} />
+              <span className="fin-bar blue" style={{ height: `${(w.expenses / weekMax) * 100}%` }} />
+            </div>
+            <small>W{i + 1}</small>
+          </div>)}
+        </div>
+        <div className="legend"><span className="dot-green">Income</span><span className="dot-blue">Expenses</span></div>
+      </Card>
+
+      <Card title={<span>Top expense categories <i className="cc-sub-label">By amount</i></span>}>
+        <Records rows={topCats} empty="No expenses recorded yet." render={(c, i) => <div className="fin-cat" key={i}>
+          <span className="fin-cat-name">{c.name}</span>
+          <span className="fin-cat-bar"><span style={{ width: `${Math.round((c.amount / catTotal) * 100)}%` }} /></span>
+          <span className="fin-cat-amt">{money(c.amount)}</span>
+          <span className="fin-cat-pct">{Math.round((c.amount / catTotal) * 100)}%</span>
+        </div>} />
+      </Card>
+    </div>
+
+    <div className={`cc-status-strip ${healthy ? 'good' : 'warn'}`}>
+      <div className="cc-status-head"><span className="cc-status-ic">{healthy ? '✓' : '!'}</span><div><b>{healthy ? 'Your cashflow is healthy' : 'Cashflow needs attention'}</b><small>{healthy ? "You're tracking ahead of expenses this period." : 'Expenses are outpacing income this period.'}</small></div></div>
+      <div className="cc-status-metric"><small>Claims submitted</small><b>{money(claimsSubmitted)}</b><i>{incomePctOfClaims}% of income</i></div>
+      <div className="cc-status-metric"><small>Outstanding claims</small><b>{money(outstanding)}</b><i>Awaiting payment</i></div>
+      <div className="cc-status-metric"><small>Next plan renewals</small><b>{renewals}</b><i>Within 30 days</i></div>
+    </div>
+  </>;
+}
+
 function FinanceWorkspace({ business, clients, transactions, invoices = [], form, setForm, editing, save, edit, updateStatus = () => {}, del, cancel }) {
   const [filters, setFilters] = useState({ type: 'all', status: 'all', clientId: 'all', sort: 'date_desc', query: '' });
   const [page, setPage] = useState(1);
@@ -2799,6 +3162,7 @@ function FinanceWorkspace({ business, clients, transactions, invoices = [], form
   const submitTxn = () => { save(); setTxnOpen(false); };
   useEffect(() => { if (editing) setTxnOpen(true); }, [editing]);
   return <>
+    <FinanceDashboard transactions={transactions} invoices={invoices} clients={clients} business={business} />
     <BusinessPerformance business={business} transactions={transactions} invoices={invoices} clients={clients} />
     <Card title="Transaction Register" action={<div className="filters"><span className="list-meta" style={{ margin: 0 }}>{rows.length ? start + 1 : 0}-{Math.min(start + PAGE_SIZE, rows.length)} of {rows.length}</span><button className="primary" onClick={openTxnNew}>+ New Transaction</button></div>}>
       <div className="filters transaction-filters">
