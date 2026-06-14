@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { supabase, isSupabaseConfigured, supabaseConfigSource } from './supabaseClient';
 import { usePlan } from './usePlan';
-import { UpgradeWall } from './UpgradeWall';
+import { UpgradeWall, startPortal } from './UpgradeWall';
 
 // MASTER SWITCH for paid tiers. Set to TRUE in this package (billing enforced):
 // Compliance is gated to trial/pro/practice and the 10-worker cap applies below
@@ -1078,7 +1078,7 @@ export default function App() {
       {active === 'Compliance' && <ComplianceWorkspace clients={clients} invoices={invoices} totals={totals} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} workers={workers} setWorkers={setWorkers} risks={risks} setRisks={setRisks} incidents={incidents} setIncidents={setIncidents} complaints={complaints} setComplaints={setComplaints} improvements={improvements} setImprovements={setImprovements} audits={audits} setAudits={setAudits} auditReports={auditReports} setAuditReports={setAuditReports} governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} documents={documents} setDocuments={setDocuments} initialSection={complianceSection} onSectionChange={setComplianceSection} focusWorker={focusWorker} onWorkerFocusHandled={() => setFocusWorker(null)} onPublishWorkers={publishWorkers} user={user} />}
       {active === 'Reports' && <ReportsWorkspace business={business} transactions={transactions} clients={clients} risks={risks} incidents={incidents} complaints={complaints} improvements={improvements} audits={audits} auditReports={auditReports} governanceReviews={governanceReviews} documents={documents} workers={workers} shifts={shifts} invoices={invoices} />}
       {active === 'Schedules' && <SchedulesWorkspace clients={clients} workers={workers} shifts={shifts} setShifts={setShifts} invoices={invoices} setInvoices={setInvoices} pricingItems={pricingItems} onPublishSchedule={publishScheduleChanges} />}
-      {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
+      {active === 'Settings' && <Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} workers={workers} setActive={setActive} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>} 
       </>}
     </main>
   </div>
@@ -1157,7 +1157,7 @@ export default function App() {
     saveBusiness={saveBusiness}
     onPublishSchedule={publishScheduleChanges}
     onPublishWorkers={publishWorkers}
-    settings={<Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>}
+    settings={<Settings pricingItems={pricingItems} business={business} setBusiness={setBusiness} saveBusiness={saveBusiness} clients={clients} invoices={invoices} transactions={transactions} workers={workers} setActive={setActive} backup={backup} restore={restore} clear={() => { if (confirm('Clear all local data on this device? Your cloud backup will not be affected.')) { skipNextAutoSyncRef.current = true; sectionUpdatedAtRef.current = {}; setBusiness(normaliseBusiness(EMPTY_BUSINESS)); setClients([]); setInvoices([]); setTransactions([]); setWorkers([]); setShifts([]); setRisks([]); setIncidents([]); setComplaints([]); setImprovements([]); setAudits([]); setAuditReports([]); setGovernanceReviews([]); setDocuments([]); localStorage.removeItem(storageKeyFor(user)); } }} user={user} sync={async () => { const data = payloadWithFreshMeta(); const r = await syncSnapshot(data, user); if (r.ok) lastCloudSnapshotRef.current = serialisePayload(data); showNotice(r.message); }} load={async () => loadCloudData()}/>}
   />
 </>;
 }
@@ -3562,151 +3562,161 @@ function Pagination({ page, totalPages, onPrev, onNext }) {
   return <div className="pagination"><button onClick={onPrev} disabled={page <= 1}>Previous</button><span>Page {page} of {totalPages}</span><button onClick={onNext} disabled={page >= totalPages}>Next</button></div>;
 }
 
-function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, invoices, transactions, backup, restore, clear, sync, load, user }) {
+function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, invoices, transactions, workers = [], backup, restore, clear, sync, load, user, setActive = () => {} }) {
   const [draft, setDraft] = useState({ ...EMPTY_BUSINESS, ...business });
   const [businessOpen, setBusinessOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [subOpen, setSubOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState('');
+  const [portalBusy, setPortalBusy] = useState(false);
+  const importRef = useRef(null);
+  const { plan, sub, billingReady, workerLimit } = usePlan(user, true);
 
-  useEffect(() => {
-    setDraft({ ...EMPTY_BUSINESS, ...business });
-  }, [business]);
-
+  useEffect(() => { setDraft({ ...EMPTY_BUSINESS, ...business }); }, [business]);
   const updateDraft = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
-  // Derived workspace data
   const activeClients = clients.filter(c => !c.archived);
-  const plansNeedReview = activeClients.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d <= 30; }).length;
+  const activeWorkers = (workers || []).filter(w => !w.archived);
+  const plansNeedReview = activeClients.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d >= 0 && d <= 30; }).length;
   const pricingCount = getPricingItems(business).length;
-  const locationCount = (business.address ? 1 : 0) + (business.secondaryAddress ? 1 : 0) || (business.address ? 1 : 1);
-  const goPricing = () => setPricingOpen(true);
+  const cloudOn = !!(user && supabase);
+
   const goBusiness = () => setBusinessOpen(true);
-  const goCloud = () => document.getElementById('settings-cloud-anchor')?.scrollIntoView({ behavior: 'smooth' });
+  const goPricing = () => setPricingOpen(true);
   const closeBusiness = () => setBusinessOpen(false);
   const closePricing = () => setPricingOpen(false);
+  const triggerImport = () => importRef.current && importRef.current.click();
 
-  const categories = [
-    { icon: '▤', tone: 'violet', title: 'Organisation', desc: 'Business profile, branding and provider details.', link: 'Open organisation settings', onLink: goBusiness, items: [
-      { icon: '▦', label: 'Business Profile', go: goBusiness },
-      { icon: '▥', label: 'Logo & Branding', go: goBusiness },
-      { icon: '◉', label: 'Provider Details', go: goBusiness },
-      { icon: '$', label: 'Payment Details', go: goBusiness },
+  const health = [
+    { label: 'Data Backup', ok: cloudOn, status: cloudOn ? 'All backups current' : 'Local only', detail: cloudOn ? 'Cloud sync on' : 'Connect cloud sync' },
+    { label: 'NDIS Pricing', ok: pricingCount > 0, status: pricingCount > 0 ? 'Up to date' : 'Not configured', detail: `${pricingCount} items` },
+    { label: 'Participants', ok: true, status: activeClients.length ? 'All records active' : 'None yet', detail: `${activeClients.length} active` },
+    { label: 'Plans Review', ok: plansNeedReview === 0, status: plansNeedReview ? `${plansNeedReview} due soon` : 'All current', detail: plansNeedReview ? 'Action needed' : 'No action needed' },
+    { label: 'System Status', ok: true, status: 'All good', detail: 'No issues detected' },
+  ];
+  const score = Math.round((health.filter(h => h.ok).length / health.length) * 100);
+  const scoreLabel = score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : score >= 50 ? 'Fair' : 'Needs work';
+
+  const cards = [
+    { icon: '▤', tone: 'violet', title: 'Organisation', desc: 'Manage your business profile and details.', link: 'Manage organisation', onLink: goBusiness, items: [
+      { label: 'Business Profile', go: goBusiness }, { label: 'Logo & Branding', go: goBusiness }, { label: 'Provider Details', go: goBusiness }, { label: 'Payment Details', go: goBusiness }, { label: 'Contact & Locations', go: goBusiness },
     ] },
-    { icon: '◷', tone: 'green', title: 'Pricing & Funding', desc: 'NDIS support items, rates and funding.', link: 'Open pricing manager', onLink: goPricing, items: [
-      { icon: '◷', label: 'NDIS Pricing Manager', go: goPricing },
-      { icon: '▢', label: 'Support Item Rates', go: goPricing },
-      { icon: '▤', label: 'Price Guide', go: goPricing },
+    { icon: '$', tone: 'green', title: 'Pricing & Funding', desc: 'NDIS pricing, support items, rates and funding.', link: 'Open pricing manager', onLink: goPricing, items: [
+      { label: 'NDIS Pricing Manager', go: goPricing }, { label: 'Support Item Rates', go: goPricing }, { label: 'Price Guide', go: goPricing }, { label: 'Funding Sources', soon: true }, { label: 'Plan Templates', soon: true },
     ] },
-    { icon: '✓', tone: 'blue', title: 'Data & Backup', desc: 'Back up, restore and export your data.', link: 'Open backup tools', onLink: goCloud, items: [
-      { icon: '☁', label: 'Cloud Sync', go: goCloud },
-      { icon: '↻', label: 'Restore Backup', go: goCloud },
-      { icon: '⤓', label: 'Backup & Export', go: goCloud },
+    { icon: '☁', tone: 'blue', title: 'Data & Backup', desc: 'Back up, restore and export your data.', link: 'Open backup tools', onLink: sync, items: [
+      { label: 'Cloud Sync', go: sync }, { label: 'Restore Backup', go: load }, { label: 'Backup & Export', go: backup }, { label: 'Import Data', go: triggerImport }, { label: 'Data Retention', soon: true },
     ] },
-    { icon: '⌁', tone: 'amber', title: 'Documents', desc: 'Invoices, reports and compliance exports.', link: 'Open reports', onLink: goCloud, items: [
-      { icon: '▤', label: 'Invoice PDFs', go: goCloud },
-      { icon: '▥', label: 'Compliance Registers', go: goCloud },
-      { icon: '◷', label: 'Financial Reports', go: goCloud },
+    { icon: '▥', tone: 'amber', title: 'Documents', desc: 'Manage documents, reports and compliance exports.', link: 'Open documents', onLink: () => setActive('Reports'), items: [
+      { label: 'Invoice PDFs', go: () => setActive('Invoices') }, { label: 'Compliance Registers', go: () => setActive('Compliance') }, { label: 'Financial Reports', go: () => setActive('Reports') }, { label: 'Audit Logs', go: () => setActive('Compliance') }, { label: 'Export History', soon: true },
+    ] },
+    { icon: '◷', tone: 'violet', title: 'Users & Permissions', desc: 'Manage users, roles and permissions.', link: 'Manage users', onLink: () => setActive('Workers'), items: [
+      { label: 'Users & Staff', go: () => setActive('Workers') }, { label: 'Roles & Permissions', soon: true }, { label: 'Access Levels', soon: true }, { label: 'Activity Logs', go: () => setActive('Dashboard') }, { label: 'API Access', soon: true },
     ] },
   ];
 
-  const workspaceStats = [
-    { icon: '◉', tone: 'violet', value: activeClients.length, label: 'Participants', sub: 'Active' },
-    { icon: '▤', tone: 'green', value: invoices.length, label: 'Invoices', sub: 'Generated' },
-    { icon: '$', tone: 'blue', value: transactions.length, label: 'Transactions', sub: 'Processed' },
-    { icon: '◷', tone: 'amber', value: pricingCount, label: 'Support Items', sub: 'Active' },
+  const quickActions = [
+    { label: 'Edit Business Profile', sub: 'Update business details', icon: '▤', go: goBusiness },
+    { label: 'Open Pricing Manager', sub: 'Manage NDIS pricing', icon: '$', go: goPricing },
+    { label: 'Backup Now', sub: 'Create a manual backup', icon: '☁', go: sync },
+    { label: 'Restore from Backup', sub: 'Restore previous data', icon: '↻', go: load },
+    { label: 'Export Workspace', sub: 'Download all data', icon: '⤓', go: backup },
   ];
+
+  const usersCap = (workerLimit === Infinity || workerLimit == null) ? null : workerLimit;
+  const usage = [
+    { label: 'Users', icon: '◉', used: activeWorkers.length, cap: usersCap },
+    { label: 'Storage', icon: '☁', soon: true },
+    { label: 'API Calls', icon: '⌁', soon: true },
+    { label: 'Invoices', icon: '▤', used: invoices.length, cap: null },
+  ];
+
+  const planLabel = PLAN_LABELS[plan] || 'Free';
+  const planStatus = (plan === 'pro' || plan === 'practice') ? 'Active' : plan === 'trial' ? 'Trial' : 'Free';
+  const renew = planEndDate(sub);
+  const manageSubscription = async () => {
+    if (plan === 'pro' || plan === 'practice') {
+      setPortalBusy(true);
+      const r = await startPortal(user);
+      setPortalBusy(false);
+      if (r && r.error) setSubOpen(true);
+    } else { setSubOpen(true); }
+  };
+
+  const resetConfig = () => { if (window.confirm('Reset configuration to defaults? This clears your business profile, branding and pricing settings. Participants, invoices and transactions are kept.')) { saveBusiness({ ...EMPTY_BUSINESS }); } };
+  const confirmDelete = async () => {
+    if (deleteText !== 'DELETE') return;
+    try { if (user && supabase) await supabase.from('app_snapshots').delete().eq('id', user.id); } catch (e) { /* ignore */ }
+    try { clear(); } catch (e) { /* ignore */ }
+    if (supabase) await supabase.auth.signOut();
+  };
 
   return <>
-    <Card title="Subscription" action={<SubscriptionBadge user={user} />}>
-      <p className="muted" style={{ margin: 0 }}>Your current plan. Tap the badge for renewal/expiry details, or manage billing from the plan picker.</p>
-    </Card>
-    {/* Header */}
-    <div className="org-settings-head org-settings-head-compact">
-      <div className="org-summary-card">
-        <div className="org-summary-info">
-          <b>{business.name || "Your Disability Services"}</b>
-          <small>NDIS Provider{business.abn ? ` · ABN ${business.abn}` : ''}</small>
-          <div className="org-summary-stats">
-            <span><i>◉</i> {activeClients.length} Participants</span>
-            <span><i>◈</i> {pricingCount} Support Items</span>
-            <span><i>⌖</i> {locationCount} Location{locationCount === 1 ? '' : 's'}</span>
-          </div>
-        </div>
-        <div className="org-summary-logo">{business.logoUrl ? <img src={business.logoUrl} alt="Logo" /> : <span>{(business.name || 'KC').slice(0, 2).toUpperCase()}</span>}</div>
+    <input ref={importRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={e => { if (e.target.files && e.target.files[0]) restore(e.target.files[0]); e.target.value = ''; }} />
+
+    <div className="set-head">
+      <div><h1 className="set-h1">Settings</h1><p className="set-sub-copy">Manage your organisation, preferences and workspace.</p></div>
+      <div className="set-head-actions">
+        <a className="set-help-btn" href={`mailto:${SUPPORT_EMAIL}`}><span className="set-help-q">?</span> Help Centre</a>
+        <button className="set-signout" onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button>
       </div>
     </div>
 
-    {/* Workspace Health */}
-    <Card title="Workspace Health">
-      <div className="health-strip">
-        <div className="health-item"><span className="health-ic green">✓</span><div><b>Data Backup</b><small className="health-status green">Ready</small><small>Export &amp; restore available</small></div></div>
-        <div className="health-item"><span className="health-ic green">✓</span><div><b>NDIS Pricing</b><small className="health-status green">Up to date</small><small>{pricingCount} support items</small></div></div>
-        <div className="health-item"><span className="health-ic green">✓</span><div><b>Participants</b><small className="health-status green">{activeClients.length} active</small><small>{plansNeedReview ? `${plansNeedReview} need review` : 'All plans current'}</small></div></div>
-        <div className="health-item"><span className={`health-ic ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? '!' : '✓'}</span><div><b>Plans Review</b><small className={`health-status ${plansNeedReview ? 'amber' : 'green'}`}>{plansNeedReview ? `${plansNeedReview} plan${plansNeedReview === 1 ? '' : 's'}` : 'All current'}</small><small>{plansNeedReview ? 'Update required' : 'No action needed'}</small></div></div>
-        <div className="health-item"><span className="health-ic green">✓</span><div><b>System Status</b><small className="health-status green">All good</small><small>No issues detected</small></div></div>
+    <div className="set-health">
+      <div className="set-health-lead"><span className="set-health-badge">🛡</span><div><b>Workspace Health</b><small>{score >= 70 ? 'Your workspace is healthy and up to date.' : 'Some items need your attention.'}</small></div></div>
+      <div className="set-health-checks">
+        {health.map(h => <div className="set-health-check" key={h.label}><span className={`set-check-ic ${h.ok ? 'green' : 'amber'}`}>{h.ok ? '✓' : '!'}</span><div><b>{h.label}</b><small>{h.status}</small><i>{h.detail}</i></div></div>)}
       </div>
-    </Card>
-
-    {/* Category cards */}
-    <div className="settings-cat-grid">
-      {categories.map((cat, ci) => (
-        <div className="settings-cat-card" key={ci}>
-          <div className="settings-cat-head">
-            <span className={`settings-cat-icon ${cat.tone}`}>{cat.icon}</span>
-            <div><b>{cat.title}</b><small>{cat.desc}</small></div>
-          </div>
-          <div className="settings-cat-list">
-            {cat.items.map((it, ii) => <button key={ii} className="settings-cat-item" onClick={it.go}><span className="settings-cat-item-ic">{it.icon}</span><span>{it.label}</span><span className="settings-cat-chevron">›</span></button>)}
-          </div>
-          <button className="text-link settings-cat-link" onClick={cat.onLink}>{cat.link}</button>
-        </div>
-      ))}
+      <div className="set-health-score"><small>Overall Score</small><b className={score >= 70 ? 'green' : 'amber'}>{score}%</b><small>{scoreLabel}</small></div>
     </div>
 
-    {/* Bottom row */}
-    <div className="settings-bottom-grid">
-      <Card title="Workspace Statistics">
-        <div className="workspace-stat-grid">
-          {workspaceStats.map((s, i) => <div className={`workspace-stat ${s.tone}`} key={i}><span className="workspace-stat-ic">{s.icon}</span><b>{s.value}</b><small>{s.label}</small><em>{s.sub}</em></div>)}
+    <div className="set-cards">
+      {cards.map(card => <div className="set-card" key={card.title}>
+        <span className={`set-card-icon ${card.tone}`}>{card.icon}</span>
+        <b className="set-card-title">{card.title}</b>
+        <p className="set-card-desc">{card.desc}</p>
+        <div className="set-card-items">
+          {card.items.map(it => it.soon
+            ? <div className="set-card-item soon" key={it.label}><span>{it.label}</span><span className="set-soon">Soon</span></div>
+            : <button className="set-card-item" key={it.label} onClick={it.go}><span>{it.label}</span><span className="set-chev">›</span></button>)}
         </div>
-      </Card>
-      <Card title="Backup & Sync" action={<span className="pill green">Ready</span>}>
-        <div className="cloud-status-body">
-          <div className="cloud-status-lines">
-            <div><small>Workspace</small><b>{clients.length} clients · {invoices.length} invoices</b></div>
-            <div><small>Transactions</small><b>{transactions.length} recorded</b></div>
-            <div><small>Support items</small><b>{pricingCount} active</b></div>
-          </div>
-          <div className="cloud-status-icon">☁</div>
-        </div>
-        <div className="cloud-status-actions">
-          <button className="primary" onClick={sync}>Sync Now</button>
-          <button onClick={load}>Restore</button>
-        </div>
-      </Card>
-      <Card title="Quick Actions">
-        <div className="quick-actions-list">
-          <button className="quick-action" onClick={goBusiness}><span className="quick-action-ic blue">◉</span><span>Edit Business Profile</span><span className="settings-cat-chevron">›</span></button>
-          <button className="quick-action" onClick={goPricing}><span className="quick-action-ic violet">◷</span><span>Open Pricing Manager</span><span className="settings-cat-chevron">›</span></button>
-          <button className="quick-action" onClick={goCloud}><span className="quick-action-ic amber">☁</span><span>Backup &amp; Restore</span><span className="settings-cat-chevron">›</span></button>
-        </div>
-      </Card>
+        <button className={`set-card-link ${card.tone}`} onClick={card.onLink}>{card.link} →</button>
+      </div>)}
     </div>
 
-    <span id="settings-cloud-anchor" />
-    <Card title="Backup & Data" action={<button className="text-link" onClick={async () => supabase && supabase.auth.signOut()}>Sign out</button>}>
-      <p>Your workspace is saved on this device and can be backed up to the secure cloud. Export a backup file any time, restore from a previous backup, or sync your full workspace.</p>
-      <div className="settings-action-row">
-        <button className="primary" onClick={sync}>Sync to Cloud</button>
-        <button onClick={load}>Restore from Cloud</button>
-        <button onClick={backup}>Export Backup File</button>
-        <label className="file">Import Backup File<input type="file" accept="application/json" onChange={e => e.target.files?.[0] && restore(e.target.files[0])}/></label>
-        <button className="danger" onClick={clear}>Clear All Data</button>
-      </div>
-    </Card>
+    <div className="set-quick">
+      <div className="set-quick-lead"><b>Quick Actions</b><small>Frequent tasks to help you get things done.</small></div>
+      {quickActions.map(q => <button className="set-quick-btn" key={q.label} onClick={q.go}><span className="set-quick-ic">{q.icon}</span><span className="set-quick-meta"><b>{q.label}</b><small>{q.sub}</small></span><span className="set-chev">›</span></button>)}
+    </div>
 
-    <div className="settings-brand-footer">
-      <span className="settings-brand-lock">🔒 Your data is secure and encrypted.</span>
-      <span className="settings-brand-tag"><b>Kajola Care</b> by Ogbara</span>
+    <div className="set-bottom">
+      <Card title="Subscription & Usage">
+        <div className="set-sub">
+          <div className="set-sub-plan">
+            <small>Current Plan</small>
+            <b className="set-sub-name">{planLabel}</b>
+            <span className={`set-sub-status ${planStatus === 'Active' ? 'green' : planStatus === 'Trial' ? 'amber' : 'grey'}`}>{planStatus}</span>
+            <small className="set-sub-renew">{!billingReady ? 'Billing not enabled' : renew ? `${plan === 'trial' ? 'Trial ends' : 'Renews on'} ${fmt(renew)}` : 'No renewal date'}</small>
+            <button className="set-sub-manage" onClick={manageSubscription} disabled={portalBusy}>{portalBusy ? 'Opening…' : 'Manage Subscription ↗'}</button>
+          </div>
+          <div className="set-usage">
+            {usage.map(u => <div className={`set-usage-cell ${u.soon ? 'soon' : ''}`} key={u.label}>
+              <span className="set-usage-ic">{u.icon}</span>
+              <small>{u.label}</small>
+              {u.soon ? <b className="set-soon-inline">Soon</b> : <b>{u.cap != null ? `${u.used} / ${u.cap}` : u.used}</b>}
+              {!u.soon && <span className="set-usage-bar"><span style={{ width: `${u.cap ? Math.min(100, Math.round((u.used / u.cap) * 100)) : Math.min(100, u.used)}%` }} /></span>}
+            </div>)}
+          </div>
+        </div>
+      </Card>
+
+      <Card title={<span className="set-danger-title">Danger Zone</span>} className="set-danger-card">
+        <p className="muted" style={{ marginTop: 0 }}>Irreversible actions that affect your entire workspace.</p>
+        <button className="set-danger-row" onClick={clear}><div><b>Clear All Data</b><small>Permanently delete all data in this workspace</small></div><span className="set-chev">›</span></button>
+        <button className="set-danger-row" onClick={resetConfig}><div><b>Reset Configuration</b><small>Reset all settings to default values</small></div><span className="set-chev">›</span></button>
+        <button className="set-danger-row" onClick={() => { setDeleteText(''); setDeleteOpen(true); }}><div><b>Delete Workspace</b><small>Permanently delete this workspace</small></div><span className="set-chev">›</span></button>
+      </Card>
     </div>
 
     {/* Business Profile modal */}
@@ -3767,6 +3777,26 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
         </div>
       </div>
     </div>}
+    {/* Plan picker modal */}
+    {subOpen && <div className="modal-overlay" onClick={() => setSubOpen(false)}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+        <div className="modal-head"><div><h3>Choose a plan</h3><small>Upgrade or change your subscription</small></div><button className="modal-close" onClick={() => setSubOpen(false)} aria-label="Close">×</button></div>
+        <div className="modal-body"><UpgradeWall reason="compliance" plan={plan} user={user} /></div>
+      </div>
+    </div>}
+
+    {/* Delete workspace modal */}
+    {deleteOpen && <div className="modal-overlay" onClick={() => setDeleteOpen(false)}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+        <div className="modal-head"><div><h3>Delete workspace</h3><small>This action cannot be undone</small></div><button className="modal-close" onClick={() => setDeleteOpen(false)} aria-label="Close">×</button></div>
+        <div className="modal-body">
+          <p>This permanently deletes your cloud backup and signs you out. Type <b>DELETE</b> to confirm.</p>
+          <input className="set-delete-input" value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="DELETE" />
+        </div>
+        <div className="modal-foot"><div className="modal-foot-actions"><button onClick={() => setDeleteOpen(false)}>Cancel</button><button className="danger" disabled={deleteText !== 'DELETE'} onClick={confirmDelete}>Delete workspace</button></div></div>
+      </div>
+    </div>}
+
   </>;
 }
 

@@ -45,6 +45,30 @@ export async function startCheckout(plan, user, interval = 'month') {
   }
 }
 
+/**
+ * Opens the Stripe Customer Portal (update card, view invoices, cancel/change
+ * plan). Requires the create-portal edge function. Returns true on redirect.
+ */
+export async function startPortal(user) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const base = supabaseUrl || '';
+    const res = await fetch(`${base}/functions/v1/create-portal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token || ''}`,
+      },
+      body: JSON.stringify({ userId: user?.id }),
+    });
+    const { url, error } = await res.json();
+    if (url) { window.location.href = url; return true; }
+    return { error: error || 'Could not open the billing portal.' };
+  } catch (e) {
+    return { error: 'Could not reach the billing service. Please try again.' };
+  }
+}
+
 function headline(reason, plan) {
   if (reason === 'workers') return "You've reached your worker limit";
   if (reason === 'compliance') return 'Compliance is a Pro feature';
