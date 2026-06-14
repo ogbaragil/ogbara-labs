@@ -90,12 +90,14 @@ const normaliseWorker = (worker = {}) => {
 const normaliseWorkers = (workers = []) => Array.isArray(workers) ? workers.map(normaliseWorker).filter(worker => !isLegacyTemplateWorker(worker)) : [];
 const EMPTY_BUSINESS = {
   name: '',
+  ownerName: '',
   abn: '',
   email: '',
   phone: '',
   address: '',
   paymentDetails: '',
   logoUrl: '',
+  users: [],
   pricingItems: DEFAULT_PRICING_ITEMS,
   businessCompliance: DEFAULT_BUSINESS_COMPLIANCE,
 };
@@ -262,7 +264,11 @@ const getTimeGreeting = () => {
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
 };
-const buildWelcomeMessage = (user) => `${getTimeGreeting()}, ${getFirstName(user)}`;
+const buildWelcomeMessage = (user, nameOverride) => {
+  const first = nameOverride ? (String(nameOverride).trim().split(/[\s._-]+/).filter(Boolean)[0] || '') : '';
+  const name = first ? first.charAt(0).toUpperCase() + first.slice(1) : getFirstName(user);
+  return `${getTimeGreeting()}, ${name}`;
+};
 const daysUntil = (dateStr) => { if (!dateStr) return null; const end = new Date(`${dateStr}T00:00:00`); if (Number.isNaN(end.getTime())) return null; return Math.ceil((end - new Date()) / 86400000); };
 const fileToDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
 const safeText = (value) => String(value ?? '');
@@ -378,6 +384,7 @@ async function loadSnapshot(user) {
 }
 const storageKeyFor = (user) => user?.id ? `${STORAGE_KEY}_${user.id}` : STORAGE_KEY;
 const EMPLOYEE_SESSION_KEY = 'kajola_employee_portal_session_v1';
+const OFFICE_SESSION_KEY = 'kajola_office_portal_session_v1';
 const employeePasswordHash = (value = '') => {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < String(value).length; i++) {
@@ -426,6 +433,38 @@ const findEmployeeLogin = async (username, password) => {
     } catch {}
   }
   return { ok: false, message: supabase ? 'Employee login service is not set up yet. Ask your administrator to enable cloud sync, then sync the admin workspace.' : 'Employee username was not found on this device.' };
+};
+
+const findOfficeLogin = async (username, password) => {
+  const u = normaliseUsername(username);
+  const hash = employeePasswordHash(password);
+  if (!u || !password) return { ok: false, message: 'Enter your username and password.' };
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.rpc('office_portal_login', { p_username: u, p_password_hash: hash });
+      if (!error && data?.ok) {
+        const payload = normalisePayload(data.payload || {});
+        return { ok: true, session: { ownerId: data.owner_id, userId: data.user_id, name: data.name, role: data.role, username: u, passwordHash: hash, ownerStorageKey: `${STORAGE_KEY}_${data.owner_id}`, cloud: true, signedInAt: new Date().toISOString() }, payload };
+      }
+      if (!error && data && data.ok === false) return { ok: false, message: data.message || 'Sign in failed.' };
+      if (error && !String(error.message || '').toLowerCase().includes('office_portal_login')) return { ok: false, message: error.message };
+    } catch {}
+  }
+  // Local fallback for preview/demo only.
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (!key || !key.startsWith(STORAGE_KEY)) continue;
+    try {
+      const payload = normalisePayload(JSON.parse(window.localStorage.getItem(key) || '{}'));
+      const list = (payload.business && payload.business.users) || [];
+      const found = list.find(x => (x.loginEnabled !== false) && normaliseUsername(x.employeeUsername || x.username) === u);
+      if (!found) continue;
+      if ((found.employeePasswordHash || '') !== hash) return { ok: false, message: 'Password is incorrect.' };
+      const ownerId = key.length > STORAGE_KEY.length + 1 ? key.slice(STORAGE_KEY.length + 1) : '';
+      return { ok: true, session: { ownerId, userId: found.id, name: found.name, role: found.role, username: u, passwordHash: hash, ownerStorageKey: key, signedInAt: new Date().toISOString() }, payload };
+    } catch {}
+  }
+  return { ok: false, message: supabase ? 'Office login is not set up yet. Ask your admin to run the office-portal SQL and add you under Users & Roles.' : 'Username was not found on this device.' };
 };
 
 const refreshEmployeePortal = async (session) => {
@@ -482,6 +521,7 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const appGated = ENFORCE_BILLING && GATE_OPERATIONS_ON_EXPIRY && !appAccess;
   const [employeeSession, setEmployeeSession] = useState(() => { try { return JSON.parse(localStorage.getItem(EMPLOYEE_SESSION_KEY) || 'null'); } catch { return null; } });
+  const [officeSession, setOfficeSession] = useState(() => { try { return JSON.parse(localStorage.getItem(OFFICE_SESSION_KEY) || 'null'); } catch { return null; } });
   const [authLoading, setAuthLoading] = useState(true);
   const [storageLoaded, setStorageLoaded] = useState(false);
   const [cloudChecked, setCloudChecked] = useState(false);
@@ -493,6 +533,7 @@ export default function App() {
   const sectionUpdatedAtRef = useRef({});
   const skipNextAutoSyncRef = useRef(false);
   const isEmployeeRoute = ['employee', 'employee-portal', 'worker', 'staff'].includes(String(window.location.pathname || '').replace(/^\/+/, '').split('/')[0]);
+  const isOfficeRoute = ['team', 'office', 'staff-admin'].includes(String(window.location.pathname || '').replace(/^\/+/, '').split('/')[0]);
 
   useEffect(() => {
     let mounted = true;
@@ -536,6 +577,25 @@ export default function App() {
     loadEmployeeSession();
     return () => { cancelled = true; };
   }, [employeeSession?.workerId, employeeSession?.cloud, employeeSession?.ownerStorageKey, user?.id]);
+
+  // Office sign-in: reload the org snapshot on mount/refresh so the office user sees current data.
+  useEffect(() => {
+    if (!officeSession || user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (officeSession.cloud && supabase) {
+          const { data, error } = await supabase.rpc('office_portal_login', { p_username: officeSession.username, p_password_hash: officeSession.passwordHash });
+          if (!cancelled && !error && data?.ok) { applyPayload(normalisePayload(data.payload || {})); setStorageLoaded(true); setCloudChecked(true); return; }
+          if (!cancelled && !error && data && data.ok === false) { localStorage.removeItem(OFFICE_SESSION_KEY); setOfficeSession(null); return; }
+        }
+        const cached = officeSession.ownerStorageKey ? localStorage.getItem(officeSession.ownerStorageKey) : null;
+        if (!cancelled && cached) { applyPayload(normalisePayload(JSON.parse(cached))); }
+        if (!cancelled) { setStorageLoaded(true); setCloudChecked(true); }
+      } catch { if (!cancelled) { setStorageLoaded(true); setCloudChecked(true); } }
+    })();
+    return () => { cancelled = true; };
+  }, [officeSession?.username, officeSession?.cloud, user?.id]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -621,12 +681,12 @@ export default function App() {
   }, [authLoading, user?.id]);
 
   useEffect(() => {
-    if (!storageLoaded || (!user?.id && !employeeSession?.ownerStorageKey)) return;
+    if (!storageLoaded || (!user?.id && !employeeSession?.ownerStorageKey && !officeSession?.ownerStorageKey)) return;
     const data = payloadWithFreshMeta();
     const snapshot = serialisePayload(data);
     if (snapshot === lastLocalSnapshotRef.current) return;
     lastLocalSnapshotRef.current = snapshot;
-    localStorage.setItem(employeeSession?.ownerStorageKey || storageKeyFor(user), snapshot);
+    localStorage.setItem(officeSession?.ownerStorageKey || employeeSession?.ownerStorageKey || storageKeyFor(user), snapshot);
   }, [storageLoaded, user?.id, business, clients, invoices, transactions, workers, shifts, risks, incidents, complaints, improvements, audits, auditReports, governanceReviews, documents]);
 
   // Admin workspace loads from Supabase on sign-in, but admin edits do not auto-backup.
@@ -1031,10 +1091,22 @@ export default function App() {
     return <WorkerPortal employeeSession={employeeSession} business={business} worker={currentWorker} workers={workers} clients={clients} shifts={shifts} setShifts={setShifts} onCloudPayload={applyPayload} onSignOut={() => { localStorage.removeItem(EMPLOYEE_SESSION_KEY); setEmployeeSession(null); setStorageLoaded(false); }} />;
   }
   if (isEmployeeRoute && !employeeSession?.workerId) return <AuthGate forceRole="worker" onEmployeeLogin={(session, payload) => { localStorage.setItem(EMPLOYEE_SESSION_KEY, JSON.stringify(session)); setEmployeeSession(session); applyPayload(payload); setStorageLoaded(true); setCloudChecked(true); }} />;
-  if (!user) return <AuthGate onEmployeeLogin={(session, payload) => { localStorage.setItem(EMPLOYEE_SESSION_KEY, JSON.stringify(session)); setEmployeeSession(session); applyPayload(payload); setStorageLoaded(true); setCloudChecked(true); }} />;
+  if (isOfficeRoute && !officeSession) return <AuthGate forceRole="office" onOfficeLogin={(session, payload) => { localStorage.setItem(OFFICE_SESSION_KEY, JSON.stringify(session)); setOfficeSession(session); applyPayload(payload); setStorageLoaded(true); setCloudChecked(true); }} />;
+  if (!user && !officeSession) return <AuthGate onEmployeeLogin={(session, payload) => { localStorage.setItem(EMPLOYEE_SESSION_KEY, JSON.stringify(session)); setEmployeeSession(session); applyPayload(payload); setStorageLoaded(true); setCloudChecked(true); }} />;
 
-  const displayName = getFirstName(user);
-  const welcomeMessage = buildWelcomeMessage(user);
+  const displayName = officeSession ? (officeSession.name || 'User') : getFirstName(user);
+  const welcomeMessage = buildWelcomeMessage(user, officeSession?.name || business.ownerName);
+  const visibleTabs = officeSession ? TABS.filter(t => (ROLE_ACCESS[officeSession.role] || ROLE_ACCESS.Coordinator).includes(t)) : TABS;
+  const officeSyncToCloud = async () => {
+    if (!officeSession || !supabase) { showNotice('Cloud sync is unavailable.'); return; }
+    try {
+      const data = payloadWithFreshMeta();
+      const { data: res, error } = await supabase.rpc('office_portal_save', { p_username: officeSession.username, p_password_hash: officeSession.passwordHash, p_owner_id: officeSession.ownerId, p_payload: normalisePayload(data) });
+      if (!error && res?.ok) { lastCloudSnapshotRef.current = serialisePayload(data); showNotice('Changes synced to the workspace.'); }
+      else showNotice((res && res.message) || (error && error.message) || 'Sync failed.');
+    } catch (e) { showNotice('Sync failed.'); }
+  };
+  const officeSignOut = () => { localStorage.removeItem(OFFICE_SESSION_KEY); setOfficeSession(null); setStorageLoaded(false); };
   const userInitial = (displayName || user?.email || 'U').slice(0, 1).toUpperCase();
 
   const backup = () => { const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), data: payload }, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kajola-care-backup.json'; a.click(); };
@@ -1044,6 +1116,9 @@ export default function App() {
     const next = normaliseBusiness(nextBusiness);
     if (!next.name.trim()) return alert('Please enter your business name.');
     setBusiness(next);
+    if (user?.id && supabase && next.ownerName && next.ownerName !== user?.user_metadata?.full_name) {
+      try { supabase.auth.updateUser({ data: { full_name: next.ownerName } }); } catch (e) { /* non-blocking */ }
+    }
     showNotice('Business profile saved.');
   };
 
@@ -1065,26 +1140,27 @@ export default function App() {
   return <><div className="shell desktop-shell">
     <aside className="sidebar">
       <div className="brand"><BrandMark /><div><BrandWordmark /><p>{business.name || "Life's Good Disability Services"}</p></div></div>
-      <nav>{TABS.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>)}</nav>
+      <nav>{visibleTabs.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>)}</nav>
       <div className="sidebar-footer">
         <a className="sidebar-help" href={`mailto:${SUPPORT_EMAIL}`}><span className="sidebar-help-q">?</span><span>Need help?</span></a>
         <div className="sidebar-user">
           <button type="button" className="sidebar-user-chip" onClick={() => setUserMenuOpen(o => !o)}>
             <span className="sidebar-avatar">{((user?.user_metadata?.full_name || business.name || user?.email || 'U').split(/[\s@]/).filter(Boolean).map(x => x[0]).join('').slice(0, 2) || 'U').toUpperCase()}</span>
-            <span className="sidebar-user-meta"><b>{user?.user_metadata?.full_name || business.name || (user?.email ? user.email.split('@')[0] : 'Account')}</b><small>Admin</small></span>
+            <span className="sidebar-user-meta"><b>{officeSession ? (officeSession.name || 'User') : (user?.user_metadata?.full_name || business.name || (user?.email ? user.email.split('@')[0] : 'Account'))}</b><small>{officeSession ? officeSession.role : 'Admin'}</small></span>
             <span className="sidebar-user-caret">⌄</span>
           </button>
           {userMenuOpen && <div className="sidebar-user-menu">
-            <button onClick={() => { setActive('Settings'); setUserMenuOpen(false); }}>Settings</button>
-            <button onClick={async () => { setUserMenuOpen(false); if (supabase) await supabase.auth.signOut(); }}>Sign out</button>
+            {!officeSession && <button onClick={() => { setActive('Settings'); setUserMenuOpen(false); }}>Settings</button>}
+            {officeSession && <button onClick={() => { setUserMenuOpen(false); officeSyncToCloud(); }}>Sync to cloud</button>}
+            <button onClick={async () => { setUserMenuOpen(false); if (officeSession) officeSignOut(); else if (supabase) await supabase.auth.signOut(); }}>Sign out</button>
           </div>}
         </div>
       </div>
     </aside>
     <main className="main">
-      {active !== 'Settings' && <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>}
+      {active !== 'Settings' && <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions">{officeSession && <button className="ghost" onClick={officeSyncToCloud}>Sync to cloud</button>}<button className="ghost" onClick={async () => { if (officeSession) officeSignOut(); else { await supabase.auth.signOut(); } }}>Sign out</button></div></header>}
       {notice && <div className="notice">{notice}</div>}
-      <SubscriptionBanner plan={userPlan} trialDaysLeft={userTrialDaysLeft} sub={userSub} onView={() => setActive('Settings')} />
+      {!officeSession && <SubscriptionBanner plan={userPlan} trialDaysLeft={userTrialDaysLeft} sub={userSub} onView={() => setActive('Settings')} />}
       {appGated && <UpgradeWall reason="app" plan={userPlan} user={user} />}
       {!appGated && <>
       {active === 'Dashboard' && <CommandCentre totals={totals} invoices={invoices} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive}/>} 
@@ -3771,7 +3847,7 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
           </div>
           <div className="grid">
             <Field label="Business Name" value={draft.name} onChange={e => updateDraft('name', e.target.value)} />
-            <Field label="ABN / Registration" value={draft.abn} onChange={e => updateDraft('abn', e.target.value)} />
+            <Field label="Your name (for greetings)" value={draft.ownerName} onChange={e => updateDraft('ownerName', e.target.value)} placeholder="e.g. Alex" />            <Field label="ABN / Registration" value={draft.abn} onChange={e => updateDraft('abn', e.target.value)} />
             <Field label="Business Email" type="email" value={draft.email} onChange={e => updateDraft('email', e.target.value)} />
             <Field label="Business Phone" value={draft.phone} onChange={e => updateDraft('phone', e.target.value)} />
             <Field label="Business Address" multiline value={draft.address} onChange={e => updateDraft('address', e.target.value)} />
@@ -4638,7 +4714,7 @@ function LoadingScreen({ message = 'Securing your workspace…' }) {
   return <div className="auth-shell"><div className="auth-card"><BrandMark /><BrandWordmark hero /><p>{message}</p></div></div>;
 }
 
-function AuthGate({ onEmployeeLogin, forceRole = null }) {
+function AuthGate({ onEmployeeLogin, onOfficeLogin, forceRole = null }) {
   const [mode, setMode] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -4682,6 +4758,15 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
   async function submit(e) {
     e.preventDefault();
     setMessageType('error');
+    if (loginRole === 'office') {
+      if (!email || !password) { setMessage('Enter your username and password.'); return; }
+      setBusy(true); setMessage('');
+      const result = await findOfficeLogin(email, password);
+      setBusy(false);
+      if (!result.ok) setMessage(result.message);
+      else { setMessageType('info'); setMessage('Signed in. Loading workspace…'); onOfficeLogin?.(result.session, result.payload); }
+      return;
+    }
     if (loginRole === 'worker') {
       if (!email || !password) { setMessage('Enter your employee username and password.'); return; }
       setBusy(true); setMessage('');
@@ -4705,11 +4790,11 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
   }
 
   return <div className="auth-shell">
-    <section className="auth-hero"><BrandMark /><BrandWordmark hero /><p>Care • Connect • Empower</p><div className="auth-glass"><b>{loginRole === 'admin' ? 'Admin workspace' : 'Employee portal'}</b><span>{loginRole === 'admin' ? 'Participants, invoices, finance and snapshots protected by secure cloud authentication.' : 'Workers can view assigned shifts, clock in/out and submit shift notes.'}</span></div></section>
+    <section className="auth-hero"><BrandMark /><BrandWordmark hero /><p>Care • Connect • Empower</p><div className="auth-glass"><b>{loginRole === 'admin' ? 'Admin workspace' : loginRole === 'office' ? 'Team workspace' : 'Employee portal'}</b><span>{loginRole === 'admin' ? 'Participants, invoices, finance and snapshots protected by secure cloud authentication.' : loginRole === 'office' ? 'Sign in with the username and password your administrator gave you.' : 'Workers can view assigned shifts, clock in/out and submit shift notes.'}</span></div></section>
     <form className="auth-card" onSubmit={submit}>
       {!forceRole && <div className="auth-role-tabs"><button type="button" className={loginRole === 'admin' ? 'active' : ''} onClick={() => { setLoginRole('admin'); setEmail(''); setPassword(''); }}>Admin Sign In</button><button type="button" className={loginRole === 'worker' ? 'active' : ''} onClick={() => { setLoginRole('worker'); setMode('signin'); setEmail(''); setPassword(''); }}>Employee Sign In</button></div>}
-      <h2>{mode === 'signup' ? 'Create your account' : loginRole === 'admin' ? 'Admin sign in' : 'Employee sign in'}</h2>
-      <p>{mode === 'signup' ? (loginRole === 'admin' ? 'Start a secure Kajola Care admin workspace.' : 'Create an employee account for the worker portal.') : (loginRole === 'admin' ? 'Sign in to continue to the admin dashboard.' : 'Sign in to continue to your assigned shifts.')}</p>
+      <h2>{mode === 'signup' ? 'Create your account' : loginRole === 'admin' ? 'Admin sign in' : loginRole === 'office' ? 'Team sign in' : 'Employee sign in'}</h2>
+      <p>{mode === 'signup' ? (loginRole === 'admin' ? 'Start a secure Kajola Care admin workspace.' : 'Create an employee account for the worker portal.') : (loginRole === 'admin' ? 'Sign in to continue to the admin dashboard.' : loginRole === 'office' ? 'Sign in to continue to your team workspace.' : 'Sign in to continue to your assigned shifts.')}</p>
       {mode === 'signup' && loginRole === 'admin' && <Field label="Full name" value={fullName} onChange={e => setFullName(e.target.value)} />}
       <Field label={loginRole === 'admin' ? 'Email' : 'Username'} type={loginRole === 'admin' ? 'email' : 'text'} value={email} onChange={e => setEmail(e.target.value)} autoComplete={loginRole === 'admin' ? 'email' : 'username'} />
       <Field label="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
@@ -4719,6 +4804,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
         {mode === 'signup' ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
       </button>}
       {loginRole === 'worker' && <p className="muted">Ask your administrator for your employee username and password.</p>}
+      {loginRole === 'office' && <p className="muted">Ask your administrator to add you under Settings → Users &amp; Roles, then sign in here.</p>}
     </form>
   </div>;
 }
