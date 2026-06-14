@@ -1268,8 +1268,6 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
   const { appAccess: mobileAppAccess, plan: mobileUserPlan, trialDaysLeft: mobileTrialDaysLeft, sub: mobileSub } = usePlan(user, ENFORCE_BILLING);
   const mobileAppGated = ENFORCE_BILLING && GATE_OPERATIONS_ON_EXPIRY && !mobileAppAccess;
   const activeClients = clients.filter(c => c && !c.archived);
-  const alerts = getMobileAlerts({ clients, invoices, totals, business, workers });
-  const recentInvoices = invoices.slice(0, 4);
   const openAction = (tab) => { setMoreOpen(false); setActive(tab); setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 20); };
   const openMore = () => setMoreOpen(true);
   const openComplianceSection = (sectionName) => { setComplianceSection(sectionName); openAction('Compliance'); };
@@ -1284,7 +1282,7 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
       <SubscriptionBanner plan={mobileUserPlan} trialDaysLeft={mobileTrialDaysLeft} sub={mobileSub} onView={() => setActive('Settings')} />
       {mobileAppGated && <UpgradeWall reason="app" plan={mobileUserPlan} user={user} />}
       {!mobileAppGated && <>
-      {active === 'Dashboard' && <MobileHome welcomeMessage={welcomeMessage} totals={totals} alerts={alerts} invoices={recentInvoices} clients={activeClients} setActive={setActive} />}
+      {active === 'Dashboard' && <><div className="mobile-hero"><h2>{welcomeMessage}</h2><p>Here's what's happening today.</p></div><CommandCentre totals={totals} invoices={invoices} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive} /></>}
       {active === 'Participants' && <MobileParticipants clients={clients} form={clientForm} setForm={setClientForm} editing={editingClient} save={saveClient} edit={editClient} archive={archiveClient} del={deleteClient} cancel={cancelClient} />}
       {active === 'Invoices' && <MobileInvoices pricingItems={pricingItems} clients={activeClients} invoices={invoices} form={invoiceForm} setForm={setInvoiceForm} editing={editingInvoice} setLine={setLine} selectItem={selectItem} addLine={addLine} removeLine={removeLine} save={saveInvoice} edit={editInvoice} del={deleteInvoice} exportPDF={exportPDF} onStatusChange={updateInvoiceStatus} cancel={cancelInvoice} />}
       {active === 'Finance' && <MobileFinance business={business} clients={activeClients} transactions={transactions} form={txnForm} setForm={setTxnForm} editing={editingTxn} save={saveTxn} edit={editTxn} del={deleteTxn} cancel={cancelTxn} />}
@@ -1334,44 +1332,6 @@ function MobileSideDrawer({ active, setActive, onClose, onSignOut, business, onC
       <button className="mobile-drawer-signout" onClick={onSignOut}>Sign out</button>
     </aside>
   </div>;
-}
-
-function getMobileAlerts({ clients, invoices, totals, business, workers = [] }) {
-  const complianceItems = getComplianceItems({ clients, invoices, totals, business, workers });
-  const overdue = complianceItems.filter(i => i.tone === 'overdue');
-  const due = complianceItems.filter(i => i.tone === 'due');
-  const alerts = [];
-  if (overdue.length) alerts.push({ type: 'Overdue', title: `${overdue.length} compliance item${overdue.length === 1 ? '' : 's'} overdue`, meta: overdue.slice(0, 3).map(i => i.title).join(' · ') });
-  if (due.length) alerts.push({ type: 'Due soon', title: `${due.length} compliance item${due.length === 1 ? '' : 's'} due soon`, meta: due.slice(0, 3).map(i => i.title).join(' · ') });
-  clients.filter(c => !c.archived).forEach(c => {
-    const d = daysUntil(c.planEndDate);
-    if (d !== null && d >= 0 && d <= 30) alerts.push({ type: 'Plan', title: `${c.name} plan ends in ${d} day${d === 1 ? '' : 's'}`, meta: fmt(c.planEndDate) });
-  });
-  invoices.filter(i => normaliseInvoiceStatus(i.status) !== 'Paid').forEach(i => {
-    const d = daysUntil(i.dueDate);
-    if (d !== null && d < 0) alerts.push({ type: 'Invoice', title: `${i.invoiceNumber} is overdue`, meta: `${i.clientName} · ${money(i.total)}` });
-  });
-  if (totals.totalBudget > 0) {
-    const used = Math.min(999, Math.round((totals.invoicedTotal / totals.totalBudget) * 100));
-    if (used >= 80) alerts.push({ type: 'Budget', title: `Budget usage is ${used}%`, meta: `${money(totals.remainingBudget)} remaining` });
-  }
-  return alerts.slice(0, 5);
-}
-
-function MobileHome({ welcomeMessage, totals, alerts, invoices, clients, setActive }) {
-  return <section className="mobile-home">
-    <div className="mobile-hero"><h2>{welcomeMessage}</h2><p>Here's what's happening with your business today.</p></div>
-    <div className="mobile-kpis">
-      <MiniKpi label="Revenue" value={money(totals.income)} />
-      <MiniKpi label="Expenses" value={money(totals.expenses)} />
-      <MiniKpi label="Participants" value={totals.activeClients} />
-      <MiniKpi label="Net" value={money(totals.net)} />
-    </div>
-    <div className="mobile-quick"><button className="primary" onClick={() => setActive('Participants')}>+ Participant</button><button onClick={() => setActive('Schedules')}>+ Shift</button><button onClick={() => setActive('Invoices')}>+ Invoice</button></div>
-    <MobilePanel title="Today" action={alerts.length ? `${alerts.length} alerts` : 'All clear'}>{alerts.length ? alerts.map((a,i) => <div className="mobile-alert" key={i}><span>{a.type}</span><div><b>{a.title}</b><small>{a.meta}</small></div></div>) : <p className="mobile-empty">No urgent compliance, invoice, or plan alerts today.</p>}<button className="text-link mobile-alert-link" onClick={() => setActive('Compliance')}>Open compliance report</button></MobilePanel>
-    <MobilePanel title="Recent invoices" action={<button className="text-link" onClick={() => setActive('Invoices')}>View all</button>}><Records rows={invoices} empty="No invoices yet." render={i => <div className="mobile-list-row" key={i.id}><div><b>{i.invoiceNumber}</b><small>{i.clientName} · {fmt(i.dueDate)}</small></div><strong>{money(i.total)}</strong></div>} /></MobilePanel>
-    <MobilePanel title="Active clients" action={<button className="text-link" onClick={() => setActive('Participants')}>View all</button>}><Records rows={clients.slice(0,3)} empty="No participants yet." render={c => <div className="mobile-list-row" key={c.id}><div><b>{c.name}</b><small>Plan ends {fmt(c.planEndDate)}</small></div><strong>{money(c.budget)}</strong></div>} /></MobilePanel>
-  </section>;
 }
 
 function MiniKpi({ label, value }) { return <div className="mini-kpi"><small>{label}</small><b>{value}</b></div>; }
@@ -1525,43 +1485,6 @@ function SubscriptionBadge({ user }) {
     <button type="button" className={`sub-badge ${tone}`} title={detail} onClick={() => setOpen(o => !o)}>{label} ▾</button>
     {open && <span className="sub-badge-detail">{detail}</span>}
   </span>;
-}
-
-function CashflowOverview({ transactions }) {
-  const [period, setPeriod] = useState('30');
-  const days = Number(period);
-  const now = new Date();
-  const buckets = Array.from({ length: Math.min(days, 90) }, (_, index) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() - (Math.min(days, 90) - 1 - index) * Math.ceil(days / Math.min(days, 90)));
-    return { date: d, income: 0, expenses: 0 };
-  });
-  const bucketFor = (date) => {
-    if (!buckets.length) return -1;
-    const diff = Math.floor((date - buckets[0].date) / 86400000);
-    return Math.max(0, Math.min(buckets.length - 1, Math.floor(diff / Math.ceil(days / buckets.length))));
-  };
-  transactions.forEach(t => {
-    const d = new Date(`${t.date || t.createdAt || todayISO()}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return;
-    const age = (now - d) / 86400000;
-    if (age < 0 || age > days) return;
-    const idx = bucketFor(d);
-    if (idx < 0) return;
-    if (t.type === 'income') buckets[idx].income += Number(t.amount || 0);
-    if (t.type === 'expense') buckets[idx].expenses += Number(t.amount || 0);
-  });
-  const max = Math.max(1, ...buckets.map(b => Math.max(b.income, b.expenses)));
-  const points = (key) => buckets.map((b, i) => {
-    const x = buckets.length === 1 ? 0 : (i / (buckets.length - 1)) * 660;
-    const y = 230 - (Number(b[key] || 0) / max) * 210;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  const totalIncome = buckets.reduce((s,b)=>s+b.income,0);
-  const totalExpenses = buckets.reduce((s,b)=>s+b.expenses,0);
-  return <Card title="Cashflow Overview" className="wide" action={<select className="period-select" value={period} onChange={e => setPeriod(e.target.value)}><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select>}>
-    <div className="chart"><div className="axis"><span>{money(max)}</span><span>{money(max * .75)}</span><span>{money(max * .5)}</span><span>{money(max * .25)}</span><span>$0</span></div><svg viewBox="0 0 660 260"><defs><linearGradient id="cashGold" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#d7b46a" stopOpacity=".55"/><stop offset="1" stopColor="#d7b46a" stopOpacity="0"/></linearGradient><linearGradient id="cashBlue" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4f7cff" stopOpacity=".32"/><stop offset="1" stopColor="#4f7cff" stopOpacity="0"/></linearGradient></defs><polyline points={points('income')} fill="none" stroke="#d7b46a" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/><polyline points={points('expenses')} fill="none" stroke="#4f7cff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/></svg><div className="legend"><span className="gold-dot">Income {money(totalIncome)}</span><span className="blue-dot">Expenses {money(totalExpenses)}</span></div></div>
-  </Card>;
 }
 
 function ComplianceRing({ pct, label = 'Compliance Score', sub }) {
@@ -1813,129 +1736,6 @@ function CommandCentre({ totals, invoices = [], transactions = [], clients = [],
       <div className="cc-status-metric"><small>Claims collection</small><b>{collectionRate}%</b></div>
       <div className="cc-status-metric"><small>Compliance score</small><b>{complianceScore}%</b></div>
       <div className="cc-status-metric"><small>Budget utilisation</small><b>{budgetUtil}%</b></div>
-    </div>
-  </>;
-}
-
-function Dashboard({ totals, invoices, transactions, clients, business, workers = [], shifts = [], setActive }) {
-  const activeParticipants = clients.filter(c => !c.archived);
-  const clientSpend = (clientId) => invoices.filter(i => i.clientId === clientId).reduce((s, i) => s + Number(i.total || 0), 0);
-  const totalBudget = activeParticipants.reduce((s, c) => s + Number(c.budget || 0), 0);
-  const usedBudget = invoices.reduce((s, i) => s + Number(i.total || 0), 0);
-  const budgetPct = totalBudget ? Math.min(100, Math.round((usedBudget / totalBudget) * 100)) : 0;
-  const pendingInvoices = invoices.filter(i => !['Paid', 'Cancelled'].includes(normaliseInvoiceStatus(i.status)));
-  const expiringParticipants = activeParticipants.filter(c => { const d = daysUntil(c.planEndDate); return d !== null && d >= 0 && d <= 30; });
-  const complianceItems = getComplianceItems({ clients, invoices, totals, business, workers });
-  const complianceDue = complianceItems.length;
-  const topParticipants = [...activeParticipants].sort((a, b) => clientSpend(b.id) - clientSpend(a.id)).slice(0, 5);
-
-  // Compliance score: share of all tracked items that are current.
-  const allComplianceRows = [
-    ...buildParticipantComplianceRows(clients).flatMap(r => r.items),
-    ...buildWorkerComplianceRows(workers).flatMap(r => r.items),
-    ...buildBusinessComplianceRows(business),
-  ];
-  const currentCount = allComplianceRows.filter(i => (i.status?.tone || i.tone) === 'current').length;
-  const complianceScore = allComplianceRows.length ? Math.round((currentCount / allComplianceRows.length) * 100) : 100;
-
-  // Today's operations
-  const today = todayISO();
-  const todaysShifts = shifts.filter(s => s.date === today);
-  const onShift = todaysShifts.filter(s => ['In Progress', 'Started'].includes(s.status)).length;
-  const missingClockIns = todaysShifts.filter(s => ['Scheduled', 'Open'].includes(s.status)).length;
-  const pendingNotes = shifts.filter(s => s.status === 'Awaiting Notes' || (s.endedAt && !s.notes)).length;
-
-  // Action centre — derive from data, ordered by urgency
-  const expiredDocs = buildWorkerComplianceRows(workers).reduce((n, r) => n + r.items.filter(i => i.status.tone === 'overdue' || i.status.tone === 'missing').length, 0);
-  const overdueInvoices = pendingInvoices.filter(i => { const d = daysUntil(i.dueDate); return d !== null && d < 0; }).length;
-  const actions = [
-    expiredDocs && { tone: 'red', label: `${expiredDocs} worker document${expiredDocs > 1 ? 's' : ''} expired`, go: 'Workers' },
-    expiringParticipants.length && { tone: 'amber', label: `${expiringParticipants.length} service agreement${expiringParticipants.length > 1 ? 's' : ''} due`, go: 'Participants' },
-    overdueInvoices && { tone: 'red', label: `${overdueInvoices} unpaid invoice${overdueInvoices > 1 ? 's' : ''} overdue`, go: 'Invoices' },
-    complianceDue && { tone: 'amber', label: `${complianceDue} compliance item${complianceDue > 1 ? 's' : ''} need review`, go: 'Compliance' },
-    pendingNotes && { tone: 'blue', label: `${pendingNotes} shift note${pendingNotes > 1 ? 's' : ''} awaiting approval`, go: 'Schedules' },
-  ].filter(Boolean);
-
-  const ops = [
-    { icon: '◈', label: 'Workers on shift', value: onShift, go: 'Workers' },
-    { icon: '▦', label: 'Shifts today', value: todaysShifts.length, go: 'Schedules' },
-    { icon: '!', label: 'Missing clock-ins', value: missingClockIns, go: 'Schedules', tone: missingClockIns ? 'amber' : '' },
-    { icon: '✎', label: 'Pending notes', value: pendingNotes, go: 'Schedules', tone: pendingNotes ? 'amber' : '' },
-  ];
-
-  return <>
-    <div className="ops-hero-actions">
-      <button className="primary" onClick={() => setActive('Participants')}>+ Participant</button>
-      <button onClick={() => setActive('Schedules')}>+ Shift</button>
-      <button onClick={() => setActive('Invoices')}>+ Invoice</button>
-      <button onClick={() => setActive('Compliance')}>+ Incident</button>
-      <button onClick={() => setActive('Workers')}>+ Worker</button>
-    </div>
-
-    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: '16px' }}>
-      <Card title="Action Centre" action={<button className="text-link" onClick={() => setActive('Compliance')}>View all</button>}>
-        <Records rows={actions} empty="Nothing needs your attention. You're all caught up." render={(a, idx) => (
-          <div className="invoice-row" key={idx} style={{ gridTemplateColumns: 'auto 1fr auto', cursor: 'pointer' }} onClick={() => setActive(a.go)}>
-            <span className={`pill ${a.tone}`} style={{ width: '24px', height: '24px', padding: 0, justifyContent: 'center', borderRadius: '7px' }}>!</span>
-            <b style={{ fontWeight: 600 }}>{a.label}</b>
-            <button className="ghost">›</button>
-          </div>
-        )} />
-      </Card>
-      <Card title="Today's Operations" action={<button className="text-link" onClick={() => setActive('Schedules')}>Operations centre</button>}>
-        {ops.map((o, idx) => (
-          <div className="invoice-row" key={idx} style={{ gridTemplateColumns: 'auto 1fr auto', cursor: 'pointer' }} onClick={() => setActive(o.go)}>
-            <span className="feed-icon" style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'var(--blue-50)', color: 'var(--blue)', display: 'grid', placeItems: 'center' }}>{o.icon}</span>
-            <span style={{ color: 'var(--ink-2)' }}>{o.label}</span>
-            <strong className={o.tone === 'amber' ? '' : ''} style={{ color: o.tone === 'amber' ? 'var(--amber)' : 'var(--ink)' }}>{o.value}</strong>
-          </div>
-        ))}
-      </Card>
-    </div>
-
-    <div className="dashboard-grid" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '16px' }}>
-      <Card title="Financial Snapshot">
-        <div className="ops-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', margin: 0 }}>
-          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Revenue this month</small><b style={{ color: 'var(--green)' }}>{money(totals.income)}</b></div>
-          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Claims submitted</small><b style={{ color: 'var(--blue)' }}>{money(pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0))}</b></div>
-          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Claims paid</small><b style={{ color: 'var(--teal)' }}>{money(invoices.filter(i => normaliseInvoiceStatus(i.status) === 'Paid').reduce((s, i) => s + Number(i.total || 0), 0))}</b></div>
-          <div className="mini-kpi"><small style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: '11px', fontWeight: 700 }}>Outstanding</small><b style={{ color: 'var(--amber)' }}>{money(totals.expenses)}</b></div>
-        </div>
-      </Card>
-      <Card title="Compliance Score" action={<button className="text-link" onClick={() => setActive('Compliance')}>Hub</button>}>
-        <ComplianceRing pct={complianceScore} label={complianceDue ? `${complianceDue} due soon` : 'All clear'} sub={`${currentCount} of ${allComplianceRows.length} current`} />
-      </Card>
-    </div>
-
-    <div className="ops-insight-grid">
-      <InsightCard label="NDIS Budget Usage" value={`${budgetPct}%`} sub={`${money(usedBudget)} used of ${money(totalBudget)}`} progress={budgetPct} />
-      <InsightCard label="Plans Expiring Soon" value={expiringParticipants.length} sub="Within 30 days" />
-      <InsightCard label="Pending Invoices" value={pendingInvoices.length} sub={money(pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0))} />
-      <InsightCard label="Active Participants" value={topParticipants.length || (clients.filter(c => !c.archived).length)} sub="Currently supported" />
-    </div>
-    <Card title="Participant Plan & Budget Tracker">
-      <div className="client-table"><div className="client-table-head" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.2fr' }}><span>Participant</span><span>Spent</span><span>Balance</span><span>% Used</span><span>Plan time left</span></div>
-        <Records rows={activeParticipants} empty="No participants yet." render={c => {
-          const spent = clientSpend(c.id);
-          const budget = Number(c.budget || 0);
-          const balance = budget - spent;
-          const pct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
-          const dleft = daysUntil(c.planEndDate);
-          const timeLabel = dleft === null ? 'No end date' : dleft < 0 ? 'Plan ended' : `${dleft} days`;
-          const overBudget = budget > 0 && spent > budget;
-          const planRisk = dleft !== null && dleft >= 0 && dleft <= 14;
-          return <div className="client-table-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.2fr', alignItems: 'center' }} key={c.id}>
-            <div><b>{c.name}</b><small>NDIS {c.ndisNumber || '—'} · Budget {money(budget)}</small></div>
-            <span>{money(spent)}</span>
-            <span style={{ color: balance < 0 ? 'var(--red)' : 'var(--ink)' }}>{money(balance)}</span>
-            <span><span className="p-bar" style={{ display: 'inline-block', width: '70px', verticalAlign: 'middle', marginRight: '8px' }}><span style={{ width: `${pct}%`, background: overBudget ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--green)' }} /></span>{pct}%</span>
-            <span style={{ color: planRisk ? 'var(--amber)' : dleft !== null && dleft < 0 ? 'var(--red)' : 'var(--ink)' }}>{timeLabel}</span>
-          </div>;
-        }} />
-      </div>
-    </Card>
-    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr' }}>
-      <CashflowOverview transactions={transactions} />
     </div>
   </>;
 }

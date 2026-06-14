@@ -1530,7 +1530,8 @@ label.field{display:flex;flex-direction:column;gap:6px}
 @media(max-width:1100px){.cc-grid-3{grid-template-columns:1fr}}
 .cc-title-badge{display:inline-flex;align-items:center;gap:8px}
 .cc-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--red);color:#fff;font-size:12px;font-weight:700}
-.cc-action-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cc-action-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cc-action-tile small{overflow-wrap:anywhere}
 .cc-action-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px 12px;border:1px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;text-align:left}
 .cc-action-tile b{font-size:26px;line-height:1.1;color:var(--ink)}
 .cc-action-tile small{color:var(--muted);font-size:12px;line-height:1.25}
@@ -1734,3 +1735,12 @@ label.field{display:flex;flex-direction:column;gap:6px}
 .user-login-toggle{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-2)}
 .user-login-toggle input{width:auto}
 .seat-note{margin-top:12px;font-size:13px;color:var(--ink-2);background:var(--amber-50);border-radius:10px;padding:10px 12px}
+
+/* CommandCentre on mobile: stack and wrap cleanly */
+@media(max-width:1100px){.cc-fin-side{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:14px}}
+@media(max-width:600px){
+  .cc-fin-tiles{flex-wrap:wrap}
+  .cc-fin-tile{flex:1 1 calc(50% - 6px);min-width:0}
+  .mobile-main .ops-hero-actions{margin-bottom:14px}
+  .mobile-main .ops-hero-actions button{flex:1 1 calc(50% - 6px)}
+}
