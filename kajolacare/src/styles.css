@@ -335,6 +335,7 @@ textarea{min-height:96px;resize:vertical}
 .auth-card>p{color:var(--ink-2);margin:0 0 22px;font-size:14px}
 .auth-card .primary{width:100%;padding:13px;font-size:15px;margin-top:6px}
 .auth-message{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--red-50);color:var(--red);border:1px solid #f3c9c9;font-size:13.5px}
+.auth-message.info{background:var(--green-50);color:var(--green);border-color:#bfe8cf}
 .auth-role-tabs,.auth-switch{display:flex;gap:8px;margin-bottom:18px}
 .auth-role-tabs button{flex:1}
 .auth-switch{margin:16px 0 0;justify-content:center;color:var(--muted);font-size:13.5px}

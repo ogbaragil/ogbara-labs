@@ -60,7 +60,12 @@ export function usePlan(user, enabled = true) {
 
   const complianceAccess = !billingReady ? true : (active && COMPLIANCE_PLANS.includes(planId));
   const appAccess        = !billingReady ? true : (active && APP_PLANS.includes(planId));
-  const workerLimit      = !billingReady ? Infinity : ((active && planId === 'practice') ? Infinity : 10);
+  // Worker caps: Practice unlimited; Trial & Pro 10; Free/expired 5 (to nudge upgrades).
+  const FREE_WORKER_CAP = 5;   // change to 3 for a harder nudge
+  const workerLimit = !billingReady ? Infinity
+    : (active && planId === 'practice') ? Infinity
+    : (active && (planId === 'trial' || planId === 'pro')) ? 10
+    : FREE_WORKER_CAP;
   const plan = !billingReady ? 'unknown' : (active ? planId : 'expired');
 
   // Days left in trial, for the "X days left" banner. null when N/A.

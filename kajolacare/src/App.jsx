@@ -4,10 +4,9 @@ import { supabase, isSupabaseConfigured, supabaseConfigSource } from './supabase
 import { usePlan } from './usePlan';
 import { UpgradeWall } from './UpgradeWall';
 
-// MASTER SWITCH for paid tiers. Leave false until you've (1) run
-// supabase/subscriptions.sql, (2) deployed the Stripe edge functions, and
-// (3) created your Stripe products. While false, the app behaves exactly as it
-// did before — nothing is locked, no subscription queries run.
+// MASTER SWITCH for paid tiers. Set to TRUE in this package (billing enforced):
+// Compliance is gated to trial/pro/practice and the 10-worker cap applies below
+// Practice. Set false only if you want to fully disable gating (everything unlocked).
 const ENFORCE_BILLING = true;
 
 // Starter dropped: the operational app is free. Compliance is the Pro paywall and
@@ -267,7 +266,7 @@ const buildWelcomeMessage = (user) => `${getTimeGreeting()}, ${getFirstName(user
 const daysUntil = (dateStr) => { if (!dateStr) return null; const end = new Date(`${dateStr}T00:00:00`); if (Number.isNaN(end.getTime())) return null; return Math.ceil((end - new Date()) / 86400000); };
 const fileToDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
 const safeText = (value) => String(value ?? '');
-const emptyClient = { name: '', ndisNumber: '', email: '', phone: '', address: '', planStartDate: '', planEndDate: '', budget: '', consentExpiry: '', agreementExpiry: '', riskReviewDate: '', complianceNotes: '' };
+const emptyClient = { name: '', ndisNumber: '', email: '', phone: '', address: '', planStartDate: '', planEndDate: '', budget: '', consentExpiry: '', agreementExpiry: '', riskReviewDate: '', intakeFormCompleted: 'No', intakeFormDate: '', supportPlanOriginalDate: '', supportPlanReviewDate: '', emergencyPlanOriginalDate: '', emergencyPlanReviewDate: '', complianceNotes: '' };
 const emptyLine = () => { const item = DEFAULT_PRICING_ITEMS[0]; return { id: makeId('line'), itemCode: item.itemNumber, itemLabel: item.label, serviceDate: todayISO(), unitType: item.unitType, quantity: '1', rate: String(item.rate), notes: '' }; };
 const emptyInvoice = () => ({ clientId: '', dueDate: addDaysISO(7), notes: '', lines: [emptyLine()] });
 const emptyTxn = { clientId: '', type: 'expense', status: 'pending', category: '', description: '', amount: '', date: todayISO() };
@@ -723,7 +722,7 @@ export default function App() {
     else setClients(prev => [{ id: makeId('client'), archived: false, createdAt: new Date().toISOString(), ...clientForm }, ...prev]);
     setClientForm(emptyClient); setEditingClient(null); showNotice('Client profile saved.');
   };
-  const editClient = (c) => { setClientForm({ name: c.name || '', ndisNumber: c.ndisNumber || '', email: c.email || '', phone: c.phone || '', address: c.address || '', planStartDate: c.planStartDate || '', planEndDate: c.planEndDate || '', budget: String(c.budget ?? ''), consentExpiry: c.consentExpiry || '', agreementExpiry: c.agreementExpiry || '', riskReviewDate: c.riskReviewDate || '', complianceNotes: c.complianceNotes || '' }); setEditingClient(c.id); setActive('Participants'); window.scrollTo(0, 0); };
+  const editClient = (c) => { setClientForm({ name: c.name || '', ndisNumber: c.ndisNumber || '', email: c.email || '', phone: c.phone || '', address: c.address || '', planStartDate: c.planStartDate || '', planEndDate: c.planEndDate || '', budget: String(c.budget ?? ''), consentExpiry: c.consentExpiry || '', agreementExpiry: c.agreementExpiry || '', riskReviewDate: c.riskReviewDate || '', intakeFormCompleted: c.intakeFormCompleted || 'No', intakeFormDate: c.intakeFormDate || '', supportPlanOriginalDate: c.supportPlanOriginalDate || '', supportPlanReviewDate: c.supportPlanReviewDate || '', emergencyPlanOriginalDate: c.emergencyPlanOriginalDate || '', emergencyPlanReviewDate: c.emergencyPlanReviewDate || '', complianceNotes: c.complianceNotes || '' }); setEditingClient(c.id); setActive('Participants'); window.scrollTo(0, 0); };
   const archiveClient = (cid) => setClients(prev => prev.map(c => c.id === cid ? { ...c, archived: !c.archived } : c));
   const deleteClient = (cid) => invoices.some(i => i.clientId === cid) ? alert('This participant has invoices and cannot be deleted.') : setClients(prev => prev.filter(c => c.id !== cid));
 
@@ -1518,6 +1517,27 @@ function Dashboard({ totals, invoices, transactions, clients, business, workers 
       <InsightCard label="Pending Invoices" value={pendingInvoices.length} sub={money(pendingInvoices.reduce((s, i) => s + Number(i.total || 0), 0))} />
       <InsightCard label="Active Participants" value={topParticipants.length || (clients.filter(c => !c.archived).length)} sub="Currently supported" />
     </div>
+    <Card title="Participant Plan & Budget Tracker">
+      <div className="client-table"><div className="client-table-head" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.2fr' }}><span>Participant</span><span>Spent</span><span>Balance</span><span>% Used</span><span>Plan time left</span></div>
+        <Records rows={activeParticipants} empty="No participants yet." render={c => {
+          const spent = clientSpend(c.id);
+          const budget = Number(c.budget || 0);
+          const balance = budget - spent;
+          const pct = budget ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+          const dleft = daysUntil(c.planEndDate);
+          const timeLabel = dleft === null ? 'No end date' : dleft < 0 ? 'Plan ended' : `${dleft} days`;
+          const overBudget = budget > 0 && spent > budget;
+          const planRisk = dleft !== null && dleft >= 0 && dleft <= 14;
+          return <div className="client-table-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.2fr', alignItems: 'center' }} key={c.id}>
+            <div><b>{c.name}</b><small>NDIS {c.ndisNumber || '—'} · Budget {money(budget)}</small></div>
+            <span>{money(spent)}</span>
+            <span style={{ color: balance < 0 ? 'var(--red)' : 'var(--ink)' }}>{money(balance)}</span>
+            <span><span className="p-bar" style={{ display: 'inline-block', width: '70px', verticalAlign: 'middle', marginRight: '8px' }}><span style={{ width: `${pct}%`, background: overBudget ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--green)' }} /></span>{pct}%</span>
+            <span style={{ color: planRisk ? 'var(--amber)' : dleft !== null && dleft < 0 ? 'var(--red)' : 'var(--ink)' }}>{timeLabel}</span>
+          </div>;
+        }} />
+      </div>
+    </Card>
     <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr' }}>
       <CashflowOverview transactions={transactions} />
     </div>
@@ -1815,7 +1835,7 @@ function Clients({ clients, form, setForm, editing, save, edit, archive, del, ca
 
     <span id="participant-form-anchor" />
     {formIsOpen && <Card title={editing ? 'Edit Participant' : 'Add Participant'} action={<button className="ghost" onClick={() => { setShowForm(false); if (editing) cancel(); }}>Close</button>}>
-      <div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div>
+      <div className="grid"><Field label="Participant Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/><Field label="NDIS Number" value={form.ndisNumber} onChange={e => setForm(p => ({ ...p, ndisNumber: e.target.value }))}/><Field type="date" label="Plan Start Date" value={form.planStartDate} onChange={e => setForm(p => ({ ...p, planStartDate: e.target.value }))}/><Field type="date" label="Plan End Date" value={form.planEndDate} onChange={e => setForm(p => ({ ...p, planEndDate: e.target.value }))}/><Field type="number" step="0.01" label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}/><Field type="date" label="Consent Expiry" value={form.consentExpiry} onChange={e => setForm(p => ({ ...p, consentExpiry: e.target.value }))}/><Field type="date" label="Service Agreement Expiry" value={form.agreementExpiry} onChange={e => setForm(p => ({ ...p, agreementExpiry: e.target.value }))}/><Field type="date" label="Risk Review Date" value={form.riskReviewDate} onChange={e => setForm(p => ({ ...p, riskReviewDate: e.target.value }))}/><label className="field"><span>Participant Intake Form Completed?</span><select value={form.intakeFormCompleted || 'No'} onChange={e => setForm(p => ({ ...p, intakeFormCompleted: e.target.value }))}><option>No</option><option>Yes</option></select></label>{(form.intakeFormCompleted === 'Yes') && <Field type="date" label="Intake Form Date Completed" value={form.intakeFormDate} onChange={e => setForm(p => ({ ...p, intakeFormDate: e.target.value }))}/>}<Field type="date" label="Support Plan – Date of Original" value={form.supportPlanOriginalDate} onChange={e => setForm(p => ({ ...p, supportPlanOriginalDate: e.target.value }))}/><Field type="date" label="Support Plan – Review Date" value={form.supportPlanReviewDate} onChange={e => setForm(p => ({ ...p, supportPlanReviewDate: e.target.value }))}/><Field type="date" label="Emergency & Critical Plan – Date of Original" value={form.emergencyPlanOriginalDate} onChange={e => setForm(p => ({ ...p, emergencyPlanOriginalDate: e.target.value }))}/><Field type="date" label="Emergency & Critical Plan – Review Date" value={form.emergencyPlanReviewDate} onChange={e => setForm(p => ({ ...p, emergencyPlanReviewDate: e.target.value }))}/><Field label="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/><Field label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}/><Field label="Address" multiline value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}/><Field label="Compliance Notes" multiline value={form.complianceNotes} onChange={e => setForm(p => ({ ...p, complianceNotes: e.target.value }))}/></div>
       <button className="primary" onClick={() => { save(); setShowForm(false); }}>{editing ? 'Update Participant' : 'Save Participant'}</button>{editing && <button onClick={() => { cancel(); setShowForm(false); }}>Cancel Edit</button>}
     </Card>}
   </>;
@@ -2139,7 +2159,7 @@ function exportTransactionReportPdf({ business = {}, transactions = [], period =
 
 
 const EXPORT_COLUMNS = {
-  risks: ['number','taskActivityArea','issueHazardAspect','riskImpact','consequence','likelihood','riskScore','controlMeasures','personResponsible','residualConsequence','residualLikelihood','residualRiskScore'],
+  risks: ['number','date','participantId','taskActivityArea','issueHazardAspect','riskImpact','consequence','likelihood','riskScore','controlMeasures','personResponsible','residualConsequence','residualLikelihood','residualRiskScore','status'],
   incidents: ['title','participantName','date','severity','reportable','immediateAction','followUp','status','evidence'],
   complaints: ['title','participantName','date','receivedBy','category','details','resolution','status','evidence'],
   improvements: ['referenceNumber','date','sourceOfFeedback','opportunityForImprovement','relevantStandardIndicator','actionsRequired','priority','byWhen','status','outcome','review'],
@@ -3386,7 +3406,7 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
   const [draft, setDraft] = useState(emptyShift());
   const [editingId, setEditingId] = useState(null);
   const [shiftModalOpen, setShiftModalOpen] = useState(false);
-  const [recurring, setRecurring] = useState({ enabled: false, frequency: 'weekly', occurrences: 4, weekdays: [] });
+  const [recurring, setRecurring] = useState({ enabled: false, frequency: 'weekly', occurrences: 4, weekdays: [], endMode: 'count', endDate: '' });
   const [view, setView] = useState('Calendar');
   const [filterWorker, setFilterWorker] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -3424,13 +3444,26 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
   });
   const buildRecurringDates = () => {
     if (!recurring.enabled) return [draft.date || todayISO()];
-    if (recurring.frequency !== 'weekly') return Array.from({ length: recurringCount }, (_, idx) => addDaysToISO(draft.date, idx * recurringStepDays));
-    const dates = [];
     const start = draft.date || todayISO();
+    const useEnd = recurring.endMode === 'until' && recurring.endDate;
+    const endMs = useEnd ? new Date(`${recurring.endDate}T23:59:59`).getTime() : null;
+    const HARD_CAP = 366; // never generate more than a year of shifts in one go
+    if (recurring.frequency !== 'weekly') {
+      const out = [];
+      for (let idx = 0; idx < (useEnd ? HARD_CAP : recurringCount); idx++) {
+        const d = addDaysToISO(start, idx * recurringStepDays);
+        if (useEnd && new Date(`${d}T00:00:00`).getTime() > endMs) break;
+        out.push(d);
+      }
+      return out.length ? out : [start];
+    }
+    const dates = [];
     let cursor = new Date(`${start}T00:00:00`);
     let guard = 0;
     const wanted = new Set(selectedWeekdays);
-    while (dates.length < recurringCount && guard < 370) {
+    const target = useEnd ? HARD_CAP : recurringCount;
+    while (dates.length < target && guard < 730) {
+      if (useEnd && cursor.getTime() > endMs) break;
       if (wanted.has(cursor.getDay())) dates.push(cursor.toISOString().slice(0, 10));
       cursor.setDate(cursor.getDate() + 1);
       guard += 1;
@@ -3632,7 +3665,7 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
           {(!activeWorkers.length || !activeClients.length) && <div className="auth-message">Add at least one employee in Compliance &gt; Employees and one participant before creating assigned shifts.</div>}
           <div className="shift-modal-grid">
             <label className="field"><span>Employee / Support Worker</span><select value={draft.workerId} onChange={e => updateDraft('workerId', e.target.value)}><option value="">Select employee</option>{activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name || w.email || w.employeeUsername}</option>)}</select></label>
-            <label className="field"><span>Client / Participant</span><select value={draft.participantId} onChange={e => updateDraft('participantId', e.target.value)}><option value="">Select client</option>{activeClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <label className="field"><span>Client / Participant</span><select value={draft.participantId} onChange={e => { const cid = e.target.value; const cl = findClient(cid); setDraft(prev => ({ ...prev, participantId: cid, location: (cl && cl.address) ? cl.address : prev.location })); }}><option value="">Select client</option>{activeClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
             <Field label="Date" type="date" value={draft.date} onChange={e => updateDraft('date', e.target.value)} />
             <label className="field"><span>Status</span><select value={draft.status} onChange={e => updateDraft('status', e.target.value)}>{statusList.map(x => <option key={x}>{x}</option>)}</select></label>
             <Field label="Start" type="time" value={draft.startTime} onChange={e => updateDraft('startTime', e.target.value)} />
@@ -3645,7 +3678,10 @@ function SchedulesWorkspace({ clients = [], workers = [], shifts = [], setShifts
             <label className="recurring-toggle"><input type="checkbox" checked={recurring.enabled} onChange={e => setRecurring(prev => ({ ...prev, enabled: e.target.checked }))} /><span>Create as recurring shift</span></label>
             {recurring.enabled && <div className="recurring-grid">
               <label><span>Repeat</span><select value={recurring.frequency} onChange={e => setRecurring(prev => ({ ...prev, frequency: e.target.value }))}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option></select></label>
-              <label><span>Number of shifts</span><input type="number" min="1" max="52" value={recurring.occurrences} onChange={e => setRecurring(prev => ({ ...prev, occurrences: e.target.value }))} /></label>
+              <label><span>Ends</span><select value={recurring.endMode || 'count'} onChange={e => setRecurring(prev => ({ ...prev, endMode: e.target.value }))}><option value="count">After a number of shifts</option><option value="until">On a date</option></select></label>
+              {(recurring.endMode || 'count') === 'count'
+                ? <label><span>Number of shifts</span><input type="number" min="1" max="52" value={recurring.occurrences} onChange={e => setRecurring(prev => ({ ...prev, occurrences: e.target.value }))} /></label>
+                : <label><span>End date</span><input type="date" min={draft.date} value={recurring.endDate || ''} onChange={e => setRecurring(prev => ({ ...prev, endDate: e.target.value }))} /></label>}
               {recurring.frequency === 'weekly' && <div className="weekday-picker"><span>Repeat on</span><div>{weekdayOptions.map(day => <button type="button" key={day.value} className={selectedWeekdays.includes(day.value) ? 'active' : ''} onClick={() => toggleWeekday(day.value)} aria-label={day.label}>{day.short}</button>)}</div><small>Select one or more days. The app will create the next {recurringCount} matching shift{recurringCount === 1 ? '' : 's'} from the start date.</small></div>}
               <div className="recurring-preview"><small>Preview</small><b>{buildRecurringDates().length} shift{buildRecurringDates().length === 1 ? '' : 's'} from {fmt(buildRecurringDates()[0])}</b><span>{recurring.frequency === 'weekly' ? `Weekly on ${selectedWeekdays.map(day => weekdayOptions.find(x => x.value === day)?.short).filter(Boolean).join(', ')}` : recurring.frequency} · same worker, client, time, address and service type.</span></div>
             </div>}
@@ -4072,6 +4108,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
   const [fullName, setFullName] = useState('');
   const [loginRole, setLoginRole] = useState(forceRole || 'admin');
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('error'); // 'error' (red) | 'info' (green)
   const [busy, setBusy] = useState(false);
   const [setupUrl, setSetupUrl] = useState('');
   const [setupAnonKey, setSetupAnonKey] = useState('');
@@ -4099,7 +4136,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
         <p>Your administrator can provide these connection details.</p>
         <Field label="Cloud URL" value={setupUrl} onChange={e => setSetupUrl(e.target.value)} placeholder="https://your-project.example.co" />
         <Field label="Public key" value={setupAnonKey} onChange={e => setSetupAnonKey(e.target.value)} placeholder="eyJ..." />
-        {message && <div className="auth-message">{message}</div>}
+        {message && <div className={`auth-message ${messageType}`}>{message}</div>}
         <button className="primary">Save & Reload</button>
       </form>
     </div>;
@@ -4107,13 +4144,14 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
 
   async function submit(e) {
     e.preventDefault();
+    setMessageType('error');
     if (loginRole === 'worker') {
       if (!email || !password) { setMessage('Enter your employee username and password.'); return; }
       setBusy(true); setMessage('');
       const result = await findEmployeeLogin(email, password);
       setBusy(false);
       if (!result.ok) setMessage(result.message);
-      else { setMessage('Signed in. Loading employee portal…'); onEmployeeLogin?.(result.session, result.payload); }
+      else { setMessageType('info'); setMessage('Signed in. Loading employee portal…'); onEmployeeLogin?.(result.session, result.payload); }
       return;
     }
     if (!supabase) { setMessage('Cloud sync is not configured.'); return; }
@@ -4125,8 +4163,8 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
       : await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (result.error) setMessage(result.error.message);
-    else if (mode === 'signup' && !result.data.session) setMessage('Account created. Check your email to confirm your sign up, then sign in.');
-    else setMessage('Signed in. Loading workspace…');
+    else if (mode === 'signup' && !result.data.session) { setMessageType('info'); setMessage('Account created. Check your email to confirm your address, then sign in.'); }
+    else { setMessageType('info'); setMessage('Signed in. Loading workspace…'); }
   }
 
   return <div className="auth-shell">
@@ -4138,7 +4176,7 @@ function AuthGate({ onEmployeeLogin, forceRole = null }) {
       {mode === 'signup' && loginRole === 'admin' && <Field label="Full name" value={fullName} onChange={e => setFullName(e.target.value)} />}
       <Field label={loginRole === 'admin' ? 'Email' : 'Username'} type={loginRole === 'admin' ? 'email' : 'text'} value={email} onChange={e => setEmail(e.target.value)} autoComplete={loginRole === 'admin' ? 'email' : 'username'} />
       <Field label="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
-      {message && <div className="auth-message">{message}</div>}
+      {message && <div className={`auth-message ${messageType}`}>{message}</div>}
       <button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'signup' ? 'Sign up' : 'Sign in'}</button>
       {loginRole === 'admin' && <button type="button" className="text-link auth-switch" onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setMessage(''); }}>
         {mode === 'signup' ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
