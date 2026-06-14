@@ -1484,3 +1484,42 @@ label.field{display:flex;flex-direction:column;gap:6px}
   .worker-next-shift .primary{width:100%}
   .worker-quick-details{grid-template-columns:1fr}
 }
+
+/* ---- Sidebar footer (Need help + user chip) ---- */
+.sidebar-footer{margin-top:auto;display:flex;flex-direction:column;gap:10px;padding-top:12px}
+.sidebar-help{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid rgba(255,255,255,.14);border-radius:12px;color:#cfe0f5;font-weight:600;font-size:13.5px;text-decoration:none;transition:background .15s}
+.sidebar-help:hover{background:rgba(255,255,255,.06)}
+.sidebar-help-q{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.12);font-weight:700;font-size:12px}
+.sidebar-user{position:relative;border-top:1px solid rgba(255,255,255,.1);padding-top:10px}
+.sidebar-user-chip{display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:0;padding:6px 6px;border-radius:12px;cursor:pointer;color:#eaf2ff;transition:background .15s}
+.sidebar-user-chip:hover{background:rgba(255,255,255,.06)}
+.sidebar-avatar{flex:0 0 auto;width:38px;height:38px;border-radius:50%;background:var(--blue-600);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.sidebar-user-meta{flex:1;text-align:left;line-height:1.25;overflow:hidden}
+.sidebar-user-meta b{display:block;font-size:14px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-user-meta small{color:#8fb0db;font-size:12px}
+.sidebar-user-caret{color:#8fb0db;font-size:15px}
+.sidebar-user-menu{position:absolute;bottom:64px;left:6px;right:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.25);overflow:hidden;z-index:30}
+.sidebar-user-menu button{display:block;width:100%;text-align:left;padding:11px 14px;border:0;background:transparent;color:var(--ink);font-weight:600;font-size:14px;cursor:pointer}
+.sidebar-user-menu button:hover{background:var(--blue-50)}
+
+/* ---- Subscription banner (trial / free) ---- */
+.sub-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px;padding:13px 16px;border-radius:14px;border:1px solid var(--line)}
+.sub-banner.trial{background:var(--amber-50);border-color:#f3d9a8}
+.sub-banner.free{background:var(--blue-50);border-color:#cdddff}
+.sub-banner-main{display:flex;align-items:center;gap:13px}
+.sub-banner-icon{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:#fff;font-size:16px}
+.sub-banner.trial .sub-banner-icon{color:var(--amber)}
+.sub-banner.free .sub-banner-icon{color:var(--blue)}
+.sub-banner-main b{display:block;font-size:14.5px;color:var(--ink)}
+.sub-banner-main small{color:var(--ink-2);font-size:12.5px}
+.sub-banner-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.sub-banner-close{background:transparent;border:0;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:0 4px}
+.sub-banner-close:hover{color:var(--ink)}
+
+/* ---- Subscription badge (settings) ---- */
+.sub-badge-wrap{display:inline-flex;align-items:center;gap:8px}
+.sub-badge{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:700;font-size:12.5px;cursor:pointer;background:#fff}
+.sub-badge.green{background:var(--green-50);color:var(--green);border-color:#bfe8cf}
+.sub-badge.amber{background:var(--amber-50);color:var(--amber);border-color:#f3d9a8}
+.sub-badge.grey{background:#f1f4f9;color:var(--muted)}
+.sub-badge-detail{font-size:12.5px;color:var(--ink-2)}

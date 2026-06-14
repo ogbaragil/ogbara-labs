@@ -461,7 +461,8 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('lg_flow_theme') || 'light');
   const [user, setUser] = useState(null);
   // App-level access gate (operational app). Dormant unless both switches are on.
-  const { appAccess, plan: userPlan } = usePlan(user, ENFORCE_BILLING);
+  const { appAccess, plan: userPlan, trialDaysLeft: userTrialDaysLeft, sub: userSub } = usePlan(user, ENFORCE_BILLING);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const appGated = ENFORCE_BILLING && GATE_OPERATIONS_ON_EXPIRY && !appAccess;
   const [employeeSession, setEmployeeSession] = useState(() => { try { return JSON.parse(localStorage.getItem(EMPLOYEE_SESSION_KEY) || 'null'); } catch { return null; } });
   const [authLoading, setAuthLoading] = useState(true);
@@ -1048,10 +1049,25 @@ export default function App() {
     <aside className="sidebar">
       <div className="brand"><BrandMark /><div><BrandWordmark /><p>{business.name || "Life's Good Disability Services"}</p></div></div>
       <nav>{TABS.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>)}</nav>
+      <div className="sidebar-footer">
+        <a className="sidebar-help" href={`mailto:${SUPPORT_EMAIL}`}><span className="sidebar-help-q">?</span><span>Need help?</span></a>
+        <div className="sidebar-user">
+          <button type="button" className="sidebar-user-chip" onClick={() => setUserMenuOpen(o => !o)}>
+            <span className="sidebar-avatar">{((user?.user_metadata?.full_name || business.name || user?.email || 'U').split(/[\s@]/).filter(Boolean).map(x => x[0]).join('').slice(0, 2) || 'U').toUpperCase()}</span>
+            <span className="sidebar-user-meta"><b>{user?.user_metadata?.full_name || business.name || (user?.email ? user.email.split('@')[0] : 'Account')}</b><small>Admin</small></span>
+            <span className="sidebar-user-caret">⌄</span>
+          </button>
+          {userMenuOpen && <div className="sidebar-user-menu">
+            <button onClick={() => { setActive('Settings'); setUserMenuOpen(false); }}>Settings</button>
+            <button onClick={async () => { setUserMenuOpen(false); if (supabase) await supabase.auth.signOut(); }}>Sign out</button>
+          </div>}
+        </div>
+      </div>
     </aside>
     <main className="main">
       <header className="topbar"><div><h2>{welcomeMessage}</h2><p>{active === 'Dashboard' ? "Here's what's happening today." : (business.name || 'Kajola Care Operations')}</p></div><div className="top-actions"><button className="ghost" onClick={async () => { await supabase.auth.signOut(); }}>Sign out</button></div></header>
       {notice && <div className="notice">{notice}</div>}
+      <SubscriptionBanner plan={userPlan} trialDaysLeft={userTrialDaysLeft} sub={userSub} onView={() => setActive('Settings')} />
       {appGated && <UpgradeWall reason="app" plan={userPlan} user={user} />}
       {!appGated && <>
       {active === 'Dashboard' && <Dashboard totals={totals} invoices={invoices.slice(0, 5)} transactions={transactions} clients={clients} business={business} workers={workers} shifts={shifts} setActive={setActive}/>} 
@@ -1156,7 +1172,7 @@ function BrandMark({ compact = false }) {
 
 function MobileShell({ active, setActive, complianceSection, setComplianceSection, displayName, welcomeMessage, business, setBusiness, saveBusiness, pricingItems, totals, clients, invoices, transactions, workers, setWorkers, setInvoices = () => {}, shifts = [], setShifts = () => {}, onPublishSchedule = async () => {}, onPublishWorkers = async () => {}, risks = [], setRisks = () => {}, incidents = [], setIncidents = () => {}, complaints = [], setComplaints = () => {}, improvements = [], setImprovements = () => {}, audits = [], setAudits = () => {}, auditReports = [], setAuditReports = () => {}, governanceReviews = [], setGovernanceReviews = () => {}, documents = [], setDocuments = () => {}, notice, user, theme, toggleTheme, onSignOut, clientForm, setClientForm, editingClient, saveClient, editClient, archiveClient, deleteClient, cancelClient, invoiceForm, setInvoiceForm, editingInvoice, setLine, selectItem, addLine, removeLine, saveInvoice, editInvoice, deleteInvoice, exportPDF, updateInvoiceStatus, cancelInvoice, txnForm, setTxnForm, editingTxn, saveTxn, editTxn, deleteTxn, cancelTxn, settings }) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const { appAccess: mobileAppAccess, plan: mobileUserPlan } = usePlan(user, ENFORCE_BILLING);
+  const { appAccess: mobileAppAccess, plan: mobileUserPlan, trialDaysLeft: mobileTrialDaysLeft, sub: mobileSub } = usePlan(user, ENFORCE_BILLING);
   const mobileAppGated = ENFORCE_BILLING && GATE_OPERATIONS_ON_EXPIRY && !mobileAppAccess;
   const activeClients = clients.filter(c => c && !c.archived);
   const alerts = getMobileAlerts({ clients, invoices, totals, business, workers });
@@ -1172,6 +1188,7 @@ function MobileShell({ active, setActive, complianceSection, setComplianceSectio
     </header>
     <main className="mobile-main">
       {notice && <div className="notice mobile-notice">{notice}</div>}
+      <SubscriptionBanner plan={mobileUserPlan} trialDaysLeft={mobileTrialDaysLeft} sub={mobileSub} onView={() => setActive('Settings')} />
       {mobileAppGated && <UpgradeWall reason="app" plan={mobileUserPlan} user={user} />}
       {!mobileAppGated && <>
       {active === 'Dashboard' && <MobileHome welcomeMessage={welcomeMessage} totals={totals} alerts={alerts} invoices={recentInvoices} clients={activeClients} setActive={setActive} />}
@@ -1368,6 +1385,54 @@ function Records({ rows, empty, render }) { return rows.length ? rows.map(render
 function Stat({ label, value, tone, icon, trend }) { return <div className={`stat ${tone || ''}`}><div className="stat-icon">{icon}</div><small>{label}</small><strong>{value}</strong><em>{trend}</em></div>; }
 function Spark() { return <svg viewBox="0 0 180 48" className="spark"><path d="M4 38 C22 40 24 31 38 30 C52 28 48 16 66 20 C82 25 82 34 100 29 C116 25 111 18 130 17 C150 16 151 29 176 10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>; }
 
+
+// Support contact for the "Need help?" footer link — change to your support inbox.
+const SUPPORT_EMAIL = 'support@ogbara.com.au';
+
+function planEndDate(sub) {
+  if (!sub) return null;
+  return sub.plan === 'trial' ? (sub.trial_ends_at || null) : (sub.current_period_end || null);
+}
+const PLAN_LABELS = { trial: 'Free Trial', pro: 'Pro', practice: 'Practice', expired: 'Free', unknown: 'Free' };
+
+// Dismissible banner shown to Trial and Free/expired users on each login.
+function SubscriptionBanner({ plan, trialDaysLeft, sub, onView }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  if (!(plan === 'trial' || plan === 'expired' || plan === 'unknown')) return null;
+  const isTrial = plan === 'trial';
+  const end = planEndDate(sub);
+  return <div className={`sub-banner ${isTrial ? 'trial' : 'free'}`}>
+    <div className="sub-banner-main">
+      <span className="sub-banner-icon">{isTrial ? '★' : '◔'}</span>
+      <div>
+        <b>{isTrial ? `You're on a free trial${typeof trialDaysLeft === 'number' ? ` — ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left` : ''}` : "You're on the Free plan"}</b>
+        <small>{isTrial ? (end ? `Trial ends ${fmt(end)}. Upgrade any time to keep the compliance suite.` : 'Upgrade any time to keep the compliance suite.') : 'The compliance suite is available on Pro and Practice.'}</small>
+      </div>
+    </div>
+    <div className="sub-banner-actions">
+      <button className="primary" onClick={onView}>View plans</button>
+      <button className="sub-banner-close" aria-label="Dismiss" onClick={() => setDismissed(true)}>×</button>
+    </div>
+  </div>;
+}
+
+// Settings badge: shows current plan; reveals details + expiry on tap/hover.
+function SubscriptionBadge({ user }) {
+  const { plan, sub, trialDaysLeft, billingReady } = usePlan(user, true);
+  const [open, setOpen] = useState(false);
+  const label = PLAN_LABELS[plan] || 'Free';
+  const end = planEndDate(sub);
+  const tone = plan === 'pro' || plan === 'practice' ? 'green' : plan === 'trial' ? 'amber' : 'grey';
+  const detail = !billingReady ? 'Billing not enabled'
+    : plan === 'trial' ? `Trial${typeof trialDaysLeft === 'number' ? ` · ${trialDaysLeft} days left` : ''}${end ? ` · ends ${fmt(end)}` : ''}`
+    : (plan === 'pro' || plan === 'practice') ? `Active${end ? ` · renews ${fmt(end)}` : ''}`
+    : 'No active subscription';
+  return <span className="sub-badge-wrap">
+    <button type="button" className={`sub-badge ${tone}`} title={detail} onClick={() => setOpen(o => !o)}>{label} ▾</button>
+    {open && <span className="sub-badge-detail">{detail}</span>}
+  </span>;
+}
 
 function CashflowOverview({ transactions }) {
   const [period, setPeriod] = useState('30');
@@ -3187,6 +3252,9 @@ function Settings({ pricingItems, business, setBusiness, saveBusiness, clients, 
   ];
 
   return <>
+    <Card title="Subscription" action={<SubscriptionBadge user={user} />}>
+      <p className="muted" style={{ margin: 0 }}>Your current plan. Tap the badge for renewal/expiry details, or manage billing from the plan picker.</p>
+    </Card>
     {/* Header */}
     <div className="org-settings-head org-settings-head-compact">
       <div className="org-summary-card">
