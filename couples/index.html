@@ -332,6 +332,7 @@
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="cloud.js"></script>
+<script src="remote.js"></script>
 <script>
 "use strict";
 const COLS = 10;
@@ -699,16 +700,27 @@ function questIntro(){
     "Spin the die to move together. Land on a heart, climb a ladder, or slip down a snake to unlock a quest.",
     "", `${name(S.current)}, ${startRule()}`, false);
 }
-function showQuest(text, kind="tile", who=""){
+function showQuest(text, kind="tile", who="", actor=null){
   Music.sfxLove();
   const f = QC[kind] || QC.tile;
-  S.activeQuest = { text, kind, who };
-  renderQuestCard(f.head.toUpperCase(), text, who, f.note, true);
+  S.activeQuest = { text, kind, who, actor: actor==null ? S.current : actor };
+  renderQuestCard(f.head.toUpperCase(), text, who, f.note, questControllable());
   const card=document.getElementById("questCard");
   if (card){ card.classList.remove("flash"); try{ void card.offsetWidth; }catch{} card.classList.add("flash");
     try{ card.scrollIntoView({behavior:"smooth", block:"nearest"}); }catch{} }
 }
 function clearQuest(){ S.activeQuest=null; questIntro(); }
+/* Remote: only the player who triggered a quest can tick it off; pass-and-play: anyone. */
+function questControllable(){
+  if (S.mode!=="remote") return true;
+  return !!(S.activeQuest && S.activeQuest.actor===S.myPlayer);
+}
+/* Re-render the quest card from current state (used after a remote snapshot arrives). */
+function renderQuestFromState(){
+  if (!S.activeQuest){ questIntro(); return; }
+  const q=S.activeQuest, f=QC[q.kind]||QC.tile;
+  renderQuestCard(f.head.toUpperCase(), q.text, q.who, f.note, questControllable());
+}
 
 /* ---------- Status helpers ---------- */
 function startRule(){ return S.difficulty==="Hard" ? "spin a 6 to start" : "spin anything to start"; }
@@ -749,7 +761,57 @@ function paintStatus(){
   if (typeof dieEl !== "undefined" && dieEl) dieEl.classList.toggle("done", !!S.winner);
   renderPills();
 }
-function renderAll(){ paintPawns(); paintStatus(); renderLog(); renderPills(); }
+function renderAll(){ paintPawns(); paintStatus(); renderLog(); renderPills(); paintTurnLock(); }
+
+/* ===================== Remote play: sync layer ===================== */
+/* A full game snapshot is the unit of sync — tiny and desync-proof. */
+function snapshot(){
+  return {
+    p1:{ name:S.p1.name, gender:S.p1.gender, position:S.p1.position },
+    p2:{ name:S.p2.name, gender:S.p2.gender, position:S.p2.position },
+    current:S.current, round:S.round, winner:S.winner,
+    loveMode:S.loveMode, difficulty:S.difficulty, ultimatePrompt:S.ultimatePrompt,
+    activeQuest:S.activeQuest, log:S.log,
+  };
+}
+let applyingRemote=false;
+function applySnapshot(g){
+  if (!g) return;
+  applyingRemote=true;
+  try{
+    if (g.p1){ S.p1.name=g.p1.name??S.p1.name; S.p1.gender=g.p1.gender||S.p1.gender; S.p1.position=g.p1.position??S.p1.position; }
+    if (g.p2){ S.p2.name=g.p2.name??S.p2.name; S.p2.gender=g.p2.gender||S.p2.gender; S.p2.position=g.p2.position??S.p2.position; }
+    if (g.current) S.current=g.current;
+    if (typeof g.round==="number") S.round=g.round;
+    if (g.loveMode && LOVE_QUESTS[g.loveMode]) S.loveMode=g.loveMode;
+    if (g.difficulty==="Easy"||g.difficulty==="Hard") S.difficulty=g.difficulty;
+    if (g.ultimatePrompt!==undefined) S.ultimatePrompt=g.ultimatePrompt;
+    if (Array.isArray(g.log)) S.log=g.log;
+    S.activeQuest = g.activeQuest || null;
+    const newWin = g.winner && g.winner!==S.winner;
+    S.winner = g.winner || null;
+    showDie(1);
+    renderAll();
+    renderQuestFromState();
+    if (newWin){ confetti(); winModal(name(S.winner)); }
+  } finally { applyingRemote=false; }
+}
+/* Broadcast the current state to the partner — no-op outside remote play. */
+function rbroadcast(){
+  if (S.mode==="remote" && !applyingRemote && window.Remote && Remote.isActive()) {
+    try { Remote.push(snapshot()); } catch {}
+  }
+}
+/* This device may roll only on its own turn when playing remotely. */
+function canActNow(){ return S.mode!=="remote" || (S.current===S.myPlayer && !S.winner); }
+/* Lock the die + show a waiting hint while it is the partner's turn. */
+function paintTurnLock(){
+  if (typeof dieEl==="undefined" || !dieEl) return;
+  if (S.mode!=="remote"){ dieEl.classList.remove("waiting"); return; }
+  const mine = S.current===S.myPlayer && !S.winner;
+  dieEl.classList.toggle("waiting", !mine);
+  if (!mine && !S.winner) setHint(`Waiting for ${name(S.current)} to roll…`);
+}
 
 /* ---------- Game flow ---------- */
 /* ---------- Dice ---------- */
@@ -790,12 +852,10 @@ function finishTurn(keep, actor){
     if (S.current===1) S.round++;
     logEvent("turn", `${name(S.current)}'s turn`, "");
   }
-  paintPawns(); paintStatus(); renderPills();
+  paintPawns(); paintStatus(); renderPills(); paintTurnLock();
+  rbroadcast();
 }
-function showWin(actor){
-  S.winner=S.current; Music.sfxWin(); confetti();
-  logEvent("win", `${actor} reached 100`, "Game won 🎉");
-  renderPills(); paintStatus();
+function winModal(actor){
   const back=el("div","modal-back"), box=el("div","modal quest-card modalq");
   box.innerHTML=`<p class="win-title">🎉</p><h2>Congratulations, ${esc(actor)}!</h2>
     <p class="q">${S.ultimatePrompt ? esc(S.ultimatePrompt) : "You have won the game!"}</p>
@@ -803,9 +863,17 @@ function showWin(actor){
   const again=el("button","primary-btn","Play again"); again.onclick=()=>{ back.remove(); resetGame(); };
   box.appendChild(again); back.appendChild(box); document.getElementById("overlay").appendChild(back);
 }
+function showWin(actor){
+  S.winner=S.current; Music.sfxWin(); confetti();
+  logEvent("win", `${actor} reached 100`, "Game won 🎉");
+  renderPills(); paintStatus();
+  rbroadcast();
+  winModal(actor);
+}
 
 async function spin(){
   if (S.winner||S.spinning||S.animating||S.setupOpen) return;
+  if (!canActNow()) return;
   Music.unlock(); if (S.musicEnabled) Music.start();
   const actor=name(S.current), mover=S.current;
   const curPos=(mover===1?S.p1:S.p2).position;
@@ -827,7 +895,7 @@ async function spin(){
     const {finalPos,jumped,dir}=await resolveTransition(mover,1);
     if (jumped) logEvent(dir, `${actor} ${dir==="ladder"?"climbed a ladder":"slid down a snake"}`, `From 1 to ${finalPos}`);
     if (finalPos>=100){ showWin(actor); return; }
-    if (jumped) showQuest(drawQuest(S.loveMode), dir, actor);
+    if (jumped) showQuest(drawQuest(S.loveMode), dir, actor, mover);
     finishTurn(roll===6 && !jumped, actor); return;
   }
   if (curPos+roll>100){
@@ -841,10 +909,10 @@ async function spin(){
   if (jumped) logEvent(dir, `${actor} ${dir==="ladder"?"climbed a ladder":"slid down a snake"}`, `From ${target} to ${finalPos}`);
   if (finalPos>=100){ showWin(actor); return; }
   if (jumped){
-    showQuest(drawQuest(S.loveMode), dir, actor);
+    showQuest(drawQuest(S.loveMode), dir, actor, mover);
   } else if (QUEST_TILES.includes(finalPos)){
     logEvent("heart", `${actor} landed on ${finalPos}`, "Heart challenge");
-    showQuest(drawQuest(S.loveMode), "tile", actor);
+    showQuest(drawQuest(S.loveMode), "tile", actor, mover);
   }
   finishTurn(roll===6 && !jumped, actor);
 }
@@ -852,6 +920,7 @@ function resetGame(){
   S.p1.position=0; S.p2.position=0; S.current=1; S.winner=null; S.spinning=false; S.animating=false;
   S.round=1; S.log=[]; S.activeQuest=null;
   showDie(1); questIntro(); renderAll();
+  rbroadcast();
 }
 
 function confetti(){
@@ -933,6 +1002,12 @@ function openSetup(firstRun=false){
   }
 
   if (!firstRun){
+    const goRemote = el("button","reset-row", S.mode==="remote" ? "🚪 Leave remote game" : "🌍 Play remotely — two devices");
+    goRemote.onclick = () => {
+      back.remove(); S.setupOpen=false;
+      if (S.mode==="remote") exitRemote(); else openRemoteLobby();
+    };
+    fields.append(goRemote);
     const rr = el("button","reset-row","↺ Reset game — positions start over");
     rr.onclick = () => { if (confirm("Reset positions and start over?")){ resetGame(); S.setupOpen=false; back.remove(); } };
     fields.append(rr);
@@ -943,7 +1018,8 @@ function openSetup(firstRun=false){
     if (!S.p1.name.trim()||!S.p2.name.trim()){ alert("Please enter both players' names."); return; }
     S.p1.name=S.p1.name.trim(); S.p2.name=S.p2.name.trim();
     savePrefs(); S.setupOpen=false; back.remove();
-    buildBoard(); setHint(`${name(S.current)}, ${startRule()}`); paintStatus(); paintPawns();
+    buildBoard(); setHint(`${name(S.current)}, ${startRule()}`); paintStatus(); paintPawns(); paintTurnLock();
+    rbroadcast();
   };
   box.appendChild(start);
   back.appendChild(box); document.getElementById("overlay").appendChild(back);
@@ -954,6 +1030,121 @@ function downscale(fileBlob,maxSide,q){ return new Promise((res)=>{ const img=ne
     cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
     cv.toBlob(b=>res(b||fileBlob),"image/jpeg",q); URL.revokeObjectURL(img.src); };
   img.onerror=()=>res(fileBlob); img.src=URL.createObjectURL(fileBlob); }); }
+
+/* ===================== Mode lobby + remote play ==================== */
+function lobbyModal(){
+  const back=el("div","modal-back"), box=el("div","modal");
+  back.appendChild(box); document.getElementById("overlay").appendChild(back);
+  return { back, box };
+}
+/* First screen: Pass & Play beside Play Remotely. */
+function openLobby(){
+  S.setupOpen=true;
+  const { back, box } = lobbyModal();
+  box.innerHTML = `<h2>How will you play? 💞</h2>
+    <p class="hint">Same room, or two phones across the world — your call.</p>`;
+  const local=el("button","primary-btn","👫 Pass & Play");
+  local.style.marginTop="4px";
+  local.onclick=()=>{ back.remove(); S.mode="local"; S.myPlayer=null; openSetup(true); };
+  box.appendChild(local);
+  const localNote=el("p","hint","Share one device and take turns.");
+  localNote.style.margin="6px 2px 14px"; box.appendChild(localNote);
+
+  const remote=el("button","reset-row","🌍 Play Remotely");
+  remote.onclick=()=>{ back.remove(); openRemoteLobby(); };
+  box.appendChild(remote);
+  const remoteNote=el("p","hint","Two devices, one shared board.");
+  remoteNote.style.margin="6px 2px 0"; box.appendChild(remoteNote);
+}
+/* Remote: pick your name, then create or join a room by code. */
+function openRemoteLobby(){
+  S.setupOpen=true;
+  if (!(window.Remote && Remote.available && Remote.available())){
+    const { back, box } = lobbyModal();
+    box.innerHTML=`<h2>Remote play 🌍</h2><p class="hint">Remote play needs the cloud service, which isn't set up for this copy. You can still play pass-and-play on one device.</p>`;
+    const ok=el("button","primary-btn","Back"); ok.onclick=()=>{ back.remove(); openLobby(); };
+    box.appendChild(ok); return;
+  }
+  const { back, box } = lobbyModal();
+  let myName = "", myGender = "female";
+  box.innerHTML=`<h2>Play remotely 🌍</h2>
+    <p class="hint">You'll each play on your own device. One of you creates a room and shares the code; the other joins it.</p>`;
+  box.appendChild(el("label",null,"Your name"));
+  const nameInp=el("input"); nameInp.type="text"; nameInp.placeholder="e.g. Amara";
+  nameInp.oninput=()=>myName=nameInp.value; box.appendChild(nameInp);
+
+  box.appendChild(el("label",null,"You appear as"));
+  const seg=el("div","seg");
+  [["female","👩 Her"],["male","👨 Him"]].forEach(([g,lbl])=>{ const b=el("button",g==="female"?"sel":"",lbl);
+    b.onclick=()=>{ myGender=g; [...seg.children].forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); }; seg.append(b); });
+  box.appendChild(seg);
+
+  const msg=el("p","hint",""); msg.style.minHeight="16px"; msg.style.color="var(--p1)";
+
+  const createBtn=el("button","primary-btn","Create a room");
+  createBtn.style.marginTop="14px";
+  createBtn.onclick=()=>{ if(!myName.trim()){ msg.textContent="Please enter your name first."; return; }
+    back.remove(); startRemote("host", "", myName.trim(), myGender); };
+  box.appendChild(createBtn);
+
+  const joinBtn=el("button","reset-row","Join with a code");
+  joinBtn.onclick=()=>{
+    box.querySelectorAll(".join-step").forEach(x=>x.remove());
+    if(!myName.trim()){ msg.textContent="Please enter your name first."; return; }
+    const wrap=el("div","join-step"); wrap.append(el("label",null,"Room code"));
+    const codeInp=el("input"); codeInp.type="text"; codeInp.placeholder="4 letters/numbers";
+    codeInp.style.textTransform="uppercase"; codeInp.maxLength=4; wrap.append(codeInp);
+    const go=el("button","primary-btn","Join");
+    go.onclick=()=>{ const c=(codeInp.value||"").trim().toUpperCase();
+      if(!Remote.validCode(c)){ msg.textContent="That code doesn't look right."; return; }
+      back.remove(); startRemote("guest", c, myName.trim(), myGender); };
+    wrap.append(go); box.appendChild(wrap); codeInp.focus();
+  };
+  box.appendChild(joinBtn);
+  box.appendChild(msg);
+  const cancel=el("button","reset-row","Back");
+  cancel.onclick=()=>{ back.remove(); openLobby(); };
+  box.appendChild(cancel);
+}
+function beginRemoteGame(role){
+  S.setupOpen=false;
+  buildBoard(); renderAll();
+  if (role==="host") Remote.setBanner("wait","Share this code — waiting for your partner",{code:Remote.getCode()});
+  else Remote.setBanner("wait","Connecting…");
+}
+function exitRemote(){
+  if (window.Remote){ Remote.leave(); Remote.clearBanner && Remote.clearBanner(); }
+  S.mode="local"; S.myPlayer=null;
+  setHint(`${name(S.current)}, ${startRule()}`);
+  renderAll();
+}
+async function startRemote(role, code, myName, myGender){
+  S.mode="remote"; S.myPlayer = role==="host" ? 1 : 2;
+  if (role==="host"){ S.p1.name=myName; S.p1.gender=myGender; }
+  else { S.p2.name=myName; S.p2.gender=myGender; }
+  const hooks = {
+    getState: snapshot,
+    applyState: (g)=>{ applySnapshot(g); },
+    onHello: (h)=>{ if (h && h.player===2){ S.p2.name=h.name||S.p2.name; S.p2.gender=h.gender||S.p2.gender; renderAll(); } },
+    onStart: ()=>{ Remote.setBanner("ok","Connected"); renderAll(); },
+    onPeer: (evt)=>{
+      if (evt==="join") Remote.setBanner("ok","Connected");
+      else Remote.setBanner("wait", role==="host"?"Partner left — waiting…":"Waiting for partner…",
+        role==="host"?{code:Remote.getCode()}:undefined);
+    },
+    onStatus: (st)=>{ if (st==="error") Remote.setBanner("err","Connection problem — retrying…");
+      else if (st==="closed") Remote.setBanner("err","Disconnected"); },
+    onLeave: ()=>{ exitRemote(); },
+  };
+  try {
+    await Remote.start({ role, code, me:{ name:myName, gender:myGender }, hooks });
+    beginRemoteGame(role);
+  } catch (e) {
+    S.mode="local"; S.myPlayer=null;
+    alert("Couldn't start remote play: " + (e.message||e));
+    openLobby();
+  }
+}
 
 /* ---------- Wire up ---------- */
 function openHelp(){
@@ -972,7 +1163,7 @@ function openHelp(){
 }
 
 /* ---------- State extensions for the new UI ---------- */
-Object.assign(S, { round:1, log:[], activeQuest:null });
+Object.assign(S, { round:1, log:[], activeQuest:null, mode:"local", myPlayer:null });
 
 /* ---------- Wire up controls ---------- */
 document.getElementById("die").onclick = spin;
@@ -980,10 +1171,11 @@ document.getElementById("settingsBtn").onclick = ()=>openSetup(false);
 document.getElementById("menuBtn").onclick = openHelp;
 
 document.getElementById("qcDone").onclick = ()=>{
+  if (!questControllable()) return;
   if (S.activeQuest && S.activeQuest.who) logEvent("heart", `${S.activeQuest.who} completed a quest`, "💖 well done");
-  clearQuest();
+  clearQuest(); rbroadcast();
 };
-document.getElementById("qcPass").onclick = ()=>{ clearQuest(); };
+document.getElementById("qcPass").onclick = ()=>{ if(!questControllable()) return; clearQuest(); rbroadcast(); };
 
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=S.musicEnabled?1:0.45;
@@ -1000,7 +1192,7 @@ setInterval(()=>{ if (S.log.length) renderLog(); }, 20000);
   questIntro();
   renderAll();
   const haveNames=!!(S.p1.name&&S.p2.name);
-  if (!haveNames){ openSetup(true); }
+  if (!haveNames){ openLobby(); }
 
   /* ---------------- Cloud sync (optional account) ---------------- */
   if (window.Cloud) Cloud.init("couples", {
