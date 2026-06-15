@@ -146,6 +146,13 @@
   .qc-done .chk{width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#fff; font-size:15px;
     background:linear-gradient(135deg,var(--rose-hot),var(--rose-deep)); box-shadow:0 3px 10px rgba(242,82,135,.5);}
   .qc-done:active{transform:scale(.97);}
+  .qc-close{padding:11px 18px; border-radius:999px; background:rgba(255,255,255,.07); border:1px solid var(--line2);
+    color:var(--muted); font-weight:800; font-size:13.5px;}
+  .quest-back{position:fixed; inset:0; z-index:55; display:none; align-items:center; justify-content:center; padding:18px;
+    background:rgba(12,4,12,.62); backdrop-filter:blur(4px);}
+  .quest-back.show{display:flex;}
+  .quest-back .quest-card{width:100%; max-width:440px; margin:0; animation:questPop .26s cubic-bezier(.2,.9,.3,1.2);}
+  @keyframes questPop{from{opacity:0; transform:translateY(10px) scale(.96);} to{opacity:1; transform:none;}}
 
   /* ---------- Two columns: log + players ---------- */
   .two-col{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
@@ -155,6 +162,14 @@
   .panel .ptitle{text-align:center; font-size:11.5px; font-weight:900; letter-spacing:1.6px; text-transform:uppercase;
     color:var(--rose); margin:0 0 12px;}
   .log-list{display:flex; flex-direction:column; gap:11px;}
+  .lastmove{display:flex; align-items:center; justify-content:center; gap:8px; min-height:20px;
+    margin:2px auto 0; max-width:520px; padding:0 10px; color:var(--muted); font-size:13px; line-height:1.3;
+    text-align:center; opacity:.92;}
+  .lastmove:empty{display:none;}
+  .lastmove .lm-ic{font-size:15px; flex:none;}
+  .lastmove .lm-tx{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lastmove .lm-tx b{color:var(--text); font-weight:700;}
+  .lastmove em{font-style:normal; color:var(--rose); font-weight:800;}
   .log-empty{color:var(--faint); font-size:13px; text-align:center; padding:8px 0;}
   .log-item{display:flex; align-items:flex-start; gap:10px;}
   .log-ic{flex:none; width:30px; height:30px; border-radius:10px; display:grid; place-items:center; font-size:15px;
@@ -293,26 +308,7 @@
     <div class="spill" id="upPill"><span class="ic">✦</span> You're up</div>
   </div>
 
-  <section class="quest-card" id="questCard">
-    <div class="qc-head" id="qcHead">💞 LOVE QUESTS 💞</div>
-    <div class="qc-body">
-      <div class="qc-heart">💖</div>
-      <div class="qc-main">
-        <span class="qc-who" id="qcWho" style="display:none"></span>
-        <p class="qc-text" id="qcText">Spin the die to move together.</p>
-        <p class="qc-note" id="qcNote"></p>
-      </div>
-    </div>
-    <div class="qc-actions" id="qcActions" style="display:none">
-      <button class="qc-pass" id="qcPass">Pass 💛</button>
-      <button class="qc-done" id="qcDone">Done <span class="chk">✓</span></button>
-    </div>
-  </section>
-
-  <section class="panel log-card">
-    <p class="ptitle">Game Log</p>
-    <div class="log-list" id="gameLog"></div>
-  </section>
+  <div class="lastmove" id="lastMove"></div>
 
   <p class="footer">Couples Snakes &amp; Ladders by <a href="https://ogbara.com.au" target="_blank" rel="noopener">Ogbara</a> · <a href="https://ogbara.com.au/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="https://ogbara.com.au/terms" target="_blank" rel="noopener">Terms</a></p>
 </div>
@@ -326,6 +322,24 @@
     </div>
     <div class="dock-player p2" id="dockP2"></div>
   </div>
+</div>
+<div class="quest-back" id="questBack">
+  <section class="quest-card" id="questCard">
+    <div class="qc-head" id="qcHead">💞 LOVE QUESTS 💞</div>
+    <div class="qc-body">
+      <div class="qc-heart">💖</div>
+      <div class="qc-main">
+        <span class="qc-who" id="qcWho" style="display:none"></span>
+        <p class="qc-text" id="qcText">Spin the die to move together.</p>
+        <p class="qc-note" id="qcNote"></p>
+      </div>
+    </div>
+    <div class="qc-actions" id="qcActions">
+      <button class="qc-pass" id="qcPass">Pass 💛</button>
+      <button class="qc-done" id="qcDone">Done <span class="chk">✓</span></button>
+      <button class="qc-close" id="qcClose" style="display:none">Close</button>
+    </div>
+  </section>
 </div>
 <div id="overlay"></div>
 
@@ -438,18 +452,121 @@ const LOVE_QUESTS = {
     "Make eye contact and count three things you want to say with it. Say one.",
   ],
 };
+/* Long-distance pack — quests that work over a video/voice call or texts,
+   nothing that assumes you're in the same room. Same three moods, same shape. */
+const LOVE_QUESTS_APART = {
+  Romantic: [
+    "Tell your partner a specific quality you love in them — no generic compliments.",
+    "Walk your partner through a favourite day you spent together, like you're both back in it.",
+    "Look into the camera and hold your partner's gaze for 20 seconds without talking.",
+    "Tell your partner the very first thing you noticed about them.",
+    "Name three things about this relationship you're grateful for, distance and all.",
+    "Tell your partner one thing they do — even over a call or text — that always makes you feel loved.",
+    "Share (or describe) a song that makes you think of them right now.",
+    "Describe how your life has changed for the better since meeting them.",
+    "Tell your partner about a small habit of theirs you adore, even from afar.",
+    "Sum your partner up in exactly three words to the camera, then explain one.",
+    "Tell the story of the moment you first realised you were falling for them, start to finish.",
+    "Tell your partner something, across all this distance, you've never properly thanked them for.",
+    "Plan, out loud in under a minute, the first thing you'll do together when you're next in the same room.",
+    "Show your partner something near you right now that reminds you of them.",
+    "Describe where you hope you'll both be — same city, same room — ten years from now.",
+    "Share a hard time when your partner's support carried you through, even from a distance.",
+    "Name one thing you want to do better as a long-distance partner, then one thing they already nail.",
+    "Describe your partner's laugh from memory and what it does to you down the line.",
+    "Tell your partner which of their dreams you most want a front-row seat to.",
+    "Close your eyes and take three slow breaths together on the call.",
+    "Tell your partner what 'home' means to you — and how they fit in it across the miles.",
+    "Recall a kiss you both remember. Compare notes on the details.",
+    "Tell your partner one way they've made you a better person, even from afar.",
+    "Describe the very first thing you'll say to them in person next time.",
+    "Read out one sentence you'd put in a love letter you'd post to them.",
+    "Tell your partner what you miss most about them right now.",
+    "Name a tiny moment from this past week you wished they'd been there for.",
+    "Tell your partner your favourite thing about how you two make up after a disagreement.",
+    "Raise whatever drink is nearby and toast one specific thing about your partner.",
+    "Set a date and time, right now, for your next call — and one thing you'll do on it.",
+  ],
+  Fun: [
+    "Do your silliest dance for 10 seconds on camera.",
+    "Text your partner the worst pun you can think of, then read it aloud.",
+    "Do a celebrity impression to the camera — partner guesses who.",
+    "Hold up the nearest weird object and pitch its strangest possible use.",
+    "Make up a two-line song about missing them and sing it.",
+    "Act out a dramatic movie scene solo for 15 seconds.",
+    "Invent a secret gesture that means 'I love you' on calls — perform it now.",
+    "Take on an accent your partner picks and keep it until your next turn.",
+    "Do your best impression of your partner on a video call. Lovingly.",
+    "Narrate your partner's next move like a wildlife documentary host.",
+    "Have a 10-second staring contest through the camera. Loser owes a forfeit.",
+    "Race the clock: say the alphabet backwards while your partner times you.",
+    "Strike your most heroic pose for the camera and hold it 10 seconds.",
+    "Make your partner laugh in 20 seconds — words only, no touching (easy, you're apart!).",
+    "Give your partner a five-star review out loud, like you're rating them online.",
+    "Invent a nickname for your partner based only on how they look on screen right now.",
+    "Mime a favourite shared memory until your partner guesses it.",
+    "Do 10 seconds of air guitar like your room is a stadium.",
+    "Passionately review the last thing you ate for 15 seconds.",
+    "Restyle your own hair on camera and wear it until your next turn.",
+    "Pull the face from your worst-ever photo for the camera.",
+    "Until your next turn, speak only in questions.",
+    "Deliver a TV-style weather forecast for your relationship this week.",
+    "Do a slow-motion replay of your last dice roll.",
+    "Give your partner a 20-second tour of one corner of your room.",
+    "Applaud your partner down the line like they won an Oscar — then demand a speech.",
+    "Hum a song into the mic; partner has 15 seconds to name it.",
+    "Make up a brand-new word and use it in a sentence about your partner.",
+    "Show the last photo you took that made you smile and explain it.",
+    "Send your partner the silliest selfie you can make right now.",
+  ],
+  Spicy: [
+    "Give your partner a flirty compliment, eyes on the camera.",
+    "Describe a fantasy you'd like to try together someday.",
+    "Whisper the sexiest thing you can think of for them to hear.",
+    "Tell your partner the exact moment they last looked irresistible to you.",
+    "Describe what you're wearing right now like a smitten fashion critic.",
+    "Tell your partner where you'd most want to be kissed when you're next together.",
+    "Describe, in detail, the first kiss you'll give them when you reunite.",
+    "Tell your partner about a recent time you couldn't stop thinking about them at the worst moment.",
+    "Whisper a one-sentence invitation for your next time together.",
+    "Describe your partner's best feature to the camera — take your time.",
+    "Tell your partner whose scent you wish you could breathe in right now.",
+    "Bite your lip and hold eye contact through the camera for 10 seconds.",
+    "Tell your partner the first thing you'd do if they walked through your door right now.",
+    "Describe your ideal slow evening with them, from arrival to lights out.",
+    "Share (or describe) the most flattering photo of yourself on your phone.",
+    "Tell your partner one thing they do that drives you wild that they don't even notice.",
+    "Read your partner a one-line invitation as if it were a midnight text.",
+    "Say, in three words, what you want from your next night together — then explain one.",
+    "Tell your partner what you'll be daydreaming about after this call.",
+    "Describe the outfit you'd wear to surprise them next time.",
+    "Tell your partner the last thing that made you think of them in a not-so-innocent way.",
+    "Blow a slow kiss to the camera and tell them where it's meant to land.",
+    "Whisper their name the way you would if they were right beside you.",
+    "Tell your partner what you'd whisper in their ear if you were there now.",
+    "Describe a place you'd love to sneak away to together.",
+    "Pose for the camera the way you want them to remember you tonight.",
+    "Tell your partner which photo of them you look at most, and why.",
+    "Describe the feeling of their touch you miss most — keep it tasteful.",
+    "Set a 'date' for your next video call and one daring thing you'll wear or do.",
+    "Tell your partner the most irresistible thing about their voice.",
+  ],
+};
 /* Heart tiles: extra quest triggers, chosen to never collide with snake/ladder ends */
 const QUEST_TILES = [7,15,25,36,49,58,70,88];
 /* Shuffled deck draw — no repeats until a full cycle, no back-to-back repeats across cycles */
 const _deck = {};
-function drawQuest(mode){
-  const deck = LOVE_QUESTS[mode];
-  let st = _deck[mode];
+function drawQuest(mode, pack){
+  pack = pack || (typeof S !== "undefined" && S.questPack) || "together";
+  const source = (pack === "apart" ? LOVE_QUESTS_APART : LOVE_QUESTS);
+  const deck = source[mode] || LOVE_QUESTS[mode];
+  const key = pack + ":" + mode;
+  let st = _deck[key];
   if (!st || st.i >= st.order.length){
     const order = deck.map((_,i)=>i);
     for (let i=order.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }
     if (st && order[0] === st.last && order.length > 1) [order[0],order[1]] = [order[1],order[0]];
-    st = _deck[mode] = { order, i:0, last:-1 };
+    st = _deck[key] = { order, i:0, last:-1 };
   }
   const idx = st.order[st.i++]; st.last = idx;
   return deck[idx];
@@ -657,14 +774,11 @@ function relTime(ts){
 }
 function highlightNums(t){ return esc(t).replace(/(\b\d+\b)/g, "<em>$1</em>"); }
 function renderLog(){
-  const wrap=document.getElementById("gameLog"); if(!wrap) return;
-  if (!S.log.length){ wrap.innerHTML='<div class="log-empty">Spin to begin — your moves show up here.</div>'; return; }
-  wrap.innerHTML = S.log.slice(0,6).map(e=>`
-    <div class="log-item ${e.kind}">
-      <span class="log-ic">${LOG_ICON[e.kind]||"•"}</span>
-      <span class="log-tx"><b>${highlightNums(e.title)}</b>${e.sub?`<i>${esc(e.sub)}</i>`:""}</span>
-      <span class="log-ago">${e.kind==="turn"&&S.log.indexOf(e)===0?"":relTime(e.ts)}</span>
-    </div>`).join("");
+  const wrap=document.getElementById("lastMove"); if(!wrap) return;
+  const e=S.log[0];
+  if (!e){ wrap.innerHTML=""; return; }
+  const sub = e.sub ? ` · ${esc(e.sub)}` : "";
+  wrap.innerHTML = `<span class="lm-ic">${LOG_ICON[e.kind]||"•"}</span><span class="lm-tx"><b>${highlightNums(e.title)}</b>${sub}</span>`;
 }
 
 /* ---------- Status pills ---------- */
@@ -673,7 +787,11 @@ function renderPills(){
   const up=document.getElementById("upPill");
   if(up){
     if (S.winner) up.innerHTML=`<span class="ic">🏆</span> ${esc(name(S.winner))} wins!`;
-    else up.innerHTML=`<span class="ic">✦</span> You're up, ${esc(name(S.current))}`;
+    else {
+      const cur = S.current===1?S.p1.position:S.p2.position;
+      if ((cur||0)===0) up.innerHTML=`<span class="ic">✦</span> ${esc(name(S.current))}, ${esc(startRule())}`;
+      else up.innerHTML=`<span class="ic">✦</span> You're up, ${esc(name(S.current))}`;
+    }
   }
 }
 
@@ -685,7 +803,7 @@ const QC = {
   challenge: { head:"💞 Challenge drawn 💞",         note:"" },
   surprise:  { head:"🎁 A little surprise 🎁",       note:"" },
 };
-function renderQuestCard(head, text, who, note, active){
+function renderQuestCard(head, text, who, note, controllable){
   document.getElementById("qcHead").innerHTML = head;
   document.getElementById("qcText").textContent = text;
   const whoEl=document.getElementById("qcWho");
@@ -693,33 +811,36 @@ function renderQuestCard(head, text, who, note, active){
   whoEl.style.display = who ? "inline-block" : "none";
   const noteEl=document.getElementById("qcNote");
   noteEl.textContent = note||""; noteEl.style.display = note ? "block" : "none";
-  document.getElementById("qcActions").style.display = active ? "flex" : "none";
+  document.getElementById("qcActions").style.display = "flex";
+  document.getElementById("qcPass").style.display  = controllable ? "" : "none";
+  document.getElementById("qcDone").style.display  = controllable ? "" : "none";
+  document.getElementById("qcClose").style.display = controllable ? "none" : "";
 }
-function questIntro(){
-  renderQuestCard("💞 Love quests 💞",
-    "Spin the die to move together. Land on a heart, climb a ladder, or slip down a snake to unlock a quest.",
-    "", `${name(S.current)}, ${startRule()}`, false);
-}
+function showQuestPopup(){ const b=document.getElementById("questBack"); if(b) b.classList.add("show"); }
+function hideQuestPopup(){ const b=document.getElementById("questBack"); if(b) b.classList.remove("show"); }
+/* No quest active → popup stays hidden. */
+function questIntro(){ hideQuestPopup(); }
 function showQuest(text, kind="tile", who="", actor=null){
   Music.sfxLove();
   const f = QC[kind] || QC.tile;
   S.activeQuest = { text, kind, who, actor: actor==null ? S.current : actor };
   renderQuestCard(f.head.toUpperCase(), text, who, f.note, questControllable());
+  showQuestPopup();
   const card=document.getElementById("questCard");
-  if (card){ card.classList.remove("flash"); try{ void card.offsetWidth; }catch{} card.classList.add("flash");
-    try{ card.scrollIntoView({behavior:"smooth", block:"nearest"}); }catch{} }
+  if (card){ card.classList.remove("flash"); try{ void card.offsetWidth; }catch{} card.classList.add("flash"); }
 }
-function clearQuest(){ S.activeQuest=null; questIntro(); }
-/* Remote: only the player who triggered a quest can tick it off; pass-and-play: anyone. */
+function clearQuest(){ S.activeQuest=null; hideQuestPopup(); }
+/* Remote: only the player who triggered a quest can tick it off (the partner gets a Close). Pass-and-play: anyone. */
 function questControllable(){
   if (S.mode!=="remote") return true;
   return !!(S.activeQuest && S.activeQuest.actor===S.myPlayer);
 }
-/* Re-render the quest card from current state (used after a remote snapshot arrives). */
+/* Re-render the popup from current state (used after a remote snapshot arrives). */
 function renderQuestFromState(){
-  if (!S.activeQuest){ questIntro(); return; }
+  if (!S.activeQuest){ hideQuestPopup(); return; }
   const q=S.activeQuest, f=QC[q.kind]||QC.tile;
   renderQuestCard(f.head.toUpperCase(), q.text, q.who, f.note, questControllable());
+  showQuestPopup();
 }
 
 /* ---------- Status helpers ---------- */
@@ -771,6 +892,7 @@ function snapshot(){
     p2:{ name:S.p2.name, gender:S.p2.gender, position:S.p2.position },
     current:S.current, round:S.round, winner:S.winner,
     loveMode:S.loveMode, difficulty:S.difficulty, ultimatePrompt:S.ultimatePrompt,
+    questPack:S.questPack,
     activeQuest:S.activeQuest, log:S.log,
   };
 }
@@ -784,6 +906,7 @@ function applySnapshot(g){
     if (g.current) S.current=g.current;
     if (typeof g.round==="number") S.round=g.round;
     if (g.loveMode && LOVE_QUESTS[g.loveMode]) S.loveMode=g.loveMode;
+    if (g.questPack==="together"||g.questPack==="apart") S.questPack=g.questPack;
     if (g.difficulty==="Easy"||g.difficulty==="Hard") S.difficulty=g.difficulty;
     if (g.ultimatePrompt!==undefined) S.ultimatePrompt=g.ultimatePrompt;
     if (Array.isArray(g.log)) S.log=g.log;
@@ -874,6 +997,7 @@ function showWin(actor){
 async function spin(){
   if (S.winner||S.spinning||S.animating||S.setupOpen) return;
   if (!canActNow()) return;
+  if (S.activeQuest){ S.activeQuest=null; hideQuestPopup(); } // previous dare is over once you roll on
   Music.unlock(); if (S.musicEnabled) Music.start();
   const actor=name(S.current), mover=S.current;
   const curPos=(mover===1?S.p1:S.p2).position;
@@ -1002,6 +1126,13 @@ function openSetup(firstRun=false){
   }
 
   if (!firstRun){
+    if (S.mode==="remote"){
+      fields.append(el("label",null,"Quest style"));
+      const pk=el("div","seg");
+      [["together","🛋️ Same room"],["apart","🌍 Long distance"]].forEach(([p,lbl])=>{ const b=el("button",S.questPack===p?"sel":"",lbl);
+        b.onclick=()=>{ S.questPack=p; [...pk.children].forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); rbroadcast(); }; pk.append(b); });
+      fields.append(pk);
+    }
     const goRemote = el("button","reset-row", S.mode==="remote" ? "🚪 Leave remote game" : "🌍 Play remotely — two devices");
     goRemote.onclick = () => {
       back.remove(); S.setupOpen=false;
@@ -1066,7 +1197,7 @@ function openRemoteLobby(){
     box.appendChild(ok); return;
   }
   const { back, box } = lobbyModal();
-  let myName = "", myGender = "female";
+  let myName = "", myGender = "female", myPack = "together";
   box.innerHTML=`<h2>Play remotely 🌍</h2>
     <p class="hint">You'll each play on your own device. One of you creates a room and shares the code; the other joins it.</p>`;
   box.appendChild(el("label",null,"Your name"));
@@ -1079,12 +1210,20 @@ function openRemoteLobby(){
     b.onclick=()=>{ myGender=g; [...seg.children].forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); }; seg.append(b); });
   box.appendChild(seg);
 
+  box.appendChild(el("label",null,"Where are you two?"));
+  const proxSeg=el("div","seg");
+  [["together","🛋️ Same room"],["apart","🌍 Long distance"]].forEach(([p,lbl])=>{ const b=el("button",p==="together"?"sel":"",lbl);
+    b.onclick=()=>{ myPack=p; [...proxSeg.children].forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); }; proxSeg.append(b); });
+  box.appendChild(proxSeg);
+  const proxNote=el("p","hint","Long distance swaps in quests you can do over a video call. The room's creator sets this; whoever joins inherits it.");
+  proxNote.style.margin="6px 2px 0"; box.appendChild(proxNote);
+
   const msg=el("p","hint",""); msg.style.minHeight="16px"; msg.style.color="var(--p1)";
 
   const createBtn=el("button","primary-btn","Create a room");
   createBtn.style.marginTop="14px";
   createBtn.onclick=()=>{ if(!myName.trim()){ msg.textContent="Please enter your name first."; return; }
-    back.remove(); startRemote("host", "", myName.trim(), myGender); };
+    back.remove(); startRemote("host", "", myName.trim(), myGender, myPack); };
   box.appendChild(createBtn);
 
   const joinBtn=el("button","reset-row","Join with a code");
@@ -1097,7 +1236,7 @@ function openRemoteLobby(){
     const go=el("button","primary-btn","Join");
     go.onclick=()=>{ const c=(codeInp.value||"").trim().toUpperCase();
       if(!Remote.validCode(c)){ msg.textContent="That code doesn't look right."; return; }
-      back.remove(); startRemote("guest", c, myName.trim(), myGender); };
+      back.remove(); startRemote("guest", c, myName.trim(), myGender, "together"); };
     wrap.append(go); box.appendChild(wrap); codeInp.focus();
   };
   box.appendChild(joinBtn);
@@ -1109,7 +1248,8 @@ function openRemoteLobby(){
 function beginRemoteGame(role){
   S.setupOpen=false;
   buildBoard(); renderAll();
-  if (role==="host") Remote.setBanner("wait","Share this code — waiting for your partner",{code:Remote.getCode()});
+  const pk = S.questPack==="apart" ? " · 🌍 long distance" : "";
+  if (role==="host") Remote.setBanner("wait","Share this code — waiting for your partner"+pk,{code:Remote.getCode()});
   else Remote.setBanner("wait","Connecting…");
 }
 function exitRemote(){
@@ -1118,17 +1258,19 @@ function exitRemote(){
   setHint(`${name(S.current)}, ${startRule()}`);
   renderAll();
 }
-async function startRemote(role, code, myName, myGender){
+async function startRemote(role, code, myName, myGender, pack){
   S.mode="remote"; S.myPlayer = role==="host" ? 1 : 2;
+  S.questPack = (pack==="apart") ? "apart" : "together"; // guest's value is replaced by the host's first sync
   if (role==="host"){ S.p1.name=myName; S.p1.gender=myGender; }
   else { S.p2.name=myName; S.p2.gender=myGender; }
+  const tag = ()=> S.questPack==="apart" ? " · 🌍 long distance" : "";
   const hooks = {
     getState: snapshot,
     applyState: (g)=>{ applySnapshot(g); },
     onHello: (h)=>{ if (h && h.player===2){ S.p2.name=h.name||S.p2.name; S.p2.gender=h.gender||S.p2.gender; renderAll(); } },
-    onStart: ()=>{ Remote.setBanner("ok","Connected"); renderAll(); },
+    onStart: ()=>{ Remote.setBanner("ok","Connected"+tag()); renderAll(); },
     onPeer: (evt)=>{
-      if (evt==="join") Remote.setBanner("ok","Connected");
+      if (evt==="join") Remote.setBanner("ok","Connected"+tag());
       else Remote.setBanner("wait", role==="host"?"Partner left — waiting…":"Waiting for partner…",
         role==="host"?{code:Remote.getCode()}:undefined);
     },
@@ -1163,7 +1305,7 @@ function openHelp(){
 }
 
 /* ---------- State extensions for the new UI ---------- */
-Object.assign(S, { round:1, log:[], activeQuest:null, mode:"local", myPlayer:null });
+Object.assign(S, { round:1, log:[], activeQuest:null, mode:"local", myPlayer:null, questPack:"together" });
 
 /* ---------- Wire up controls ---------- */
 document.getElementById("die").onclick = spin;
@@ -1176,6 +1318,7 @@ document.getElementById("qcDone").onclick = ()=>{
   clearQuest(); rbroadcast();
 };
 document.getElementById("qcPass").onclick = ()=>{ if(!questControllable()) return; clearQuest(); rbroadcast(); };
+document.getElementById("qcClose").onclick = ()=>{ hideQuestPopup(); };
 
 const musicBtn=document.getElementById("musicBtn");
 const paintMusicBtn=()=>musicBtn.style.opacity=S.musicEnabled?1:0.45;
@@ -1183,8 +1326,6 @@ musicBtn.onclick=()=>{ S.musicEnabled=!S.musicEnabled; set("snl_music_enabled",S
 paintMusicBtn();
 addEventListener("pointerdown",function once(){ Music.unlock(); if(S.musicEnabled)Music.start(); removeEventListener("pointerdown",once); });
 
-/* keep relative timestamps in the log fresh */
-setInterval(()=>{ if (S.log.length) renderLog(); }, 20000);
 
 (async ()=>{
   await loadAvatars();

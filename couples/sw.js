@@ -1,5 +1,5 @@
 /* Couples Snakes & Ladders service worker */
-const CACHE = "couples-v12";
+const CACHE = "couples-v14";
 const ASSETS = ["./","./manifest.webmanifest","./supabase-config.js","./cloud.js","./remote.js",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
   "./icons/apple-touch-icon.png","./icons/favicon-32.png"];
