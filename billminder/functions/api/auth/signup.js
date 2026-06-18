@@ -7,7 +7,8 @@ export async function onRequestPost({ request, env }) {
     return jsonResponse({ error: "Enter an email and a password with at least 6 characters." }, 400);
   }
 
-  const response = await supabaseAuthFetch(env, "/auth/v1/signup", {
+  const redirectTo = new URL("/", request.url).toString();
+  const response = await supabaseAuthFetch(env, `/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
