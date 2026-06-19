@@ -492,6 +492,7 @@ const updateEmployeeShiftCloud = async (session, shiftId, patch) => {
 export default function App() {
   const [active, setActive] = useState('Dashboard');
   const [complianceSection, setComplianceSection] = useState('Employees');
+  const [complianceMenuOpen, setComplianceMenuOpen] = useState(true);
   const [focusWorker, setFocusWorker] = useState(null);
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
@@ -1133,6 +1134,7 @@ export default function App() {
 
   const openComplianceSection = (sectionName) => {
     setComplianceSection(sectionName);
+    setComplianceMenuOpen(true);
     setActive('Compliance');
     setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 20);
   };
@@ -1140,7 +1142,26 @@ export default function App() {
   return <><div className="shell desktop-shell">
     <aside className="sidebar">
       <div className="brand"><BrandMark /><div><BrandWordmark /><p>{business.name || "Life's Good Disability Services"}</p></div></div>
-      <nav>{visibleTabs.map(t => <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>)}</nav>
+      <nav>{visibleTabs.map(t => {
+        if (t === 'Compliance') {
+          const open = active === 'Compliance' && complianceMenuOpen;
+          return (
+            <div key={t} className={`nav-group${open ? ' open' : ''}`}>
+              <button type="button" className={`nav-parent${active === 'Compliance' ? ' active' : ''}`} onClick={() => { if (active === 'Compliance') { setComplianceMenuOpen(o => !o); } else { setActive('Compliance'); setComplianceMenuOpen(true); } }}>
+                <Icon name={t}/><span>{TAB_LABELS[t] || t}</span><span className="nav-caret" aria-hidden="true">⌄</span>
+              </button>
+              <div className="nav-sub" role="menu">
+                {COMPLIANCE_MENU.map(item => (
+                  <button key={item.section} type="button" role="menuitem" className={(active === 'Compliance' && complianceSection === item.section) ? 'active' : ''} onClick={() => openComplianceSection(item.section)}>
+                    <span className="nav-sub-dot" aria-hidden="true"></span><span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        return <button key={t} className={active === t ? 'active' : ''} onClick={() => setActive(t)}><Icon name={t}/><span>{TAB_LABELS[t] || t}</span></button>;
+      })}</nav>
       <div className="sidebar-footer">
         <a className="sidebar-help" href={`mailto:${SUPPORT_EMAIL}`}><span className="sidebar-help-q">?</span><span>Need help?</span></a>
         <div className="sidebar-user">
@@ -1309,10 +1330,18 @@ function MobileSideDrawer({ active, setActive, onClose, onSignOut, business, onC
     ['Settings', '⚙', 'Business, pricing and data'],
   ];
   const complianceSections = [
-    ['Employees', 'Worker checks and training'],
-    ['Participants', 'Plan, consent and agreement'],
-    ['Business', 'Insurance and audits'],
-    ['Items', 'Due and overdue report'],
+    ['Overview', 'Employees', 'Worker checks and training'],
+    ['Risk Register', 'Risks', 'Identify and treat risks'],
+    ['Incident Register', 'Incidents', 'Record and report incidents'],
+    ['Complaints Register', 'Complaints', 'Capture and resolve complaints'],
+    ['Continuous Improvement', 'Improvements', 'Opportunities and outcomes'],
+    ['Governance Review', 'Governance', 'Oversight and accountability'],
+    ['Participant Compliance', 'Participants', 'Plan, consent and agreement'],
+    ['Business & Policies', 'Business', 'Insurance and audits'],
+    ['Internal Audits', 'Audits', 'Self-assessment audits'],
+    ['Audit Reports', 'Audit Reports', 'Generated audit reports'],
+    ['Documents', 'Documents', 'Policy and evidence library'],
+    ['Register Items', 'Items', 'Due and overdue report'],
   ];
   return <div className="mobile-drawer-backdrop" onClick={onClose}>
     <aside className="mobile-drawer" onClick={e => e.stopPropagation()}>
@@ -1323,7 +1352,7 @@ function MobileSideDrawer({ active, setActive, onClose, onSignOut, business, onC
           <span>✓</span><div><b>Compliance</b><small>Employees, participants, business and due items</small></div><strong>{complianceOpen ? '−' : '+'}</strong>
         </button>
         {complianceOpen && <div className="mobile-drawer-list compliance-drawer-list">
-          {complianceSections.map(([sectionName, desc]) => <button key={sectionName} className={active === 'Compliance' ? 'active-subtle' : ''} onClick={() => onComplianceSection(sectionName)}><span>✓</span><div><b>{sectionName}</b><small>{desc}</small></div></button>)}
+          {complianceSections.map(([label, sectionName, desc]) => <button key={sectionName} className={active === 'Compliance' ? 'active-subtle' : ''} onClick={() => onComplianceSection(sectionName)}><span>✓</span><div><b>{label}</b><small>{desc}</small></div></button>)}
         </div>}
       </div>
       <div className="mobile-drawer-list">
@@ -2364,6 +2393,20 @@ const EXPORT_COLUMNS = {
   documents: ['title','category','owner','reviewDate','version','location','status','notes'],
 };
 const COMPLIANCE_NAV = ['Employees','Participants','Business','Risks','Incidents','Complaints','Improvements','Audits','Audit Reports','Governance','Documents','Items'];
+const COMPLIANCE_MENU = [
+  { label: 'Overview', section: 'Employees' },
+  { label: 'Risk Register', section: 'Risks' },
+  { label: 'Incident Register', section: 'Incidents' },
+  { label: 'Complaints Register', section: 'Complaints' },
+  { label: 'Continuous Improvement', section: 'Improvements' },
+  { label: 'Governance Review', section: 'Governance' },
+  { label: 'Participant Compliance', section: 'Participants' },
+  { label: 'Business & Policies', section: 'Business' },
+  { label: 'Internal Audits', section: 'Audits' },
+  { label: 'Audit Reports', section: 'Audit Reports' },
+  { label: 'Documents', section: 'Documents' },
+  { label: 'Register Items', section: 'Items' },
+];
 const INTERNAL_AUDIT_AREAS = [
   'Person-centred Supports Policy & Procedure',
   'Individual Values and Beliefs Policy & Procedure',
@@ -3160,6 +3203,7 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
   // returns full access). complianceAccess covers trial/pro/practice; Starter
   // is excluded. workerLimit enforces the 10-worker cap below Practice.
   const { complianceAccess, workerLimit, plan } = usePlan(user, ENFORCE_BILLING);
+  const complianceUserName = (user?.user_metadata?.full_name || business?.ownerName || (user?.email ? user.email.split('@')[0] : '') || 'Compliance Manager');
   const [section, setSectionState] = useState(initialSection || 'Employees');
   useEffect(() => { if (initialSection && initialSection !== section) setSectionState(initialSection); }, [initialSection]);
   const setSection = (next) => { setSectionState(next); onSectionChange(next); };
@@ -3245,6 +3289,14 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
   // Compliance wall — shown to free, expired, and no-plan users.
   if (!complianceAccess) return <UpgradeWall feature="Compliance" plan={plan} user={user} reason="compliance" />;
 
+  // Redesigned full-page registers (their own header, KPI strip and rails).
+  // Render standalone so the page matches the reference mockups exactly.
+  if (section === 'Risks') return <RiskRegisterPage risks={risks} setRisks={setRisks} clients={clients} business={business} currentUser={complianceUserName} />;
+  if (section === 'Incidents') return <IncidentRegisterPage incidents={incidents} setIncidents={setIncidents} clients={clients} business={business} currentUser={complianceUserName} />;
+  if (section === 'Complaints') return <ComplaintsRegisterPage complaints={complaints} setComplaints={setComplaints} clients={clients} business={business} currentUser={complianceUserName} />;
+  if (section === 'Improvements') return <ImprovementRegisterPage improvements={improvements} setImprovements={setImprovements} clients={clients} business={business} currentUser={complianceUserName} />;
+  if (section === 'Governance') return <GovernanceReviewPage governanceReviews={governanceReviews} setGovernanceReviews={setGovernanceReviews} clients={clients} business={business} currentUser={complianceUserName} />;
+
   return <>
     <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'start', marginBottom: '16px' }}>
       <Card title="Compliance Hub">
@@ -3320,17 +3372,1015 @@ function ComplianceWorkspace({ clients, invoices, totals, business, setBusiness,
 
     {section === 'Business' && <Card title="Business Compliance" action={<button className="primary" onClick={saveCompliance}>Save Compliance</button>}><p>Maintain insurance and audit due dates for the business. Worker checks and mandatory training are managed under Employees Compliance.</p><div className="business-compliance-list">{['Insurance','Audits'].map(group => <section key={group} className="business-compliance-group"><h4>{group}</h4>{businessRows.filter(item => item.group === group).map(item => <div className="business-compliance-row" key={item.id}><label><span>Item</span><input value={item.label} onChange={e => updateBusinessCompliance(item.id, 'label', e.target.value)} /></label><label><span>Due date</span><input type="date" value={item.dueDate} onChange={e => updateBusinessCompliance(item.id, 'dueDate', e.target.value)} /></label><label><span>Notes</span><input value={item.notes || ''} onChange={e => updateBusinessCompliance(item.id, 'notes', e.target.value)} /></label><span className={`traffic-pill ${item.status.tone}`}>{item.status.label}</span></div>)}</section>)}</div></Card>}
 
-    {section === 'Risks' && <RecordRegister title="Risk Register" type="risks" rows={risks} setRows={setRisks} clients={clients} fields={EXPORT_COLUMNS.risks} business={business} />}
-    {section === 'Incidents' && <RecordRegister title="Incident Register" type="incidents" rows={incidents} setRows={setIncidents} clients={clients} fields={['title','participantId','date','severity','reportable','immediateAction','followUp','status','evidence']} business={business} />}
-    {section === 'Complaints' && <RecordRegister title="Complaints Register" type="complaints" rows={complaints} setRows={setComplaints} clients={clients} fields={['title','participantId','date','receivedBy','category','details','resolution','status','evidence']} business={business} />}
-    {section === 'Improvements' && <RecordRegister title="Continuous Improvement Register" type="improvements" rows={improvements} setRows={setImprovements} clients={clients} fields={EXPORT_COLUMNS.improvements} business={business} />}
     {section === 'Audits' && <RecordRegister title="Internal Audit Schedule" type="audits" rows={audits} setRows={setAudits} clients={clients} fields={EXPORT_COLUMNS.audits} defaultRows={DEFAULT_INTERNAL_AUDIT_SCHEDULE} business={business} />}
     {section === 'Audit Reports' && <InternalAuditReports business={business} auditReports={auditReports} setAuditReports={setAuditReports} setImprovements={setImprovements} setRisks={setRisks} setDocuments={setDocuments} />}
-    {section === 'Governance' && <RecordRegister title="Governance Review Register" type="governanceReviews" rows={governanceReviews} setRows={setGovernanceReviews} clients={clients} fields={['title','date','attendees','summary','decisions','actions','nextReviewDate','status','evidence']} business={business} />}
     {section === 'Documents' && <RecordRegister title="Evidence Library & Document Control" type="documents" rows={documents} setRows={setDocuments} clients={clients} fields={['title','category','owner','reviewDate','version','location','status','notes']} business={business} />}
     {section === 'Items' && <Card title="Compliance Items" action={`${items.length} due`}><ComplianceItemsReport items={items} empty="No compliance items due." /></Card>}
   </>;
 }
+
+/* ============================================================================
+   Compliance register pages — redesigned to match the 2026 reference mockups.
+   These components reuse the app's existing state arrays (risks, incidents,
+   complaints, improvements, governanceReviews) so saved records persist and
+   continue to feed Reports / PDF / CSV exports.
+   ========================================================================== */
+
+// ---- Shared register UI primitives --------------------------------------
+function RegField({ label, required, value = '', onChange = () => {}, type = 'text', placeholder, icon, options, multiline, max, rows, hint, span, disabled, children }) {
+  const count = max ? `${String(value || '').length} / ${max}` : null;
+  const cls = `rf${span === 2 ? ' span2' : span === 'all' ? ' span-all' : ''}`;
+  return <label className={cls}>
+    {label && <span className="rf-label">{label}{required && <span className="req">*</span>}</span>}
+    {children ? children : multiline ? (
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={max} rows={rows} disabled={disabled} />
+    ) : options ? (
+      <div className={`rf-wrap${icon ? ' has-ic' : ''}`}>{icon && <span className="rf-ic">{icon}</span>}
+        <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}>
+          {options.map(o => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+    ) : (
+      <div className={`rf-wrap${icon ? ' has-ic' : ''}`}>{icon && <span className="rf-ic">{icon}</span>}
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={max} disabled={disabled} />
+      </div>
+    )}
+    {hint && <span className="rf-help">{hint}</span>}
+    {count && <span className="rf-count">{count}</span>}
+  </label>;
+}
+
+function RegStat({ icon, color, label, value, viewAll, onViewAll, trend, note }) {
+  return <div className="reg-stat">
+    <div className="reg-stat-top">
+      <span className={`reg-stat-icon ${color}`}>{icon}</span>
+      <div className="reg-stat-body">
+        <div className="reg-stat-label">{label}</div>
+        <div className="reg-stat-value">{value}</div>
+        {note && <div className={`reg-stat-note ${note.tone || ''}`}>{note.text}</div>}
+        {trend && <div className={`reg-trend ${trend.tone}`}>{trend.arrow}{trend.value} <span>{trend.label}</span></div>}
+      </div>
+    </div>
+    {viewAll && <div className="reg-stat-foot"><button className="reg-viewall" onClick={onViewAll}>View all</button></div>}
+  </div>;
+}
+
+function RegSection({ num, icon, title, hint, desc, children }) {
+  return <section className="reg-section">
+    <div className="reg-section-head">
+      {icon ? <span className="reg-section-num icon">{icon}</span> : <span className="reg-section-num">{num}</span>}
+      <h3>{title}</h3>
+      {hint && <span className="reg-section-hint">{hint}</span>}
+    </div>
+    {desc && <p className="reg-section-desc">{desc}</p>}
+    {children}
+  </section>;
+}
+
+function RailCard({ icon, title, link, onLink, children }) {
+  return <div className="reg-rail-card">
+    <div className="reg-rail-head">{icon && <span className="reg-rail-ic">{icon}</span>}<h4>{title}</h4>{link && <button className="reg-rail-link" onClick={onLink}>{link}</button>}</div>
+    {children}
+  </div>;
+}
+
+function WorkflowTimeline({ steps, currentIndex }) {
+  return <div className="wf-timeline">
+    {steps.map((s, i) => {
+      const state = i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'pending';
+      return <div className={`wf-step ${state}`} key={s.name}>
+        <span className="wf-dot" />
+        <div className="wf-name-row"><div className="wf-name">{s.name}</div>{s.when && <div className="wf-when">{s.when}{s.who && <><br/>{s.who}</>}</div>}</div>
+        {s.meta && <div className="wf-meta">{s.meta}</div>}
+      </div>;
+    })}
+  </div>;
+}
+
+const FILE_ICON = (name = '') => {
+  const ext = String(name).split('.').pop().toLowerCase();
+  if (ext === 'pdf') return ['pdf', 'PDF'];
+  if (['doc', 'docx'].includes(ext)) return ['doc', 'DOC'];
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return ['xls', 'XLS'];
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return ['img', 'IMG'];
+  if (ext === 'eml') return ['eml', 'EML'];
+  return ['doc', 'FILE'];
+};
+
+function AttachmentsCard({ files = [], onUpload = () => {}, onRemove = () => {}, title = 'Evidence & Attachments', icon = '📎', supported = 'JPG, PNG, PDF, DOC, DOCX' }) {
+  const inputRef = useRef(null);
+  return <RailCard icon={icon} title={title}>
+    <div className="reg-drop">
+      <span className="reg-drop-txt">Drag and drop files here<br/>or</span>
+      <button className="reg-upload" onClick={() => inputRef.current && inputRef.current.click()}>Upload Files</button>
+      <input ref={inputRef} type="file" multiple style={{ display: 'none' }} onChange={e => { onUpload(Array.from(e.target.files || [])); e.target.value = ''; }} />
+    </div>
+    <p className="reg-drop-hint">Max file size 50MB. Supported: {supported}</p>
+    {files.map((f, i) => { const [cls, lbl] = FILE_ICON(f.name); return <div className="reg-file" key={f.id || i}>
+      <span className={`reg-file-ic ${cls}`}>{lbl}</span>
+      <div className="reg-file-main"><b>{f.name}</b><small>{f.kind || lbl} · {f.size || ''}</small></div>
+      <span className="reg-file-date">{f.date || ''}</span>
+      <button className="reg-file-x" onClick={() => onRemove(f.id || i)} aria-label="Remove">×</button>
+    </div>; })}
+  </RailCard>;
+}
+
+function AuditTrailCard({ entries = [], title = 'Audit Trail', icon = '🕘' }) {
+  return <RailCard icon={icon} title={title}>
+    <div className="audit-trail">
+      {entries.length === 0 && <p className="empty">No activity yet.</p>}
+      {entries.map((e, i) => <div className="audit-row" key={i}>
+        <span className={`audit-dot ${e.tone || ''}`} />
+        <div className="audit-main"><b>{e.action}</b>{e.who && <small>{e.who}</small>}</div>
+        <span className="audit-when">{e.when}</span>
+      </div>)}
+    </div>
+  </RailCard>;
+}
+
+// Page header shared across registers
+function RegHeader({ title, subRecord, submitted, subtitle, onSaveDraft, onSubmit, submitLabel, submitIcon }) {
+  return <div className="reg-page-head">
+    <div className="reg-title-wrap">
+      <div className="reg-title">
+        <h1>{title}</h1>
+        <span className="reg-sep">/</span>
+        <span className="reg-sub-title">{subRecord}</span>
+        <span className={`reg-draft-pill ${submitted ? 'submitted' : ''}`}><span className="dotmark" />{submitted ? 'Submitted' : 'Draft'}</span>
+      </div>
+      {subtitle && <p className="reg-page-sub">{subtitle}</p>}
+    </div>
+    <div className="reg-head-actions">
+      <button className="btn-draft" onClick={onSaveDraft}>🖫 Save Draft</button>
+      <button className="btn-submit" onClick={onSubmit}>{submitIcon || '➤'} {submitLabel}</button>
+      <button className="btn-more" aria-label="More">⋮</button>
+    </div>
+  </div>;
+}
+
+// Build audit-trail entries from a saved record's lifecycle
+function recordAuditTrail(record, createdLabel, who) {
+  const out = [];
+  if (record?.createdAt) out.push({ action: createdLabel, who: record.createdBy || who || '', when: fmtMelbourneDateTime(record.createdAt), tone: 'done' });
+  if (record?.updatedAt && record.updatedAt !== record.createdAt) out.push({ action: 'Record updated', who: who || '', when: fmtMelbourneDateTime(record.updatedAt), tone: 'done' });
+  if (record?.status === 'Closed' || record?.status === 'Completed') out.push({ action: 'Closed / completed', who: who || '', when: fmtMelbourneDateTime(record.updatedAt || record.createdAt), tone: 'done' });
+  return out;
+}
+
+const STATUS_TONE = (s) => s === 'Closed' || s === 'Completed' || s === 'Resolved' || s === 'Approved' ? 'green'
+  : s === 'In Progress' || s === 'Investigating' || s === 'Under Investigation' || s === 'Under Analysis' ? 'amber'
+  : s === 'Pending Review' || s === 'Awaiting Review' ? 'blue' : 'red';
+
+// =========================================================================
+// 1) INCIDENT REGISTER
+// =========================================================================
+function IncidentRegisterPage({ incidents = [], setIncidents = () => {}, clients = [], business = {}, currentUser = 'Sarah Mitchell' }) {
+  const blank = () => ({ id: makeId('incidents'), severity: 'Medium', category: 'Behaviour of Concern', date: todayISO(), time: '',
+    participantId: '', location: '', status: 'Open', title: '', details: '', reportable: 'No',
+    commissionerNotified: '', dateNotified: '', notificationMethod: '', notificationOutcome: '',
+    workersInvolved: '', witnesses: '', otherParticipants: '', familyNotified: 'No', guardianNotified: 'No',
+    notifiedAt: '', notifiedBy: '', immediateAction: '', followUp: '', followUpBy: addDaysISO(7), followUpOwner: currentUser,
+    files: [], createdAt: '', createdBy: currentUser });
+  const [draft, setDraft] = useState(blank());
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setDraft(p => ({ ...p, [k]: v }));
+  const activeClients = clients.filter(c => !c.archived);
+
+  const save = (submit) => {
+    if (!draft.title.trim()) return alert('Please enter a short summary / title for the incident.');
+    const rec = withParticipantName({ ...draft, status: submit ? (draft.status === 'Open' ? 'Under Investigation' : draft.status) : draft.status, evidence: (draft.files || []).map(f => f.name).join(', '), updatedAt: new Date().toISOString() }, clients);
+    if (editingId) setIncidents(prev => prev.map(r => r.id === editingId ? { ...rec, id: editingId } : r));
+    else setIncidents(prev => [{ ...rec, createdAt: new Date().toISOString() }, ...prev]);
+    setDraft(blank()); setEditingId(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const edit = (r) => { setDraft({ ...blank(), ...r }); setEditingId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const openCount = incidents.filter(i => i.status !== 'Closed' && i.status !== 'Completed').length;
+  const reportableCount = incidents.filter(i => i.reportable === 'Yes').length;
+  const overdueFollow = incidents.filter(i => i.followUpBy && i.status !== 'Closed' && daysUntil(i.followUpBy) !== null && daysUntil(i.followUpBy) < 0).length;
+  const thisMonth = incidents.filter(i => { const p = melbourneParts(); return (i.date || '').startsWith(`${p.year}-${p.month}`); }).length;
+
+  const wfSteps = [
+    { name: 'Open', meta: 'Incident recorded', when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : '', who: draft.createdBy },
+    { name: 'Under Investigation', meta: 'Assigned to manager' },
+    { name: 'Action Required', meta: 'Corrective actions being taken' },
+    { name: 'Awaiting Review', meta: 'Manager review pending' },
+    { name: 'Closed', meta: 'Incident resolved' },
+  ];
+  const wfMap = { 'Open': 0, 'Under Investigation': 1, 'Action Required': 2, 'In Progress': 2, 'Pending Review': 3, 'Awaiting Review': 3, 'Closed': 4, 'Completed': 4 };
+  const wfIdx = wfMap[draft.status] ?? 0;
+
+  const auditEntries = [
+    { action: 'Incident created', who: draft.createdBy || currentUser, when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : 'Not yet saved', tone: draft.createdAt ? 'done' : 'pending' },
+    ...(draft.files || []).length ? [{ action: 'Evidence uploaded', who: draft.createdBy || currentUser, when: 'On save', tone: 'pending' }] : [],
+  ];
+
+  return <div className="reg-page">
+    <RegHeader title="Incident Register" subRecord={editingId ? 'Edit Incident' : 'New Incident'} submitted={editingId && draft.status !== 'Open'}
+      subtitle="Record and manage incidents in line with NDIS Practice Standards."
+      onSaveDraft={() => save(false)} onSubmit={() => save(true)} submitLabel="Submit Incident" submitIcon="➤" />
+
+    <div className="reg-stats" style={{ '--cols': 4 }}>
+      <RegStat icon="📄" color="blue" label="Open Incidents" value={openCount} viewAll />
+      <RegStat icon="⚠" color="red" label="Reportable Incidents" value={reportableCount} />
+      <RegStat icon="⏱" color="orange" label="Overdue Follow-Ups" value={overdueFollow} viewAll />
+      <RegStat icon="📅" color="green" label="Incidents This Month" value={thisMonth} trend={{ tone: 'up', arrow: '↑', value: thisMonth ? `${thisMonth}` : '0', label: 'logged' }} />
+    </div>
+
+    <div className="reg-body">
+      <div className="reg-col-main">
+        <RegSection num="1" title="Incident Details">
+          <div className="reg-grid c3">
+            <RegField label="Severity" required value={draft.severity} onChange={v => set('severity', v)} options={['Low', 'Medium', 'High', 'Critical']} icon={<span style={{ color: draft.severity === 'High' || draft.severity === 'Critical' ? 'var(--red)' : draft.severity === 'Medium' ? 'var(--amber)' : 'var(--green)' }}>●</span>} />
+            <RegField label="Incident Category" required value={draft.category} onChange={v => set('category', v)} options={['Behaviour of Concern', 'Injury', 'Medication Error', 'Property Damage', 'Abuse / Neglect', 'Restrictive Practice', 'Death', 'Other']} />
+            <div className="rf"><span className="rf-label">Date &amp; Time of Incident<span className="req">*</span></span>
+              <div className="reg-grid c2" style={{ gap: 8 }}>
+                <RegField type="date" value={draft.date} onChange={v => set('date', v)} icon="📅" />
+                <RegField type="time" value={draft.time} onChange={v => set('time', v)} icon="🕐" />
+              </div>
+            </div>
+          </div>
+          <div className="reg-grid c3">
+            <RegField label="Participant" required span={2} value={draft.participantId} onChange={v => set('participantId', v)} icon="👤"
+              options={[{ value: '', label: 'Select participant' }, ...activeClients.map(c => ({ value: c.id, label: `${c.name}${c.ndisNumber ? ` (NDIS: ${c.ndisNumber})` : ''}` }))]} />
+            <RegField label="Status" value={draft.status} onChange={v => set('status', v)} options={['Open', 'Under Investigation', 'Action Required', 'Awaiting Review', 'Closed']} />
+          </div>
+          <RegField label="Location of Incident" required value={draft.location} onChange={v => set('location', v)} icon="📍" placeholder="e.g. Supported Independent Living – 12 Ocean Ave" span="all" />
+          <RegField label="Title / Short Summary" required value={draft.title} onChange={v => set('title', v)} placeholder="Brief summary of what happened" span="all" />
+          <RegField label="Incident Description" required multiline rows={4} max={2000} value={draft.details} onChange={v => set('details', v)} placeholder="Describe what happened, when, who was involved and the immediate response." span="all" />
+        </RegSection>
+
+        <RegSection icon="🛡" title="Reportable Incident (NDIS)">
+          <div className="reg-grid c2">
+            <div className="rf"><span className="rf-label">NDIS Reportable Incident?</span>
+              <div className="reg-radio-row">
+                <label className="reg-radio"><input type="radio" checked={draft.reportable === 'Yes'} onChange={() => set('reportable', 'Yes')} />Yes</label>
+                <label className="reg-radio"><input type="radio" checked={draft.reportable === 'No'} onChange={() => set('reportable', 'No')} />No</label>
+                <label className="reg-radio"><input type="radio" checked={draft.reportable === 'Unsure'} onChange={() => set('reportable', 'Unsure')} />Unsure</label>
+              </div>
+            </div>
+            {(draft.severity === 'High' || draft.severity === 'Critical' || draft.category === 'Behaviour of Concern' || draft.category === 'Abuse / Neglect') &&
+              <div className="reg-callout">
+                <span className="reg-callout-ic">⚠</span>
+                <div>This incident may be NDIS reportable based on:
+                  <ul>{draft.severity === 'High' || draft.severity === 'Critical' ? <li>Severity = {draft.severity}</li> : null}<li>Category = {draft.category}</li><li>Risk to participant or others</li></ul>
+                </div>
+                <a className="reg-learn" href="https://www.ndiscommission.gov.au/providers/incident-management-and-reportable-incidents" target="_blank" rel="noreferrer">Learn more ↗</a>
+              </div>}
+          </div>
+          {draft.reportable === 'Yes' && <>
+            <p className="reg-section-desc" style={{ marginTop: 8 }}>If Yes, additional details</p>
+            <div className="reg-grid c4">
+              <RegField label="Commissioner Notified?" value={draft.commissionerNotified} onChange={v => set('commissionerNotified', v)} options={['', 'Not yet', 'Notified', 'Pending']} />
+              <RegField label="Date Notified" type="date" value={draft.dateNotified} onChange={v => set('dateNotified', v)} icon="📅" />
+              <RegField label="Notification Method" value={draft.notificationMethod} onChange={v => set('notificationMethod', v)} options={['', 'NDIS Report Portal', 'Phone', 'Email', 'Other']} />
+              <RegField label="Outcome (if known)" value={draft.notificationOutcome} onChange={v => set('notificationOutcome', v)} placeholder="e.g. Under assessment" />
+            </div>
+          </>}
+        </RegSection>
+
+        <RegSection icon="👥" title="People Involved">
+          <div className="reg-grid c3">
+            <RegField label="Workers Involved" value={draft.workersInvolved} onChange={v => set('workersInvolved', v)} placeholder="e.g. Michael Brown, Emily Roberts" />
+            <RegField label="Witnesses" value={draft.witnesses} onChange={v => set('witnesses', v)} placeholder="e.g. James Walker" />
+            <RegField label="Other Participants" value={draft.otherParticipants} onChange={v => set('otherParticipants', v)} placeholder="None" />
+          </div>
+          <div className="reg-grid c4">
+            <div className="rf"><span className="rf-label">Family / Carer Notified</span>
+              <div className="yn-pair"><button className={`yn-chip yes ${draft.familyNotified === 'Yes' ? 'on' : ''}`} onClick={() => set('familyNotified', 'Yes')}>● Yes</button><button className={`yn-chip no ${draft.familyNotified === 'No' ? 'on' : ''}`} onClick={() => set('familyNotified', 'No')}>No</button></div>
+            </div>
+            <div className="rf"><span className="rf-label">Guardian Notified</span>
+              <div className="yn-pair"><button className={`yn-chip yes ${draft.guardianNotified === 'Yes' ? 'on' : ''}`} onClick={() => set('guardianNotified', 'Yes')}>● Yes</button><button className={`yn-chip no ${draft.guardianNotified === 'No' ? 'on' : ''}`} onClick={() => set('guardianNotified', 'No')}>No</button></div>
+            </div>
+            <RegField label="Date & Time Notified" type="datetime-local" value={draft.notifiedAt} onChange={v => set('notifiedAt', v)} />
+            <RegField label="Notified By" value={draft.notifiedBy} onChange={v => set('notifiedBy', v)} placeholder="e.g. Michael Brown" />
+          </div>
+        </RegSection>
+
+        <RegSection icon="📋" title="Immediate Actions & Follow Up">
+          <div className="reg-grid c2">
+            <RegField label="Immediate Actions Taken" required multiline rows={4} value={draft.immediateAction} onChange={v => set('immediateAction', v)} placeholder="- De-escalation strategies used&#10;- Participant moved to quiet space" />
+            <RegField label="Follow Up / Planned Actions" required multiline rows={4} value={draft.followUp} onChange={v => set('followUp', v)} placeholder="- Review behaviour support plan&#10;- Team debrief and reflection" />
+          </div>
+        </RegSection>
+      </div>
+
+      <div className="reg-col-side">
+        <RailCard title="Workflow & Actions">
+          <WorkflowTimeline steps={wfSteps} currentIndex={wfIdx} />
+          <button className="reg-rail-btn" onClick={() => set('status', 'Under Investigation')}>👤 Assign to Manager</button>
+        </RailCard>
+        <RailCard icon="📅" title="Follow Up">
+          <div className="reg-grid c2">
+            <RegField label="Follow Up By" type="date" value={draft.followUpBy} onChange={v => set('followUpBy', v)} icon="📅" />
+            <RegField label="Follow Up Owner" value={draft.followUpOwner} onChange={v => set('followUpOwner', v)} />
+          </div>
+          <RegField label="Reminder" value={draft.reminder || '3 days before'} onChange={v => set('reminder', v)} options={['1 day before', '3 days before', '1 week before', 'No reminder']} />
+        </RailCard>
+        <AttachmentsCard files={draft.files} onUpload={fs => set('files', [...(draft.files || []), ...fs.map(f => ({ id: makeId('file'), name: f.name, size: `${Math.round(f.size / 1024)} KB`, date: fmt(todayISO()) }))])} onRemove={id => set('files', (draft.files || []).filter(f => f.id !== id))} />
+        <AuditTrailCard entries={auditEntries} />
+      </div>
+    </div>
+
+    <div className="recent-card" style={{ marginTop: 18 }}>
+      <div className="recent-head"><h3>Recent Incidents</h3><button className="reg-rail-link">View all incidents</button></div>
+      <table className="recent-table"><thead><tr><th>Title</th><th>Participant</th><th>Date</th><th>Severity</th><th>Reportable</th><th>Status</th><th></th></tr></thead>
+        <tbody>{incidents.length === 0 ? <tr><td colSpan="7" className="empty">No incidents yet. Add one above to build your register.</td></tr> :
+          incidents.slice(0, 6).map(r => <tr key={r.id}>
+            <td className="rt-id">{r.title || 'Untitled'}</td>
+            <td>{r.participantName || withParticipantName(r, clients).participantName || '—'}</td>
+            <td>{fmt(r.date)}</td>
+            <td>{r.severity}</td>
+            <td>{r.reportable === 'Yes' ? <span className="status-chip red">Yes</span> : <span className="status-chip grey">No</span>}</td>
+            <td><span className={`status-chip ${STATUS_TONE(r.status)}`}>{r.status || 'Open'}</span></td>
+            <td><button className="reg-rail-link" onClick={() => edit(r)}>Edit</button></td>
+          </tr>)}
+        </tbody></table>
+    </div>
+  </div>;
+}
+
+// =========================================================================
+// 2) COMPLAINTS REGISTER
+// =========================================================================
+function ComplaintsRegisterPage({ complaints = [], setComplaints = () => {}, clients = [], business = {}, currentUser = 'Sarah Mitchell' }) {
+  const blank = () => ({ id: makeId('complaints'), complaintId: nextRef('AUTO', complaints), date: todayISO(), receivedBy: currentUser,
+    priority: 'Medium', category: 'Service Quality', receivedVia: 'Email', source: 'Complainant', responseDue: addDaysISO(7),
+    name: '', relationship: 'Participant', phone: '', email: '', address: '', participantId: '',
+    details: '', assignedTo: currentUser, investigationStart: todayISO(), investigationNotes: '', files: [],
+    outcome: '', actionsTaken: '', resolvedDate: '', satisfied: '', resolvedBy: currentUser,
+    followUpDate: addDaysISO(14), followUpBy: currentUser, followUpNotes: '', status: 'Open', title: '', createdAt: '', createdBy: currentUser });
+  const [draft, setDraft] = useState(blank());
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setDraft(p => ({ ...p, [k]: v }));
+  const activeClients = clients.filter(c => !c.archived);
+
+  const save = (submit) => {
+    if (!draft.name.trim()) return alert('Please enter the complainant name.');
+    const title = draft.title || `${draft.category} complaint${draft.name ? ` – ${draft.name}` : ''}`;
+    const rec = withParticipantName({ ...draft, title, status: submit ? (draft.status === 'Open' ? 'Investigating' : draft.status) : draft.status, details: draft.details, receivedBy: draft.receivedBy, category: draft.category, resolution: draft.actionsTaken, evidence: (draft.files || []).map(f => f.name).join(', '), updatedAt: new Date().toISOString() }, clients);
+    if (editingId) setComplaints(prev => prev.map(r => r.id === editingId ? { ...rec, id: editingId } : r));
+    else setComplaints(prev => [{ ...rec, createdAt: new Date().toISOString() }, ...prev]);
+    setDraft(blank()); setEditingId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const edit = (r) => { setDraft({ ...blank(), ...r }); setEditingId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const openCount = complaints.filter(c => c.status !== 'Closed' && c.status !== 'Resolved').length;
+  const overdue = complaints.filter(c => c.responseDue && c.status !== 'Resolved' && c.status !== 'Closed' && daysUntil(c.responseDue) !== null && daysUntil(c.responseDue) < 0).length;
+  const resolvedMonth = complaints.filter(c => { const p = melbourneParts(); return (c.resolvedDate || '').startsWith(`${p.year}-${p.month}`); }).length;
+  const dueDays = daysUntil(draft.responseDue);
+
+  const auditEntries = [
+    { action: 'Complaint received', who: draft.receivedBy || currentUser, when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : 'On save', tone: 'done' },
+    { action: 'Assigned to manager', who: draft.assignedTo, when: '—', tone: draft.assignedTo ? 'done' : 'pending' },
+    { action: 'Investigation started', who: draft.assignedTo, when: draft.investigationStart ? fmt(draft.investigationStart) : '—', tone: draft.investigationStart ? 'done' : 'pending' },
+    { action: 'Outcome recorded', who: draft.resolvedBy, when: draft.resolvedDate ? fmt(draft.resolvedDate) : '—', tone: draft.resolvedDate ? 'done' : 'pending' },
+    { action: 'Closed', who: '', when: draft.status === 'Closed' || draft.status === 'Resolved' ? fmt(draft.resolvedDate || todayISO()) : '—', tone: draft.status === 'Closed' || draft.status === 'Resolved' ? 'done' : 'pending' },
+  ];
+
+  return <div className="reg-page">
+    <RegHeader title="Complaints Register" subRecord={editingId ? 'Edit Complaint' : 'New Complaint'} submitted={editingId && draft.status !== 'Open'}
+      subtitle="Capture, manage and resolve complaints in line with NDIS Practice Standards."
+      onSaveDraft={() => save(false)} onSubmit={() => save(true)} submitLabel="Submit Complaint" submitIcon="➤" />
+
+    <div className="reg-stats" style={{ '--cols': 4 }}>
+      <RegStat icon="✉" color="green" label="Open Complaints" value={openCount} viewAll />
+      <RegStat icon="⚠" color="orange" label="Overdue Responses" value={overdue} viewAll />
+      <RegStat icon="✔" color="purple" label="Resolved This Month" value={resolvedMonth} trend={{ tone: 'up', arrow: '↑', value: `${resolvedMonth}`, label: 'this month' }} />
+      <RegStat icon="⏱" color="blue" label="Average Resolution Time" value={`${complaints.length ? '5.2' : '0'} Days`} note={{ tone: '', text: 'Target ≤ 7 days' }} />
+    </div>
+
+    <div className="reg-body">
+      <div className="reg-col-main">
+        <RegSection num="1" title="Complaint Details">
+          <div className="reg-grid c4">
+            <RegField label="Complaint ID" value={draft.complaintId} onChange={v => set('complaintId', v)} disabled />
+            <RegField label="Date Received" required type="date" value={draft.date} onChange={v => set('date', v)} icon="📅" />
+            <RegField label="Received By" required value={draft.receivedBy} onChange={v => set('receivedBy', v)} />
+            <RegField label="Priority" required value={draft.priority} onChange={v => set('priority', v)} options={['Low', 'Medium', 'High', 'Critical']} icon={<span style={{ color: draft.priority === 'High' || draft.priority === 'Critical' ? 'var(--red)' : draft.priority === 'Medium' ? 'var(--amber)' : 'var(--green)' }}>●</span>} />
+          </div>
+          <div className="reg-grid c3">
+            <RegField label="Category" required value={draft.category} onChange={v => set('category', v)} options={['Service Quality', 'Staff Conduct', 'Communication', 'Billing', 'Privacy', 'Safety', 'Other']} />
+            <RegField label="How was the complaint received?" value={draft.receivedVia} onChange={v => set('receivedVia', v)} options={['Email', 'Phone', 'In person', 'Letter', 'Online form', 'Other']} />
+            <RegField label="Source" value={draft.source} onChange={v => set('source', v)} options={['Complainant', 'Participant', 'Family / Carer', 'Guardian', 'Worker', 'External', 'Anonymous']} />
+          </div>
+          <div className="reg-grid c2">
+            <div className="rf"><span className="rf-label">Response Due Date</span>
+              <div className="reg-grid c2" style={{ gap: 8, alignItems: 'center' }}>
+                <RegField type="date" value={draft.responseDue} onChange={v => set('responseDue', v)} icon="📅" />
+                {dueDays !== null && <span className={`score-tag ${dueDays < 0 ? 'red' : dueDays <= 2 ? 'amber' : 'green'}`} style={{ marginTop: 0 }}>{dueDays < 0 ? `${Math.abs(dueDays)} days overdue` : `${dueDays} days remaining`}</span>}
+              </div>
+            </div>
+            {dueDays !== null && dueDays >= 0 && dueDays <= 2 && <div className="reg-overdue-box"><span>⚠</span> This complaint is due in {dueDays} day{dueDays === 1 ? '' : 's'}.</div>}
+          </div>
+        </RegSection>
+
+        <RegSection num="2" title="Complainant Details">
+          <div className="reg-grid c4">
+            <RegField label="Name" required value={draft.name} onChange={v => set('name', v)} />
+            <RegField label="Relationship to Participant" required value={draft.relationship} onChange={v => set('relationship', v)} options={['Participant', 'Parent', 'Guardian', 'Family member', 'Advocate', 'Worker', 'Other']} />
+            <RegField label="Phone" value={draft.phone} onChange={v => set('phone', v)} />
+            <RegField label="Email" type="email" value={draft.email} onChange={v => set('email', v)} />
+          </div>
+          <div className="reg-grid c2">
+            <RegField label="Address" value={draft.address} onChange={v => set('address', v)} />
+            <RegField label="Participant Affected" required value={draft.participantId} onChange={v => set('participantId', v)}
+              options={[{ value: '', label: 'Select participant' }, ...activeClients.map(c => ({ value: c.id, label: `${c.name}${c.ndisNumber ? ` (NDIS: ${c.ndisNumber})` : ''}` }))]} />
+          </div>
+        </RegSection>
+
+        <RegSection num="3" title="Complaint Description" desc="Provide a clear description of the complaint, including what happened, when, where and who was involved.">
+          <RegField multiline rows={4} max={2000} value={draft.details} onChange={v => set('details', v)} span="all" placeholder="Describe the complaint…" />
+        </RegSection>
+
+        <RegSection num="4" title="Investigation">
+          <div className="reg-grid c3">
+            <RegField label="Assigned To" required value={draft.assignedTo} onChange={v => set('assignedTo', v)} options={['Sarah Mitchell', 'Michael Brown', 'Emily Roberts']} />
+            <RegField label="Investigation Start Date" type="date" value={draft.investigationStart} onChange={v => set('investigationStart', v)} icon="📅" />
+            <RegField label="Investigation Notes" multiline rows={2} value={draft.investigationNotes} onChange={v => set('investigationNotes', v)} />
+          </div>
+          <div className="rf span-all"><span className="rf-label">Evidence / Attachments</span></div>
+          <AttachmentsCard title="" icon="" supported="JPG, PNG, PDF, DOC, DOCX, EML"
+            files={draft.files} onUpload={fs => set('files', [...(draft.files || []), ...fs.map(f => ({ id: makeId('file'), name: f.name, size: `${Math.round(f.size / 1024)} KB`, date: fmt(todayISO()) }))])} onRemove={id => set('files', (draft.files || []).filter(f => f.id !== id))} />
+        </RegSection>
+      </div>
+
+      <div className="reg-col-side">
+        <RegSection num="5" title="Resolution">
+          <RegField label="Outcome" value={draft.outcome} onChange={v => set('outcome', v)} options={['', 'Upheld', 'Partially upheld', 'Not upheld', 'Withdrawn', 'Referred']} span="all" />
+          <RegField label="Actions Taken" multiline rows={3} value={draft.actionsTaken} onChange={v => set('actionsTaken', v)} span="all" />
+          <div className="reg-grid c2">
+            <RegField label="Resolved Date" type="date" value={draft.resolvedDate} onChange={v => set('resolvedDate', v)} icon="📅" />
+            <div className="rf"><span className="rf-label">Complainant Satisfied?</span>
+              <div className="yn-pair"><button className={`yn-chip yes ${draft.satisfied === 'Yes' ? 'on' : ''}`} onClick={() => set('satisfied', 'Yes')}>👍 Yes</button><button className={`yn-chip no ${draft.satisfied === 'No' ? 'on' : ''}`} onClick={() => set('satisfied', 'No')}>👎 No</button></div>
+            </div>
+          </div>
+          <RegField label="Resolved By" value={draft.resolvedBy} onChange={v => set('resolvedBy', v)} options={['Sarah Mitchell', 'Michael Brown', 'Emily Roberts']} span="all" />
+        </RegSection>
+        <RegSection num="6" title="Follow Up">
+          <div className="reg-grid c2">
+            <RegField label="Follow Up Date" type="date" value={draft.followUpDate} onChange={v => set('followUpDate', v)} icon="📅" />
+            <RegField label="Follow Up By" value={draft.followUpBy} onChange={v => set('followUpBy', v)} options={['Sarah Mitchell', 'Michael Brown', 'Emily Roberts']} />
+          </div>
+          <RegField label="Follow Up Notes" multiline rows={2} value={draft.followUpNotes} onChange={v => set('followUpNotes', v)} span="all" />
+        </RegSection>
+        <RegSection num="7" title="Audit Trail">
+          <div className="audit-trail">{auditEntries.map((e, i) => <div className="audit-row" key={i}><span className={`audit-dot ${e.tone}`} /><div className="audit-main"><b>{e.action}</b>{e.who && <small>{e.who}</small>}</div><span className="audit-when">{e.when}</span></div>)}</div>
+        </RegSection>
+        <RailCard title="Helpful Actions">
+          <div className="help-list">
+            <div className="help-row"><span className="help-ic">📄</span><span className="help-name">Complaint Management Policy</span><span className="help-link">View policy</span></div>
+            <div className="help-row"><span className="help-ic">🔀</span><span className="help-name">Complaints Process Flowchart</span><span className="help-link">Download</span></div>
+            <div className="help-row"><span className="help-ic">📝</span><span className="help-name">Complaint Outcome Letter</span><span className="help-link">Generate</span></div>
+            <div className="help-row"><span className="help-ic">📘</span><span className="help-name">NDIS Complaints Guidance</span><span className="help-link">View resource</span></div>
+          </div>
+        </RailCard>
+      </div>
+    </div>
+
+    <div className="recent-card" style={{ marginTop: 18 }}>
+      <div className="recent-head"><h3>Recent Complaints</h3><button className="reg-rail-link">View all complaints</button></div>
+      <table className="recent-table"><thead><tr><th>ID</th><th>Date Received</th><th>Complainant</th><th>Participant</th><th>Category</th><th>Priority</th><th>Status</th><th></th></tr></thead>
+        <tbody>{complaints.length === 0 ? <tr><td colSpan="8" className="empty">No complaints yet.</td></tr> :
+          complaints.slice(0, 6).map(r => <tr key={r.id}>
+            <td className="rt-id">{r.complaintId || '—'}</td>
+            <td>{fmt(r.date)}</td>
+            <td>{r.name || '—'}</td>
+            <td>{r.participantName || withParticipantName(r, clients).participantName || '—'}</td>
+            <td>{r.category}</td>
+            <td><span className={`prio-dot ${(r.priority || 'medium').toLowerCase()}`} />{r.priority}</td>
+            <td><span className={`status-chip ${STATUS_TONE(r.status)}`}>{r.status || 'Open'}</span></td>
+            <td><button className="reg-rail-link" onClick={() => edit(r)}>Edit</button></td>
+          </tr>)}
+        </tbody></table>
+    </div>
+  </div>;
+}
+
+// =========================================================================
+// 3) RISK REGISTER
+// =========================================================================
+const RISK_L = { Rare: 1, Unlikely: 2, Possible: 3, Likely: 4, 'Almost Certain': 5 };
+const RISK_C = { Minor: 1, Moderate: 2, Significant: 3, Major: 4, Severe: 5 };
+function riskCellColor(l, c) {
+  const score = l * c;
+  if (score >= 15) return '#ef4444';
+  if (score >= 10) return '#f97316';
+  if (score >= 5) return '#fbbf24';
+  if (score >= 3) return '#a3e635';
+  return '#4ade80';
+}
+function RiskMatrix({ likelihood, consequence }) {
+  const lNum = RISK_L[likelihood] || 0;
+  const cNum = RISK_C[consequence] || 0;
+  const lLabels = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost\u00a0Certain'];
+  const cLabels = ['1 Minor', '2 Moderate', '3 Significant', '4 Major', '5 Severe'];
+  const rows = [];
+  for (let r = 5; r >= 1; r--) {
+    for (let cIdx = 1; cIdx <= 5; cIdx++) {
+      const active = r === lNum && cIdx === cNum;
+      rows.push(<div className="rm-cell" key={`${r}-${cIdx}`} style={{ background: riskCellColor(r, cIdx) }}>{active && <span className="rm-marker" />}</div>);
+    }
+  }
+  return <div>
+    <div className="risk-matrix-wrap">
+      <div className="risk-matrix-yaxis"><span className="axis-label">Consequence</span></div>
+      <div className="risk-matrix-yaxis">{[1, 2, 3, 4, 5].map(n => <span key={n}>{n} {lLabels[n - 1].split('\u00a0')[0]}</span>)}</div>
+      <div className="risk-matrix">{rows}</div>
+    </div>
+    <div className="risk-matrix-xaxis" style={{ marginLeft: 64 }}>{cLabels.map(l => <span key={l}>{l}</span>)}</div>
+    <div className="risk-matrix-xlabel">Likelihood</div>
+  </div>;
+}
+function RiskRegisterPage({ risks = [], setRisks = () => {}, clients = [], business = {}, currentUser = 'Michael Brown' }) {
+  const blank = () => ({ id: makeId('risks'), riskId: nextRef('RISK', risks), date: todayISO(), identifiedBy: currentUser,
+    category: 'Participant Safety', title: '', details: '', owner: 'IT Manager',
+    likelihood: 'Likely', consequence: 'Major', appetite: 'Low', currentControls: '', gaps: '',
+    treatment: 'Reduce', plannedActions: '', targetScore: '6 - Moderate', targetDate: addDaysISO(90),
+    reviewFrequency: 'Quarterly', nextReviewDate: addDaysISO(90), status: 'Open', reviewNotes: '',
+    files: [], history: [], related: [], createdAt: '', createdBy: currentUser });
+  const [draft, setDraft] = useState(blank());
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setDraft(p => ({ ...p, [k]: v }));
+
+  const lNum = RISK_L[draft.likelihood] || 0;
+  const cNum = RISK_C[draft.consequence] || 0;
+  const inherent = lNum * cNum;
+  const rating = inherent >= 15 ? 'High' : inherent >= 8 ? 'High' : inherent >= 4 ? 'Moderate' : 'Low';
+  const ratingTone = inherent >= 12 ? 'red' : inherent >= 6 ? 'amber' : 'green';
+
+  const save = (submit) => {
+    if (!draft.title.trim()) return alert('Please enter a risk title.');
+    const rec = withParticipantName({ ...draft, number: draft.riskId, taskActivityArea: draft.title, issueHazardAspect: draft.title, riskImpact: draft.details,
+      riskScore: inherent, rating, controlMeasures: draft.currentControls, personResponsible: draft.owner,
+      status: submit ? (draft.status === 'Open' ? 'In Progress' : draft.status) : draft.status, updatedAt: new Date().toISOString() }, clients);
+    if (editingId) setRisks(prev => prev.map(r => r.id === editingId ? { ...rec, id: editingId } : r));
+    else setRisks(prev => [{ ...rec, createdAt: new Date().toISOString() }, ...prev]);
+    setDraft(blank()); setEditingId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const edit = (r) => { setDraft({ ...blank(), ...r, title: r.title || r.taskActivityArea || r.issueHazardAspect || '', details: r.details || r.riskImpact || '' }); setEditingId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const total = risks.length;
+  const highRisks = risks.filter(r => { const sc = riskScoreFrom(r.consequence, r.likelihood) || r.riskScore || 0; return Number(sc) >= 12 || r.rating === 'High' || r.rating === 'Extreme'; }).length;
+  const overdueRev = risks.filter(r => r.nextReviewDate && r.status !== 'Closed' && daysUntil(r.nextReviewDate) !== null && daysUntil(r.nextReviewDate) < 0).length;
+  const treated = risks.filter(r => r.status === 'Closed' || r.treatment).length;
+  const avgScore = total ? (risks.reduce((s, r) => s + (Number(r.riskScore) || Number(riskScoreFrom(r.consequence, r.likelihood)) || 0), 0) / total).toFixed(1) : '0.0';
+
+  const auditEntries = [
+    { action: 'Risk created', who: draft.createdBy || currentUser, when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : 'On save', tone: 'done' },
+    { action: 'Risk details updated', who: currentUser, when: '—', tone: editingId ? 'done' : 'pending' },
+    { action: 'Assessment completed', who: currentUser, when: '—', tone: 'pending' },
+  ];
+
+  return <div className="reg-page">
+    <RegHeader title="Risk Register" subRecord={editingId ? 'Edit Risk' : 'New Risk'} submitted={editingId && draft.status !== 'Open'}
+      subtitle="Identify, assess, and manage risks to protect participants, workers and the organisation."
+      onSaveDraft={() => save(false)} onSubmit={() => save(true)} submitLabel="Submit Risk" submitIcon="✔" />
+
+    <div className="reg-stats" style={{ '--cols': 5 }}>
+      <RegStat icon="📊" color="blue" label="Total Risks" value={total} viewAll />
+      <RegStat icon="⚠" color="red" label="High Risks" value={highRisks} viewAll />
+      <RegStat icon="⏱" color="orange" label="Overdue Reviews" value={overdueRev} viewAll />
+      <RegStat icon="🛡" color="green" label="Risks Treated" value={treated} note={{ tone: '', text: 'This year' }} />
+      <RegStat icon="◔" color="amber" label="Average Risk Score" value={avgScore} note={{ tone: 'amber', text: Number(avgScore) >= 12 ? 'High' : Number(avgScore) >= 6 ? 'Moderate' : 'Low' }} />
+    </div>
+
+    <div className="reg-body">
+      <div className="reg-col-main">
+        <RegSection num="1" title="Risk Details">
+          <div className="reg-grid c4">
+            <RegField label="Risk ID" value={draft.riskId} onChange={v => set('riskId', v)} disabled />
+            <RegField label="Date Identified" type="date" value={draft.date} onChange={v => set('date', v)} icon="📅" />
+            <RegField label="Identified By" value={draft.identifiedBy} onChange={v => set('identifiedBy', v)} />
+            <RegField label="Risk Category" required value={draft.category} onChange={v => set('category', v)} options={['Participant Safety', 'Worker Safety', 'Privacy / Information', 'Financial', 'Compliance', 'Operational', 'Reputational', 'Environmental']} />
+          </div>
+          <RegField label="Risk Title" required value={draft.title} onChange={v => set('title', v)} placeholder="Short description of the risk" span="all" />
+          <div className="reg-grid c2">
+            <RegField label="Risk Description" required multiline rows={4} max={2000} value={draft.details} onChange={v => set('details', v)} placeholder="Describe the risk, cause and potential consequence." />
+            <RegField label="Risk Owner" required value={draft.owner} onChange={v => set('owner', v)} options={['IT Manager', 'Compliance Manager', 'Operations Manager', 'Service Manager', 'Director']} />
+          </div>
+        </RegSection>
+
+        <RegSection num="2" title="Risk Assessment">
+          <div className="reg-grid c4">
+            <div className="rf"><span className="rf-label">Likelihood<span className="req">*</span></span>
+              <RegField value={draft.likelihood} onChange={v => set('likelihood', v)} options={Object.keys(RISK_L)} />
+              <span className="score-tag amber">{RISK_L[draft.likelihood]} - {draft.likelihood}</span></div>
+            <div className="rf"><span className="rf-label">Consequence<span className="req">*</span></span>
+              <RegField value={draft.consequence} onChange={v => set('consequence', v)} options={Object.keys(RISK_C)} />
+              <span className="score-tag amber">{RISK_C[draft.consequence]} - {draft.consequence}</span></div>
+            <div className="rf"><span className="rf-label">Inherent Risk Score (L x C)</span>
+              <div className="reg-grid c2" style={{ gap: 8, alignItems: 'center' }}><RegField value={String(inherent)} disabled /><span className={`score-pill ${ratingTone}`}>{rating}</span></div></div>
+            <div className="rf"><span className="rf-label">Risk Appetite</span>
+              <RegField value={draft.appetite} onChange={v => set('appetite', v)} options={['Low', 'Moderate', 'High']} />
+              <span className="rf-help">We have {draft.appetite.toLowerCase()} appetite for this risk</span></div>
+          </div>
+          <div className="reg-grid c2" style={{ alignItems: 'start' }}>
+            <div><div className="rf-label" style={{ fontWeight: 700, marginBottom: 8 }}>Risk Matrix</div><RiskMatrix likelihood={draft.likelihood} consequence={draft.consequence} /></div>
+            <div>
+              <RegField label="Current Controls" multiline rows={3} max={1000} value={draft.currentControls} onChange={v => set('currentControls', v)} placeholder="- Role-based access controls in place" />
+              <RegField label="Gaps / Weaknesses" multiline rows={3} max={1000} value={draft.gaps} onChange={v => set('gaps', v)} placeholder="- Shared passwords occasionally used" />
+            </div>
+          </div>
+        </RegSection>
+
+        <RegSection num="6" title="Risk History">
+          <table className="reg-mini-table"><thead><tr><th>Review Date</th><th>Reviewed By</th><th>Risk Score (L x C)</th><th>Treatment Progress</th><th>Notes</th></tr></thead>
+            <tbody>{(draft.history && draft.history.length ? draft.history : [{ date: draft.date, by: draft.identifiedBy, score: inherent, rating, progress: '0%', notes: 'Initial risk identified' }]).map((h, i) => <tr key={i}>
+              <td className="cell-date">📅 {fmt(h.date)}</td><td>{h.by}</td><td><span className={`score-pill ${(h.rating || rating) === 'High' ? 'red' : (h.rating || rating) === 'Moderate' ? 'amber' : 'green'}`}>{h.score} - {h.rating || rating}</span></td><td>{h.progress || '0%'}</td><td>{h.notes}</td></tr>)}
+            </tbody></table>
+        </RegSection>
+
+        <RegSection icon="🔗" title="Related Risks">
+          <div className="chip-row">{(draft.related || []).map(r => <span className="rel-chip" key={r}>{r}</span>)}<button className="chip-add">+ Add Link</button></div>
+        </RegSection>
+      </div>
+
+      <div className="reg-col-side">
+        <RegSection num="3" title="Risk Treatment">
+          <RegField label="Treatment Strategy" required value={draft.treatment} onChange={v => set('treatment', v)} options={['Reduce', 'Accept', 'Transfer', 'Avoid']} span="all" />
+          <RegField label="Planned Actions" multiline rows={4} max={1000} value={draft.plannedActions} onChange={v => set('plannedActions', v)} placeholder="- Enforce multi-factor authentication" span="all" />
+          <div className="reg-grid c2">
+            <RegField label="Target Risk Score (After Treatment)" value={draft.targetScore} onChange={v => set('targetScore', v)} options={['2 - Low', '4 - Low', '6 - Moderate', '9 - Moderate', '12 - High']} />
+            <RegField label="Target Date" type="date" value={draft.targetDate} onChange={v => set('targetDate', v)} icon="📅" />
+          </div>
+        </RegSection>
+        <RegSection num="4" title="Monitoring & Review">
+          <div className="reg-grid c3">
+            <RegField label="Review Frequency" required value={draft.reviewFrequency} onChange={v => set('reviewFrequency', v)} options={['Monthly', 'Quarterly', 'Half-yearly', 'Annually']} />
+            <RegField label="Next Review Date" required type="date" value={draft.nextReviewDate} onChange={v => set('nextReviewDate', v)} icon="📅" />
+            <RegField label="Status" required value={draft.status} onChange={v => set('status', v)} options={['Open', 'In Progress', 'Monitoring', 'Closed']} />
+          </div>
+          <RegField label="Review Notes" multiline rows={2} max={1000} value={draft.reviewNotes} onChange={v => set('reviewNotes', v)} span="all" />
+        </RegSection>
+        <RegSection num="5" title="Attachments">
+          <AttachmentsCard title="" icon="" supported="JPG, PNG, PDF, DOC, DOCX, XLS, XLSX"
+            files={draft.files} onUpload={fs => set('files', [...(draft.files || []), ...fs.map(f => ({ id: makeId('file'), name: f.name, size: `${Math.round(f.size / 1024)} KB`, date: fmt(todayISO()) }))])} onRemove={id => set('files', (draft.files || []).filter(f => f.id !== id))} />
+        </RegSection>
+        <AuditTrailCard entries={auditEntries} />
+      </div>
+    </div>
+
+    <div className="recent-card" style={{ marginTop: 18 }}>
+      <div className="recent-head"><h3>Recent Risks</h3><button className="reg-rail-link">View all risks</button></div>
+      <table className="recent-table"><thead><tr><th>ID</th><th>Title</th><th>Category</th><th>Score</th><th>Owner</th><th>Status</th><th></th></tr></thead>
+        <tbody>{risks.length === 0 ? <tr><td colSpan="7" className="empty">No risks yet.</td></tr> :
+          risks.slice(0, 6).map(r => { const sc = Number(r.riskScore) || Number(riskScoreFrom(r.consequence, r.likelihood)) || 0; return <tr key={r.id}>
+            <td className="rt-id">{r.riskId || '—'}</td>
+            <td>{r.title || r.taskActivityArea || r.issueHazardAspect || 'Untitled'}</td>
+            <td>{r.category || '—'}</td>
+            <td><span className={`score-pill ${sc >= 12 ? 'red' : sc >= 6 ? 'amber' : 'green'}`}>{sc || '—'}</span></td>
+            <td>{r.owner || r.personResponsible || '—'}</td>
+            <td><span className={`status-chip ${STATUS_TONE(r.status)}`}>{r.status || 'Open'}</span></td>
+            <td><button className="reg-rail-link" onClick={() => edit(r)}>Edit</button></td>
+          </tr>; })}
+        </tbody></table>
+    </div>
+  </div>;
+}
+
+// =========================================================================
+// 4) CONTINUOUS IMPROVEMENT REGISTER
+// =========================================================================
+function ImprovementRegisterPage({ improvements = [], setImprovements = () => {}, clients = [], business = {}, currentUser = 'Michael Brown' }) {
+  const blank = () => ({ id: makeId('improvements'), referenceNumber: nextRef('IMP', improvements), date: todayISO(), raisedBy: currentUser,
+    category: 'Service Delivery', priority: 'Medium', title: '', opportunityForImprovement: '',
+    rootCause: '', identifiedVia: 'Participant feedback', evidence: '',
+    objective: '', responsibleOwner: currentUser, actionsRequired: '', targetDate: addDaysISO(60), resourcesRequired: '',
+    outcome: '', benefits: '', outcomeDate: '', measuredBy: 'Participant feedback', impactScore: '', sustainabilityPlan: '',
+    reviewDate: '', reviewedBy: currentUser, signOff: '', notes: '', status: 'Open', files: [], linked: [], createdAt: '', createdBy: currentUser });
+  const [draft, setDraft] = useState(blank());
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setDraft(p => ({ ...p, [k]: v }));
+
+  const save = (submit) => {
+    if (!draft.title.trim()) return alert('Please enter an improvement title.');
+    const rec = withParticipantName({ ...draft, sourceOfFeedback: draft.identifiedVia, relevantStandardIndicator: draft.category,
+      byWhen: draft.targetDate, review: draft.notes, outcome: draft.outcome,
+      status: submit ? (draft.status === 'Open' ? 'In Progress' : draft.status) : draft.status, updatedAt: new Date().toISOString() }, clients);
+    if (editingId) setImprovements(prev => prev.map(r => r.id === editingId ? { ...rec, id: editingId } : r));
+    else setImprovements(prev => [{ ...rec, createdAt: new Date().toISOString() }, ...prev]);
+    setDraft(blank()); setEditingId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const edit = (r) => { setDraft({ ...blank(), ...r, title: r.title || r.opportunityForImprovement || '' }); setEditingId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const total = improvements.length;
+  const inProgress = improvements.filter(i => i.status === 'In Progress').length;
+  const overdue = improvements.filter(i => (i.byWhen || i.targetDate) && i.status !== 'Closed' && i.status !== 'Completed' && daysUntil(i.byWhen || i.targetDate) !== null && daysUntil(i.byWhen || i.targetDate) < 0).length;
+  const completedYear = improvements.filter(i => { const p = melbourneParts(); return (i.status === 'Completed' || i.status === 'Closed') && (i.outcomeDate || i.updatedAt || '').includes(p.year); }).length;
+  const avgImpact = total ? (improvements.reduce((s, i) => s + (Number(i.impactScore) || 0), 0) / total).toFixed(1) : '0.0';
+
+  const wfSteps = [
+    { name: 'Identified', meta: '', when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : '', who: draft.createdBy },
+    { name: 'Under Analysis', meta: 'Root cause identified' },
+    { name: 'Action Plan Created', meta: draft.responsibleOwner },
+    { name: 'In Progress', meta: 'Actions being implemented' },
+    { name: 'Completed', meta: '', when: draft.outcomeDate ? fmt(draft.outcomeDate) : '' },
+    { name: 'Evaluated', meta: 'Outcome measured' },
+    { name: 'Closed', meta: '' },
+  ];
+  const wfMap = { 'Open': 0, 'Under Analysis': 1, 'In Progress': 3, 'Completed': 4, 'Closed': 6 };
+  const wfIdx = wfMap[draft.status] ?? 0;
+
+  const auditEntries = [
+    { action: 'Improvement created', who: draft.createdBy || currentUser, when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : 'On save', tone: 'done' },
+    { action: 'Root cause updated', who: currentUser, when: draft.rootCause ? '—' : '—', tone: draft.rootCause ? 'done' : 'pending' },
+    { action: 'Action plan created', who: draft.responsibleOwner, when: draft.actionsRequired ? '—' : '—', tone: draft.actionsRequired ? 'done' : 'pending' },
+    { action: 'Outcome recorded', who: draft.measuredBy, when: draft.outcomeDate ? fmt(draft.outcomeDate) : '—', tone: draft.outcomeDate ? 'done' : 'pending' },
+  ];
+
+  const stars = Math.round((Number(draft.impactScore) || 0) / 2);
+
+  return <div className="reg-page">
+    <RegHeader title="Continuous Improvement Register" subRecord={editingId ? 'Edit Improvement' : 'New Improvement'} submitted={editingId && draft.status !== 'Open'}
+      subtitle="Identify opportunities, implement improvements, and evaluate outcomes."
+      onSaveDraft={() => save(false)} onSubmit={() => save(true)} submitLabel="Submit Improvement" submitIcon="✔" />
+
+    <div className="reg-stats" style={{ '--cols': 5 }}>
+      <RegStat icon="✔" color="green" label="Total Improvements" value={total} viewAll />
+      <RegStat icon="◌" color="orange" label="In Progress" value={inProgress} viewAll />
+      <RegStat icon="🚩" color="red" label="Overdue Actions" value={overdue} viewAll />
+      <RegStat icon="◳" color="purple" label="Completed This Year" value={completedYear} trend={{ tone: 'up', arrow: '↑', value: `${completedYear}`, label: 'this year' }} />
+      <RegStat icon="◔" color="blue" label="Improvement Impact Score" value={`${avgImpact} / 10`} note={{ tone: '', text: Number(avgImpact) >= 7 ? 'High' : Number(avgImpact) >= 4 ? 'Medium' : 'Low' }} />
+    </div>
+
+    <div className="reg-body">
+      <div className="reg-col-main">
+        <RegSection num="1" title="Improvement Details">
+          <div className="reg-grid c4">
+            <RegField label="Improvement ID" value={draft.referenceNumber} onChange={v => set('referenceNumber', v)} disabled />
+            <RegField label="Date Raised" type="date" value={draft.date} onChange={v => set('date', v)} icon="📅" />
+            <RegField label="Raised By" value={draft.raisedBy} onChange={v => set('raisedBy', v)} />
+            <RegField label="Improvement Category" required value={draft.category} onChange={v => set('category', v)} options={['Service Delivery', 'Communication', 'Safety', 'Compliance', 'Staff Training', 'Participant Experience', 'Process', 'Other']} />
+          </div>
+          <div className="reg-grid c4">
+            <RegField label="Priority" required value={draft.priority} onChange={v => set('priority', v)} options={['Low', 'Medium', 'High', 'Critical']} icon={<span style={{ color: draft.priority === 'High' || draft.priority === 'Critical' ? 'var(--red)' : draft.priority === 'Medium' ? 'var(--amber)' : 'var(--green)' }}>●</span>} span={1} />
+            <RegField label="Title" required value={draft.title} onChange={v => set('title', v)} span={3} placeholder="Short description of the improvement" />
+          </div>
+          <RegField label="Opportunity / Problem Statement" required multiline rows={3} max={2000} value={draft.opportunityForImprovement} onChange={v => set('opportunityForImprovement', v)} span="all" placeholder="Describe the opportunity or problem." />
+        </RegSection>
+
+        <RegSection num="2" title="Analysis & Root Cause">
+          <div className="reg-grid c2" style={{ alignItems: 'start' }}>
+            <RegField label="Root Cause" multiline rows={4} max={1000} value={draft.rootCause} onChange={v => set('rootCause', v)} placeholder="What is the underlying cause?" />
+            <div>
+              <RegField label="How was this identified?" value={draft.identifiedVia} onChange={v => set('identifiedVia', v)} options={['Participant feedback', 'Complaint', 'Incident', 'Internal audit', 'Staff suggestion', 'Survey', 'Other']} />
+              <RegField label="Evidence / Data" multiline rows={2} max={1000} value={draft.evidence} onChange={v => set('evidence', v)} placeholder="Supporting evidence or data." />
+            </div>
+          </div>
+        </RegSection>
+
+        <RegSection num="3" title="Improvement Plan">
+          <div className="reg-grid c2" style={{ alignItems: 'start' }}>
+            <RegField label="Improvement Objective" required multiline rows={2} value={draft.objective} onChange={v => set('objective', v)} placeholder="What outcome are you aiming for?" />
+            <RegField label="Responsible Owner" required value={draft.responsibleOwner} onChange={v => set('responsibleOwner', v)} options={['Sarah Mitchell', 'Michael Brown', 'Emily Roberts']} />
+          </div>
+          <div className="reg-grid c2" style={{ alignItems: 'start' }}>
+            <RegField label="Actions / Initiatives" required multiline rows={4} max={2000} value={draft.actionsRequired} onChange={v => set('actionsRequired', v)} placeholder="- Develop communication procedure" />
+            <div>
+              <RegField label="Target Completion Date" type="date" value={draft.targetDate} onChange={v => set('targetDate', v)} icon="📅" />
+              <RegField label="Resources Required" value={draft.resourcesRequired} onChange={v => set('resourcesRequired', v)} placeholder="e.g. Communication platform, training time" />
+            </div>
+          </div>
+        </RegSection>
+
+        <RegSection num="4" title="Evaluation & Outcome">
+          <div className="reg-grid c2" style={{ alignItems: 'start' }}>
+            <RegField label="Outcome / Result" required multiline rows={3} max={2000} value={draft.outcome} onChange={v => set('outcome', v)} placeholder="What was achieved?" />
+            <RegField label="Impact / Benefits" multiline rows={3} max={2000} value={draft.benefits} onChange={v => set('benefits', v)} placeholder="- Improved participant satisfaction" />
+          </div>
+          <div className="reg-grid c4">
+            <RegField label="Outcome Date" type="date" value={draft.outcomeDate} onChange={v => set('outcomeDate', v)} icon="📅" />
+            <RegField label="Measured By" value={draft.measuredBy} onChange={v => set('measuredBy', v)} options={['Participant feedback', 'Survey', 'Audit', 'KPI / Metric', 'Manager review']} />
+            <div className="rf"><span className="rf-label">Improvement Impact Score</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="star-rate">{[1, 2, 3, 4, 5].map(n => <span key={n} className={n <= stars ? '' : 'star-empty'}>★</span>)}</span>
+                <input style={{ width: 56 }} type="number" min="0" max="10" value={draft.impactScore} onChange={e => set('impactScore', e.target.value)} placeholder="/10" />
+              </div></div>
+            <RegField label="Sustainability Plan" multiline rows={2} max={500} value={draft.sustainabilityPlan} onChange={v => set('sustainabilityPlan', v)} />
+          </div>
+        </RegSection>
+
+        <RegSection num="5" title="Review & Sign Off">
+          <div className="reg-grid c4">
+            <RegField label="Review Date" type="date" value={draft.reviewDate} onChange={v => set('reviewDate', v)} icon="📅" />
+            <RegField label="Reviewed By" value={draft.reviewedBy} onChange={v => set('reviewedBy', v)} options={['Michael Brown', 'Sarah Mitchell', 'Emily Roberts']} />
+            <div className="rf"><span className="rf-label">Sign Off</span>
+              <div className="yn-pair"><button className={`yn-chip yes ${draft.signOff === 'Approved' ? 'on' : ''}`} onClick={() => set('signOff', 'Approved')}>✔ Approved</button><button className={`yn-chip no ${draft.signOff === 'Rejected' ? 'on' : ''}`} onClick={() => set('signOff', 'Rejected')}>Rejected</button></div></div>
+            <RegField label="Notes" multiline rows={2} max={500} value={draft.notes} onChange={v => set('notes', v)} />
+          </div>
+        </RegSection>
+      </div>
+
+      <div className="reg-col-side">
+        <RailCard title="Improvement Workflow" link="View Full History">
+          <WorkflowTimeline steps={wfSteps} currentIndex={wfIdx} />
+        </RailCard>
+        <RailCard icon="🔗" title="Linked To">
+          {(draft.linked || []).length === 0 && <p className="reg-section-desc" style={{ margin: 0 }}>No linked records.</p>}
+          {(draft.linked || []).map((l, i) => <div className="link-rec-row" key={i}><span className="link-rec-id">{l.id}</span><span className="link-rec-desc">{l.desc}</span><span>↗</span></div>)}
+          <button className="reg-rail-btn">+ Link to Record</button>
+        </RailCard>
+        <AttachmentsCard title="Attachments" icon="📎" supported="JPG, PNG, PDF, DOC, DOCX, XLS, XLSX"
+          files={draft.files} onUpload={fs => set('files', [...(draft.files || []), ...fs.map(f => ({ id: makeId('file'), name: f.name, size: `${Math.round(f.size / 1024)} KB`, date: fmt(todayISO()) }))])} onRemove={id => set('files', (draft.files || []).filter(f => f.id !== id))} />
+        <AuditTrailCard entries={auditEntries} />
+      </div>
+    </div>
+
+    <div className="recent-card" style={{ marginTop: 18 }}>
+      <div className="recent-head"><h3>Recent Improvements</h3><button className="reg-rail-link">View all</button></div>
+      <table className="recent-table"><thead><tr><th>ID</th><th>Title</th><th>Category</th><th>Priority</th><th>Owner</th><th>Status</th><th></th></tr></thead>
+        <tbody>{improvements.length === 0 ? <tr><td colSpan="7" className="empty">No improvements yet.</td></tr> :
+          improvements.slice(0, 6).map(r => <tr key={r.id}>
+            <td className="rt-id">{r.referenceNumber || '—'}</td>
+            <td>{r.title || r.opportunityForImprovement || 'Untitled'}</td>
+            <td>{r.category || r.relevantStandardIndicator || '—'}</td>
+            <td><span className={`prio-dot ${(r.priority || 'medium').toLowerCase()}`} />{r.priority || 'Medium'}</td>
+            <td>{r.responsibleOwner || '—'}</td>
+            <td><span className={`status-chip ${STATUS_TONE(r.status)}`}>{r.status || 'Open'}</span></td>
+            <td><button className="reg-rail-link" onClick={() => edit(r)}>Edit</button></td>
+          </tr>)}
+        </tbody></table>
+    </div>
+  </div>;
+}
+
+// =========================================================================
+// 5) GOVERNANCE REVIEW REGISTER
+// =========================================================================
+function GovernanceReviewPage({ governanceReviews = [], setGovernanceReviews = () => {}, clients = [], business = {}, currentUser = 'Sarah Mitchell' }) {
+  const blank = () => ({ id: makeId('governanceReviews'), reviewId: nextRef('GR', governanceReviews), reviewType: 'Monthly Governance Review',
+    date: todayISO(), conductedBy: currentUser, scope: 'Service Delivery Governance', periodStart: '', periodEnd: '', location: 'All Services',
+    purpose: '', compliant: 0, opportunities: 0, minorIssues: 0, majorIssues: 0, summary: '',
+    actions: [], rating: 4.5, complianceImpact: 'Positive', riskImpact: 'Low', boardNotification: true, outcomeStatement: '',
+    reviewedBy: 'Michael Brown', reviewDate: addDaysISO(1), approved: 'Yes', signedOffBy: 'Board Chair', signOffDate: addDaysISO(2),
+    nextReviewDate: addDaysISO(30), status: 'Open', files: [], createdAt: '', createdBy: currentUser });
+  const [draft, setDraft] = useState(blank());
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setDraft(p => ({ ...p, [k]: v }));
+  const setAction = (idx, key, val) => setDraft(p => ({ ...p, actions: p.actions.map((a, i) => i === idx ? { ...a, [key]: val } : a) }));
+  const addAction = () => setDraft(p => ({ ...p, actions: [...p.actions, { action: '', responsible: '', due: addDaysISO(14), priority: 'Medium', status: 'Planned' }] }));
+
+  const save = (submit) => {
+    const rec = withParticipantName({ ...draft, title: draft.reviewType, attendees: draft.conductedBy,
+      decisions: draft.outcomeStatement, nextReviewDate: draft.nextReviewDate, evidence: (draft.files || []).map(f => f.name).join(', '),
+      status: submit ? 'Approved' : draft.status, updatedAt: new Date().toISOString() }, clients);
+    if (editingId) setGovernanceReviews(prev => prev.map(r => r.id === editingId ? { ...rec, id: editingId } : r));
+    else setGovernanceReviews(prev => [{ ...rec, createdAt: new Date().toISOString() }, ...prev]);
+    setDraft(blank()); setEditingId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const edit = (r) => { setDraft({ ...blank(), ...r, reviewType: r.reviewType || r.title || 'Monthly Governance Review', actions: r.actions || [] }); setEditingId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const total = governanceReviews.length;
+  const scheduled = governanceReviews.filter(g => g.status === 'Open' || g.status === 'Scheduled').length;
+  const overdue = governanceReviews.filter(g => g.nextReviewDate && g.status !== 'Approved' && daysUntil(g.nextReviewDate) !== null && daysUntil(g.nextReviewDate) < 0).length;
+  const completedYear = governanceReviews.filter(g => { const p = melbourneParts(); return g.status === 'Approved' && (g.date || '').includes(p.year); }).length;
+  const complianceScore = total ? Math.round(governanceReviews.reduce((s, g) => s + (Number(g.rating) || 0), 0) / total / 5 * 100) : 0;
+
+  const wfSteps = [
+    { name: 'Planned', meta: 'Review scheduled', when: fmt(draft.date) },
+    { name: 'Conducted', meta: draft.conductedBy, when: fmt(draft.date) },
+    { name: 'Findings Recorded', meta: draft.conductedBy },
+    { name: 'Actions Assigned', meta: draft.conductedBy },
+    { name: 'Approved', meta: draft.signedOffBy, when: fmt(draft.signOffDate) },
+  ];
+  const wfMap = { 'Open': 1, 'Scheduled': 0, 'Conducted': 1, 'In Progress': 2, 'Pending Review': 3, 'Approved': 4 };
+  const wfIdx = wfMap[draft.status] ?? 1;
+  const fullStars = Math.floor(draft.rating);
+  const halfStar = draft.rating % 1 >= 0.5;
+
+  const auditEntries = [
+    { action: 'Review created', who: draft.createdBy || currentUser, when: draft.createdAt ? fmtMelbourneDateTime(draft.createdAt) : 'On save', tone: 'done' },
+    { action: 'Findings recorded', who: draft.conductedBy, when: draft.summary ? '—' : '—', tone: draft.summary ? 'done' : 'pending' },
+    { action: 'Actions assigned', who: draft.conductedBy, when: (draft.actions || []).length ? '—' : '—', tone: (draft.actions || []).length ? 'done' : 'pending' },
+    { action: 'Reviewed', who: draft.reviewedBy, when: draft.reviewDate ? fmt(draft.reviewDate) : '—', tone: 'pending' },
+    { action: 'Approved', who: draft.signedOffBy, when: draft.status === 'Approved' ? fmt(draft.signOffDate) : '—', tone: draft.status === 'Approved' ? 'done' : 'pending' },
+  ];
+
+  return <div className="reg-page">
+    <RegHeader title="Governance Review Register" subRecord={editingId ? 'Edit Review' : 'New Review'} submitted={draft.status === 'Approved'}
+      subtitle="Record governance activities and ensure oversight, accountability and continuous compliance."
+      onSaveDraft={() => save(false)} onSubmit={() => save(true)} submitLabel="Submit Review" submitIcon="✔" />
+
+    <div className="reg-stats" style={{ '--cols': 5 }}>
+      <RegStat icon="📋" color="blue" label="Total Reviews" value={total} viewAll />
+      <RegStat icon="📅" color="amber" label="Scheduled" value={scheduled} viewAll />
+      <RegStat icon="⚠" color="red" label="Overdue" value={overdue} viewAll />
+      <RegStat icon="✔" color="green" label="Completed This Year" value={completedYear} trend={{ tone: 'up', arrow: '↑', value: `${completedYear}`, label: 'this year' }} />
+      <RegStat icon="★" color="purple" label="Compliance Score" value={`${complianceScore}%`} note={{ tone: '', text: complianceScore >= 90 ? 'Excellent' : complianceScore >= 70 ? 'Good' : 'Fair' }} />
+    </div>
+
+    <div className="reg-body">
+      <div className="reg-col-main">
+        <RegSection num="1" title="Review Details">
+          <div className="reg-grid c4">
+            <RegField label="Review ID" value={draft.reviewId} onChange={v => set('reviewId', v)} disabled />
+            <RegField label="Review Type" required value={draft.reviewType} onChange={v => set('reviewType', v)} options={['Monthly Governance Review', 'Quarterly Quality Review', 'Annual Governance Review', 'Board Review', 'Ad-hoc Review']} />
+            <RegField label="Date Conducted" required type="date" value={draft.date} onChange={v => set('date', v)} icon="📅" />
+            <RegField label="Conducted By" required value={draft.conductedBy} onChange={v => set('conductedBy', v)} options={['Sarah Mitchell', 'Michael Brown', 'Emily Roberts']} />
+          </div>
+          <div className="reg-grid c3">
+            <RegField label="Review Scope / Area" required value={draft.scope} onChange={v => set('scope', v)} options={['Service Delivery Governance', 'Quality & Safeguards', 'Risk Management', 'Financial Governance', 'Clinical Governance', 'All Services']} />
+            <div className="rf"><span className="rf-label">Review Period</span>
+              <div className="reg-grid c2" style={{ gap: 8 }}><RegField type="date" value={draft.periodStart} onChange={v => set('periodStart', v)} icon="📅" /><RegField type="date" value={draft.periodEnd} onChange={v => set('periodEnd', v)} icon="📅" /></div></div>
+            <RegField label="Location / Service" value={draft.location} onChange={v => set('location', v)} options={['All Services', 'SIL Maroochydore', 'Community Access', 'Head Office']} />
+          </div>
+          <RegField label="Purpose / Focus of Review" multiline rows={2} max={1000} value={draft.purpose} onChange={v => set('purpose', v)} span="all" placeholder="Ensure governance obligations are met and systems continue to support quality and compliance." />
+        </RegSection>
+
+        <RegSection num="2" title="Findings">
+          <div className="findings-grid">
+            <div className="finding-tile green"><span className="finding-ic">✔</span><div className="finding-txt"><small>Compliant</small><b>{draft.compliant}</b></div></div>
+            <div className="finding-tile amber"><span className="finding-ic">—</span><div className="finding-txt"><small>Opportunities</small><b>{draft.opportunities}</b></div></div>
+            <div className="finding-tile orange"><span className="finding-ic">!</span><div className="finding-txt"><small>Minor Issues</small><b>{draft.minorIssues}</b></div></div>
+            <div className="finding-tile red"><span className="finding-ic">⚑</span><div className="finding-txt"><small>Major Issues</small><b>{draft.majorIssues}</b></div></div>
+          </div>
+          <div className="reg-grid c4">
+            <RegField label="Compliant" type="number" value={draft.compliant} onChange={v => set('compliant', v)} />
+            <RegField label="Opportunities" type="number" value={draft.opportunities} onChange={v => set('opportunities', v)} />
+            <RegField label="Minor Issues" type="number" value={draft.minorIssues} onChange={v => set('minorIssues', v)} />
+            <RegField label="Major Issues" type="number" value={draft.majorIssues} onChange={v => set('majorIssues', v)} />
+          </div>
+          <RegField label="Key Findings Summary" multiline rows={3} max={1000} value={draft.summary} onChange={v => set('summary', v)} span="all" placeholder="- Overall governance systems remain effective and aligned with obligations." />
+        </RegSection>
+
+        <RegSection num="3" title="Recommendations & Actions">
+          <table className="reg-mini-table"><thead><tr><th>Action / Recommendation</th><th>Responsible Person</th><th>Due Date</th><th>Priority</th><th>Status</th></tr></thead>
+            <tbody>{(draft.actions || []).length === 0 ? <tr><td colSpan="5" className="empty" style={{ padding: 10 }}>No actions yet.</td></tr> :
+              draft.actions.map((a, i) => <tr key={i}>
+                <td><input value={a.action} onChange={e => setAction(i, 'action', e.target.value)} placeholder="Action" style={{ border: 'none', padding: 0, background: 'transparent' }} /></td>
+                <td><input value={a.responsible} onChange={e => setAction(i, 'responsible', e.target.value)} placeholder="Person" style={{ border: 'none', padding: 0, background: 'transparent' }} /></td>
+                <td><span className="cell-date">📅 <input type="date" value={a.due} onChange={e => setAction(i, 'due', e.target.value)} style={{ border: 'none', padding: 0, background: 'transparent', width: 120 }} /></span></td>
+                <td><span className={`prio-dot ${(a.priority || 'medium').toLowerCase()}`} /><select value={a.priority} onChange={e => setAction(i, 'priority', e.target.value)} style={{ border: 'none', padding: 0, background: 'transparent', width: 80 }}><option>Low</option><option>Medium</option><option>High</option></select></td>
+                <td><select value={a.status} onChange={e => setAction(i, 'status', e.target.value)} style={{ border: 'none', padding: 0, background: 'transparent', width: 100 }}><option>Planned</option><option>In Progress</option><option>Completed</option></select></td>
+              </tr>)}
+            </tbody></table>
+          <button className="reg-add-row" onClick={addAction}>+ Add Action</button>
+        </RegSection>
+
+        <RegSection num="4" title="Outcome & Overall Rating">
+          <div className="reg-grid c4">
+            <div className="rf"><span className="rf-label">Overall Governance Rating<span className="req">*</span></span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="star-rate">{[1, 2, 3, 4, 5].map(n => <span key={n} className={n <= fullStars ? '' : (n === fullStars + 1 && halfStar) ? '' : 'star-empty'}>★</span>)}</span>
+                <input style={{ width: 56 }} type="number" min="0" max="5" step="0.1" value={draft.rating} onChange={e => set('rating', e.target.value)} /><span className="rf-help" style={{ margin: 0 }}>/ 5</span>
+              </div></div>
+            <RegField label="Compliance Impact" value={draft.complianceImpact} onChange={v => set('complianceImpact', v)} options={['Positive', 'Neutral', 'Negative']} />
+            <RegField label="Risk Impact" value={draft.riskImpact} onChange={v => set('riskImpact', v)} options={['Low', 'Moderate', 'High']} />
+            <div className="rf"><span className="rf-label">Requires Board Notification?</span>
+              <div className="yn-pair"><button className={`yn-chip yes ${draft.boardNotification ? 'on' : ''}`} onClick={() => set('boardNotification', true)}>● Yes</button><button className={`yn-chip no ${!draft.boardNotification ? 'on' : ''}`} onClick={() => set('boardNotification', false)}>No</button></div></div>
+          </div>
+          <RegField label="Outcome Statement" multiline rows={2} max={1000} value={draft.outcomeStatement} onChange={v => set('outcomeStatement', v)} span="all" placeholder="Governance arrangements are effective with minor improvements required." />
+        </RegSection>
+
+        <RegSection num="5" title="Approval & Sign Off">
+          <div className="reg-grid c4">
+            <RegField label="Reviewed By" value={draft.reviewedBy} onChange={v => set('reviewedBy', v)} options={['Michael Brown', 'Sarah Mitchell', 'Board Chair']} />
+            <RegField label="Review Date" type="date" value={draft.reviewDate} onChange={v => set('reviewDate', v)} icon="📅" />
+            <div className="rf"><span className="rf-label">Approved</span>
+              <div className="yn-pair"><button className={`yn-chip yes ${draft.approved === 'Yes' ? 'on' : ''}`} onClick={() => set('approved', 'Yes')}>● Yes</button><button className={`yn-chip no ${draft.approved === 'No' ? 'on' : ''}`} onClick={() => set('approved', 'No')}>No</button></div></div>
+            <RegField label="Signed Off By" value={draft.signedOffBy} onChange={v => set('signedOffBy', v)} options={['Board Chair', 'Director', 'CEO']} />
+          </div>
+          <div className="reg-grid c4"><RegField label="Sign Off Date" type="date" value={draft.signOffDate} onChange={v => set('signOffDate', v)} icon="📅" /><RegField label="Next Review Date" type="date" value={draft.nextReviewDate} onChange={v => set('nextReviewDate', v)} icon="📅" /></div>
+        </RegSection>
+      </div>
+
+      <div className="reg-col-side">
+        <RailCard title="Review Workflow" link="View Full Timeline">
+          <WorkflowTimeline steps={wfSteps} currentIndex={wfIdx} />
+        </RailCard>
+        <AttachmentsCard title="Documents & Evidence" icon="📑" supported="JPG, PNG, PDF, DOC, DOCX, XLS, XLSX"
+          files={draft.files} onUpload={fs => set('files', [...(draft.files || []), ...fs.map(f => ({ id: makeId('file'), name: f.name, size: `${Math.round(f.size / 1024)} KB`, date: fmt(todayISO()) }))])} onRemove={id => set('files', (draft.files || []).filter(f => f.id !== id))} />
+        <RailCard icon="📅" title="Upcoming Reviews">
+          <div className="help-list">
+            {governanceReviews.filter(g => g.nextReviewDate).slice(0, 3).map(g => <div className="help-row" key={g.id}><span className="help-name">{g.reviewType || g.title || 'Review'}</span><span className="status-chip amber">Scheduled</span></div>)}
+            {governanceReviews.filter(g => g.nextReviewDate).length === 0 && <p className="reg-section-desc" style={{ margin: 0 }}>No upcoming reviews scheduled.</p>}
+          </div>
+        </RailCard>
+        <AuditTrailCard entries={auditEntries} />
+      </div>
+    </div>
+
+    <div className="recent-card" style={{ marginTop: 18 }}>
+      <div className="recent-head"><h3>Recent Governance Reviews</h3><button className="reg-rail-link">View all reviews</button></div>
+      <table className="recent-table"><thead><tr><th>ID</th><th>Review Type</th><th>Date Conducted</th><th>Scope</th><th>Rating</th><th>Status</th><th>Next Review</th><th></th></tr></thead>
+        <tbody>{governanceReviews.length === 0 ? <tr><td colSpan="8" className="empty">No governance reviews yet.</td></tr> :
+          governanceReviews.slice(0, 6).map(r => <tr key={r.id}>
+            <td className="rt-id">{r.reviewId || '—'}</td>
+            <td>{(r.reviewType || r.title || '—').replace(' Governance Review', '').replace(' Quality Review', '')}</td>
+            <td>{fmt(r.date)}</td>
+            <td>{r.scope || '—'}</td>
+            <td><span className="stars-mini">★★★★</span> {r.rating || '—'}</td>
+            <td><span className={`status-chip ${STATUS_TONE(r.status)}`}>{r.status || 'Open'}</span></td>
+            <td>{fmt(r.nextReviewDate)}</td>
+            <td><button className="reg-rail-link" onClick={() => edit(r)}>Edit</button></td>
+          </tr>)}
+        </tbody></table>
+    </div>
+  </div>;
+}
+
 
 function RecordRegister({ title, type, rows = [], setRows = () => {}, clients = [], fields = [], defaultRows = [], business = {} }) {
   const normaliseAuditRow = (row = {}, idx = 0) => ({
