@@ -43,7 +43,43 @@
       .cloud-msg{margin-top:12px;font-size:13px;color:#9aa3b2;min-height:18px;}
       .cloud-msg.err{color:#f87171;} .cloud-msg.ok{color:#34d399;}
       .cloud-acct{background:#20242e;border-radius:12px;padding:11px 13px;font-size:14px;word-break:break-all;border:1px solid rgba(255,255,255,.1);}
-      .cloud-close{margin-top:10px;background:none;border:none;color:#9aa3b2;font-weight:700;width:100%;padding:8px;cursor:pointer;font-size:13.5px;}`;
+      .cloud-close{margin-top:10px;background:none;border:none;color:#9aa3b2;font-weight:700;width:100%;padding:8px;cursor:pointer;font-size:13.5px;}
+
+      /* ---- full-screen auth gate (shown before the app when sign-in is required) ---- */
+      body.cloud-gated{overflow:hidden;}
+      #cloudGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;
+        padding:22px;background:var(--bg,#f7f4ef);
+        font-family:ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN","Arial Rounded MT Bold",system-ui,-apple-system,sans-serif;
+        padding-top:max(22px,env(safe-area-inset-top));padding-bottom:max(22px,env(safe-area-inset-bottom));
+        overflow-y:auto;-webkit-overflow-scrolling:touch;}
+      #cloudGate .gate-card{width:100%;max-width:380px;background:var(--panel,#fff);color:var(--ink,#2e2456);
+        border:1.5px solid var(--line,#e7e1f2);border-radius:28px;padding:26px 24px 22px;
+        box-shadow:0 22px 60px rgba(46,36,86,.18);animation:gateIn .35s cubic-bezier(.2,.9,.3,1.2) both;}
+      @keyframes gateIn{from{opacity:0;transform:translateY(14px) scale(.97);}to{opacity:1;transform:none;}}
+      #cloudGate .gate-logo{font-size:34px;text-align:center;line-height:1;margin-bottom:6px;}
+      #cloudGate h2{font-size:23px;font-weight:900;text-align:center;margin:0 0 4px;}
+      #cloudGate h2 .hl{color:var(--violet,#7c4dff);}
+      #cloudGate .gate-sub{text-align:center;color:var(--muted,#685e95);font-size:14px;line-height:1.5;margin:0 0 18px;}
+      #cloudGate label{display:block;font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+        color:var(--muted,#685e95);margin:12px 2px 6px;}
+      #cloudGate input{width:100%;box-sizing:border-box;background:#faf8f4;border:1.5px solid var(--line,#e7e1f2);
+        color:var(--ink,#2e2456);border-radius:14px;padding:13px 14px;font-size:16px;outline:none;font-family:inherit;}
+      #cloudGate input:focus{border-color:var(--violet,#7c4dff);background:#fff;}
+      #cloudGate .gate-pri{width:100%;margin-top:18px;padding:14px;border:none;border-radius:16px;font-weight:900;
+        font-size:16px;cursor:pointer;background:var(--violet,#7c4dff);color:#fff;font-family:inherit;
+        box-shadow:0 8px 20px rgba(124,77,255,.30);transition:transform .12s,box-shadow .12s;}
+      #cloudGate .gate-pri:active{transform:translateY(1px) scale(.99);}
+      #cloudGate .gate-pri:disabled{opacity:.6;cursor:default;box-shadow:none;}
+      #cloudGate .gate-msg{margin-top:14px;font-size:13.5px;line-height:1.45;text-align:center;color:var(--muted,#685e95);min-height:18px;}
+      #cloudGate .gate-msg.err{color:var(--coral,#f43f5e);}
+      #cloudGate .gate-msg.ok{color:var(--mint,#10b981);}
+      #cloudGate .gate-toggle{margin-top:16px;text-align:center;font-size:14px;color:var(--muted,#685e95);}
+      #cloudGate .gate-toggle button{background:none;border:none;color:var(--violet,#7c4dff);font-weight:900;
+        cursor:pointer;font-size:14px;font-family:inherit;padding:4px;}
+      #cloudGate .gate-foot{margin-top:18px;text-align:center;font-size:11.5px;color:var(--muted,#685e95);opacity:.85;line-height:1.5;}
+      #cloudGate .gate-spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line,#e7e1f2);
+        border-top-color:var(--violet,#7c4dff);animation:gateSpin .8s linear infinite;margin:8px auto;}
+      @keyframes gateSpin{to{transform:rotate(360deg);}}`;
     const s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
   }
   function chip() { return document.getElementById("cloudChip"); }
@@ -124,7 +160,92 @@
     }
   }
 
-  /* ---------------- Sync core ---------------- */
+  /* ---------------- Auth gate (sign-in required before the app) ---------------- */
+  let gateReq = false;     // is sign-in enforced on this build?
+  let gateMode = "in";     // "in" | "up"
+
+  function gateEl() { return document.getElementById("cloudGate"); }
+
+  // Inject an opaque cover immediately so the app never flashes behind it.
+  function ensureGate() {
+    let g = gateEl();
+    if (g) return g;
+    g = document.createElement("div");
+    g.id = "cloudGate";
+    g.setAttribute("role", "dialog");
+    g.setAttribute("aria-modal", "true");
+    g.setAttribute("aria-label", "Sign in to Brainy Trails");
+    g.innerHTML = `<div class="gate-card"><div class="gate-spin"></div></div>`;
+    document.body.appendChild(g);
+    document.body.classList.add("cloud-gated");
+    return g;
+  }
+
+  function hideGate() {
+    const g = gateEl();
+    if (g) g.remove();
+    document.body.classList.remove("cloud-gated");
+  }
+
+  function renderGateForm() {
+    const g = ensureGate();
+    const box = g.querySelector(".gate-card");
+    const signup = gateMode === "up";
+    box.innerHTML = `
+      <div class="gate-logo">🧠</div>
+      <h2>Brainy <span class="hl">Trails</span></h2>
+      <p class="gate-sub">${signup
+        ? "Create a free account to start the adventure. Your progress is saved and follows you to any device."
+        : "Sign in to pick up your trail. One free account works across every Ogbara Labs app."}</p>
+      <label for="gateEmail">Email</label>
+      <input id="gateEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
+      <label for="gatePass">Password</label>
+      <input id="gatePass" type="password" autocomplete="${signup ? "new-password" : "current-password"}" placeholder="${signup ? "At least 6 characters" : "••••••••"}">
+      <button class="gate-pri" id="gateGo">${signup ? "Create account & start" : "Sign in"}</button>
+      <div class="gate-msg" id="gateMsg" role="status" aria-live="polite"></div>
+      <div class="gate-toggle">${signup
+        ? `Already have an account? <button id="gateSwap">Sign in</button>`
+        : `New here? <button id="gateSwap">Create a free account</button>`}</div>
+      <p class="gate-foot">Saving progress requires a free account.<br>One login works in every Ogbara Labs app.</p>`;
+
+    const email = () => box.querySelector("#gateEmail").value.trim();
+    const pass = () => box.querySelector("#gatePass").value;
+    const msgEl = box.querySelector("#gateMsg");
+    const goBtn = box.querySelector("#gateGo");
+    const say = (t, cls) => { msgEl.textContent = t || ""; msgEl.className = "gate-msg " + (cls || ""); };
+    const busy = (b) => { goBtn.disabled = b; };
+
+    async function submit() {
+      if (!email()) return say("Please enter your email.", "err");
+      if (gateMode === "up" && pass().length < 6) return say("Password needs at least 6 characters.", "err");
+      if (!pass()) return say("Please enter your password.", "err");
+      busy(true);
+      try {
+        if (gateMode === "up") {
+          say("Creating your account…");
+          const { data, error } = await client.auth.signUp({ email: email(), password: pass() });
+          if (error) { busy(false); return say(error.message, "err"); }
+          if (!data.session) { busy(false); return say("Almost there — check your email to confirm, then sign in.", "ok"); }
+          say("Welcome! Setting up…", "ok"); // onAuthStateChange will dismiss the gate
+        } else {
+          say("Signing in…");
+          const { error } = await client.auth.signInWithPassword({ email: email(), password: pass() });
+          if (error) { busy(false); return say(error.message, "err"); }
+          say("Welcome back!", "ok"); // onAuthStateChange will dismiss the gate
+        }
+      } catch (e) { busy(false); say((e && e.message) || "Something went wrong. Please try again.", "err"); }
+    }
+
+    goBtn.onclick = submit;
+    box.querySelector("#gateEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") box.querySelector("#gatePass").focus(); });
+    box.querySelector("#gatePass").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    box.querySelector("#gateSwap").onclick = () => { gateMode = signup ? "in" : "up"; renderGateForm(); };
+    try { box.querySelector("#gateEmail").focus(); } catch {}
+  }
+
+  function showGate() { gateMode = "in"; renderGateForm(); }
+
+
   async function pull(force) {
     if (!client || !user || !hooks.collect || !hooks.apply) return;
     setStatus("sync");
@@ -195,12 +316,25 @@
   Cloud.isSignedIn = () => !!user;
 
   /* ---------------- Init ---------------- */
-  Cloud.init = async function (app, h) {
+  Cloud.init = async function (app, h, opts) {
     appKey = app; hooks = h || {};
-    if (!cfgOk()) return; // config not filled in → apps behave exactly as before, no UI
+    gateReq = !!(opts && opts.requireAuth);
+    if (!cfgOk()) {
+      // No Supabase config on this build → can't authenticate at all.
+      // Fail open rather than brick the app behind an un-passable gate.
+      if (gateReq) console.warn("Cloud: requireAuth set but Supabase config is missing — gate disabled.");
+      return;
+    }
+    // Show an opaque cover up-front so the app never flashes before we know
+    // whether the user is signed in.
+    if (gateReq) ensureGate();
     try {
       client = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-    } catch (e) { console.warn("Supabase init failed:", e); return; }
+    } catch (e) {
+      console.warn("Supabase init failed:", e);
+      if (gateReq) hideGate(); // don't trap the user behind a broken gate
+      return;
+    }
     injectUI();
     setStatus("out");
     const { data: { session } } = await client.auth.getSession();
@@ -208,9 +342,16 @@
     client.auth.onAuthStateChange((_evt, s) => {
       const was = !!user; user = s?.user || null;
       setStatus(user ? "idle" : "out");
+      if (gateReq) { user ? hideGate() : showGate(); }
       if (user && !was) pull().catch(() => {});
     });
-    if (user) { setStatus("idle"); pull().catch(() => {}); }
+    if (user) {
+      setStatus("idle");
+      if (gateReq) hideGate();
+      pull().catch(() => {});
+    } else if (gateReq) {
+      showGate();
+    }
   };
 
   window.Cloud = Cloud;

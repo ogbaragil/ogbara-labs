@@ -60,7 +60,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "18";
+const APP_V = "19";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -686,6 +686,9 @@ function renderMap(scrollToHere) {
 }
 function maybeSyncNudge() {
   if (state.syncNudged || inTest()) return;
+  // Auth is enforced up front now, so a "set up sync" nudge is redundant
+  // once the player is signed in.
+  if (window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn()) return;
   if (Object.keys(P().timeByDay || {}).length < 3) return;
   if (!document.getElementById("cloudChip")) return;
   state.syncNudged = true; save();
@@ -1772,7 +1775,7 @@ if (window.Cloud && Cloud.init) {
       return out;
     },
     apply: async (remote) => { mergeRemote(remote); Store.save(state); renderMap(); },
-  });
+  }, { requireAuth: true });
 }
 
 /* ---------------- boot ---------------- */
