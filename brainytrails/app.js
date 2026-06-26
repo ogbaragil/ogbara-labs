@@ -25,6 +25,7 @@ const FRESH_PROFILE = () => ({
   skills: {},                 // id → {m,attempts,correct,stars,nextReview}
   taught: {},                 // id → date first taught (Learn-it-first screen seen)
   xp: 0,
+  year: null,                 // school-year curriculum (null → Explorer map until chosen)
   streak: { count: 0, last: null },
   settings: { speech: true },
 });
@@ -42,6 +43,7 @@ function migrateProfile(p) {
   if (!p.name) p.name = "Explorer";
   if (!p.avatar) p.avatar = "🦊";
   if (!p.streak) p.streak = { count: 0, last: null };
+  if (p.year === undefined) p.year = null;
   if (p.settings.sound === undefined) p.settings.sound = true;
   if (p.settings.music === undefined) p.settings.music = true;
   if (p.settings.kokoroVoice !== undefined) {
@@ -53,6 +55,12 @@ function migrateProfile(p) {
 }
 Object.values(state.profiles).forEach(migrateProfile);
 const P = () => state.profiles[state.profile];
+
+/* point the live curriculum (BT.ISLANDS / BT.SKILLS / BT.YOUNG) at the active
+   child's chosen school year. Unauthored years fall back to the Explorer map. */
+function applyYear() { try { if (window.BT && BT.use) BT.use(P() ? P().year : null); } catch { } }
+const yearLabelOf = (yid) => { const y = (window.BT && BT.YEARS || []).find(x => x.id === yid); return y ? y.label : "All levels (Explorer)"; };
+applyYear();
 const sk = (id) => {
   const st = P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
   if (st.reviewStep === undefined) st.reviewStep = 0;
@@ -61,7 +69,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "20";
+const APP_V = "21";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -456,6 +464,7 @@ const TTS = {
 /* Sprout & Bridge are for 4–7 year olds: typing multi-digit answers is a motor
    tax, so any keypad question on those islands becomes four tappable choices. */
 const YOUNG_ISLANDS = new Set(["sprout", "bridge"]);
+const isYoung = (island) => ((window.BT && BT.YOUNG) || YOUNG_ISLANDS).has(island);
 function youngify(q) {
   const a = q.answer;
   const set = new Set([a]);
@@ -597,6 +606,7 @@ function frontierSkill() {
 }
 
 function renderMap(scrollToHere) {
+  applyYear();
   paintHeader();
   paintDaily();
   paintTestChip();
@@ -922,7 +932,7 @@ function beginSession(cfg) {
 
 /* younger islands pass Level Up at 4/5; older ones keep 5/5 (with the
    one-slip redemption question that follows, that's an effective 5/6) */
-const levelupNeed = (id) => YOUNG_ISLANDS.has(BT.SKILLS[id].island) ? 4 : 5;
+const levelupNeed = (id) => isYoung(BT.SKILLS[id].island) ? 4 : 5;
 function startSet(id, kind) {
   const st = sk(id);
   beginSession({
@@ -1002,7 +1012,7 @@ function nextQ() {
     ? Math.min(0.95, Math.max(0.5, (skv(Sess.curSkill).lastD || 0.6) + 0.1))
     : Sess.d;
   Sess.q = BT.SKILLS[Sess.curSkill].gen(dEff);
-  if (Sess.q.format === "keypad" && !Sess.q.decimal && YOUNG_ISLANDS.has(BT.SKILLS[Sess.curSkill].island)) Sess.q = youngify(Sess.q);
+  if (Sess.q.format === "keypad" && !Sess.q.decimal && isYoung(BT.SKILLS[Sess.curSkill].island)) Sess.q = youngify(Sess.q);
   Sess.lock = false; Sess.orderPicked = [];
   Sess.qTries = 0; Sess.resetEntry = null;
   if (Sess.kind === "review" || Sess.kind === "boss") $("playTitle").textContent =
@@ -1463,7 +1473,37 @@ function openWho() {
   back.appendChild(box);
 }
 
-/* ---------------- backpack (trophy room) ---------------- */
+/* ---------------- school-year picker (onboarding + Parents' Corner) ---------------- */
+function openYearPicker(forId, onDone) {
+  const pid = forId || state.profile;
+  const prof = state.profiles[pid];
+  if (!prof) { if (onDone) onDone(null); return; }
+  const back = el("div", "modal-back"), box = el("div", "modal year-modal");
+  const who = prof.name && prof.name !== "Explorer" ? esc(prof.name) + "'s" : "your";
+  box.innerHTML = `<p class="sheet-icon">📚</p><h2>Pick ${who} school year</h2>
+    <p class="sheet-acc">This sets the maths trail. You can change it any time in Parents' Corner.</p>`;
+  const list = el("div", "year-list");
+  (BT.YEARS || []).forEach(y => {
+    const ready = !BT.curriculumFor(y.id).draft;
+    const b = el("button", "year-card" + (y.id === prof.year ? " on" : ""),
+      `<span class="year-emoji">${y.emoji}</span><span class="year-name">${esc(y.label)}</span>` +
+      `<span class="year-tag ${ready ? "rdy" : "soon"}">${ready ? "Ready to play" : "Coming soon"}</span>`);
+    b.onclick = () => {
+      prof.year = y.id; save();
+      back.remove();
+      if (state.profile === pid) { applyYear(); renderMap(true); }
+      if (onDone) onDone(y.id);
+    };
+    list.appendChild(b);
+  });
+  box.appendChild(list);
+  const skip = el("button", "soft-btn", "Maybe later");
+  skip.onclick = () => { back.remove(); if (onDone) onDone(null); };
+  box.appendChild(skip);
+  back.appendChild(box);
+  back.onclick = (e) => { if (e.target === back) back.remove(); };
+  $("overlay").appendChild(back);
+}
 function openBackpack() {
   const p = P();
   const back = el("div", "modal-back"), box = el("div", "modal");
@@ -1543,10 +1583,15 @@ function openParents() {
         row.appendChild(del);
       }
       gKids.appendChild(row);
+      const yrow = el("div", "child-year-row");
+      const yb = el("button", "year-pick-btn", `📚 ${esc(yearLabelOf(cp.year))}${cp.year && BT.curriculumFor(cp.year).draft ? " · coming soon" : ""}`);
+      yb.onclick = () => openYearPicker(id, () => renderKids());
+      yrow.appendChild(yb);
+      gKids.appendChild(yrow);
     }
     if (childIds().length < 4) {
       const add = el("button", "soft-btn", "➕ Add a child");
-      add.onclick = () => { addChild("Explorer", FACES[childIds().length % FACES.length]); renderKids(); };
+      add.onclick = () => { const nid = addChild("Explorer", FACES[childIds().length % FACES.length]); renderKids(); if (nid) openYearPicker(nid, () => renderKids()); };
       gKids.appendChild(add);
     }
     if (childIds().length > 1) gKids.appendChild(el("p", "stat-line", "Each child gets their own trail, streak, badges and crowns. The app asks who's playing at startup."));
@@ -1821,6 +1866,8 @@ if (window.Cloud && Cloud.init) {
 try {
   renderMap(true);
   if (childIds().length > 1) openWho();
+  /* first run with no year chosen → ask which school year (real browser only) */
+  else if (!inTest() && !window.__BT_FAST && P().year == null) openYearPicker(state.profile);
 } catch (e) {
   try {
     $("mapRoot").innerHTML = `<div class="island" style="text-align:center; padding:26px;">
@@ -1833,6 +1880,6 @@ try {
 
 /* small debug surface (used by the headless test harness) */
 window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
-  mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds };
+  mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds, openYearPicker, applyYear };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));

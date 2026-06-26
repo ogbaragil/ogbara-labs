@@ -238,6 +238,20 @@
   .child-row input{flex:1; min-width:0; padding:12px 14px; border-radius:13px; border:1.5px solid var(--line);
     background:var(--bg); color:var(--ink); font:inherit; font-weight:800; outline:none;}
   .child-row input:focus{border-color:var(--violet);}
+  .child-year-row{display:flex; margin:4px 0 2px 62px;}
+  .year-pick-btn{font-size:12px; font-weight:800; color:var(--muted); background:var(--bg);
+    border:1.5px solid var(--line); border-radius:11px; padding:7px 12px; cursor:pointer; text-align:left;}
+  .year-pick-btn:active{transform:scale(.98);}
+  .year-list{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
+  .year-card{display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    padding:12px 14px; border-radius:16px; border:1.5px solid var(--line); background:var(--panel); cursor:pointer;}
+  .year-card:active{transform:scale(.99);}
+  .year-card.on{border-color:var(--violet); background:#efe9ff;}
+  .year-card .year-emoji{font-size:24px; flex:none;}
+  .year-card .year-name{font-weight:900; font-size:16px; flex:1;}
+  .year-card .year-tag{font-size:11px; font-weight:900; border-radius:999px; padding:4px 10px;}
+  .year-card .year-tag.rdy{background:#e7f8ef; color:#0c8a52;}
+  .year-card .year-tag.soon{background:#fff3e0; color:#b26a00;}
   .stat-line{margin-top:8px; font-size:13.5px; color:var(--muted); line-height:1.6;}
   .matrix-isl{margin-top:8px;}
   .matrix-isl small{font-weight:900; font-size:10.5px; color:var(--muted);}
@@ -470,10 +484,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=27"></script>
+<script src="curriculum.js?v=28"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=27"></script>
-<script src="app.js?v=27"></script>
+<script src="cloud.js?v=28"></script>
+<script src="app.js?v=28"></script>
 </body>
 </html>

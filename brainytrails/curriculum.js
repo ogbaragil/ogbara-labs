@@ -1003,7 +1003,286 @@ const BT = (() => {
       ] },
   ];
 
-  return { ISLANDS, SKILLS };
+  /* ===================== FOUNDATION (Prep) — Year 1 of the school-year curricula ===================== */
+  const F_ANIMALS = ["🐶", "🐱", "🐭", "🐰", "🐥", "🐸", "🐢", "🐝", "🦆", "🐞"];
+  const F_THINGS = ["🍎", "🍌", "🍓", "⭐", "🎈", "🚗", "🌸", "🐚"];
+
+  const FSKILLS = {
+    /* — 🐣 Counting Cove — */
+    "f.count.dots": {
+      name: "How Many?", icon: "🔵", island: "f.count", unit: "f.count1", prereqs: [],
+      gen(d) { const n = ri(1, lerp(4, 6, d)), e = pick(F_ANIMALS);
+        return { format: "choice", prompt: "How many?", say: "How many do you see?", visual: rep(e, n),
+          choices: numChoices(n, 1, 6), hint: "Count them one by one.",
+          steps: ["Point to each one.", "Say the numbers: 1, 2, 3…", "The last number is the answer!"] }; }
+    },
+    "f.count.to10": {
+      name: "Counting Critters", icon: "🐞", island: "f.count", unit: "f.count1", prereqs: ["f.count.dots"],
+      gen(d) { const n = ri(3, lerp(6, 10, d)), e = pick(CRITTERS);
+        return { format: "choice", prompt: "How many are there?", say: "How many can you count?", visual: rep(e, n),
+          choices: numChoices(n, 1, 10), hint: "Touch each one as you count!",
+          steps: ["Point to each " + e + ".", "Count: 1, 2, 3…", "The last number is how many!"] }; }
+    },
+    "f.count.to20": {
+      name: "Big Counting", icon: "🔢", island: "f.count", unit: "f.count2", prereqs: ["f.count.to10"],
+      gen(d) { const n = ri(11, lerp(14, 20, d)), e = pick(FRUITS);
+        return { format: "choice", prompt: "How many?", say: "Count them all!", visual: rep(e, n),
+          choices: numChoices(n, 8, 20), hint: "Count the first ten, then keep going.",
+          steps: ["Count the first ten.", "Keep going: 11, 12, 13…", "Say the last number!"] }; }
+    },
+    "f.count.next": {
+      name: "What Comes Next", icon: "➡️", island: "f.count", unit: "f.count2", prereqs: ["f.count.to10"],
+      gen(d) { const hi = lerp(8, 18, d), n = ri(1, hi);
+        return { format: "choice", prompt: `What number comes after ${n}?`, say: `What comes after ${n}?`, visual: null,
+          choices: numChoices(n + 1, 1, 20), hint: "Count up by one.",
+          steps: [`Start at ${n}.`, "Count one more.", `${n}, then ${n + 1}!`] }; }
+    },
+    "f.count.order": {
+      name: "Number Train", icon: "🚂", island: "f.count", unit: "f.count2", prereqs: ["f.count.to10"],
+      gen(d) { const k = d > 0.5 ? 4 : 3, hi = lerp(6, 12, d), set = new Set();
+        while (set.size < k) set.add(ri(1, hi)); const correct = [...set].sort((a, b) => a - b);
+        return { format: "order", prompt: "Tap from smallest to biggest!", say: "Tap from smallest to biggest.", visual: null,
+          items: shuffle(correct), correct, hint: "Find the tiniest number first.",
+          steps: ["Tap the smallest.", "Then the next smallest.", "Keep going!"] }; }
+    },
+
+    /* — ⚖️ More & Less Marsh — */
+    "f.compare.more": {
+      name: "More or Fewer", icon: "⚖️", island: "f.compare", unit: "f.cmp", prereqs: ["f.count.to10"],
+      gen(d) { const max = lerp(4, 9, d); let a = ri(1, max), b = ri(1, max); while (b === a) b = ri(1, max);
+        const [e1, e2] = shuffle(FRUITS).slice(0, 2), wantMore = Math.random() < 0.5, aWins = wantMore ? a > b : a < b;
+        return { format: "choice", prompt: `Which group has ${wantMore ? "MORE" : "FEWER"}?`, say: `Which has ${wantMore ? "more" : "fewer"}?`,
+          visual: rep(e1, a) + "\n" + rep(e2, b),
+          choices: shuffle([{ label: `${e1} group`, correct: aWins }, { label: `${e2} group`, correct: !aWins }]),
+          hint: "Match them in pairs — who has spares?",
+          steps: ["Pair one with one.", "Keep pairing.", "Extras left over = more!"] }; }
+    },
+    "f.compare.same": {
+      name: "Just the Same", icon: "🟰", island: "f.compare", unit: "f.cmp", prereqs: ["f.count.to10"],
+      gen(d) { const max = lerp(4, 8, d), a = ri(1, max), same = Math.random() < 0.5;
+        let b = a; if (!same) { b = ri(1, max); while (b === a) b = ri(1, max); }
+        const [e1, e2] = shuffle(F_THINGS).slice(0, 2);
+        return { format: "tf", prompt: "Do the two groups have the SAME number?", say: "Do the groups have the same number?",
+          visual: rep(e1, a) + "\n" + rep(e2, b), answer: a === b, hint: "Count each group, then compare.",
+          steps: ["Count the top group.", "Count the bottom group.", "Same number means equal!"] }; }
+    },
+    "f.compare.bigger": {
+      name: "Bigger Number", icon: "🔝", island: "f.compare", unit: "f.cmp2", prereqs: ["f.count.to20"],
+      gen(d) { const hi = lerp(10, 20, d); let a = ri(1, hi), b = ri(1, hi); while (b === a) b = ri(1, hi); const big = Math.max(a, b);
+        return { format: "choice", prompt: "Which number is BIGGER?", say: "Which number is bigger?", visual: null,
+          choices: shuffle([{ label: String(a), correct: a === big }, { label: String(b), correct: b === big }]),
+          hint: "The bigger number comes later when you count.",
+          steps: ["Count upwards.", "Whichever you reach later is bigger.", `${big} is bigger!`] }; }
+    },
+    "f.compare.order3": {
+      name: "Line Them Up", icon: "📊", island: "f.compare", unit: "f.cmp2", prereqs: ["f.compare.bigger"],
+      gen(d) { const hi = lerp(9, 15, d), set = new Set(); while (set.size < 3) set.add(ri(1, hi));
+        const correct = [...set].sort((a, b) => a - b);
+        return { format: "order", prompt: "Tap from least to most!", say: "Tap from least to most.", visual: null,
+          items: shuffle(correct), correct, hint: "Smallest goes first.",
+          steps: ["Find the least.", "Then the next.", "The most goes last!"] }; }
+    },
+
+    /* — ➕ Together Grove (add & take away within 10) — */
+    "f.add.within5": {
+      name: "Adding Up", icon: "➕", island: "f.addsub", unit: "f.add", prereqs: ["f.count.to10"],
+      gen(d) { const a = ri(1, 3), b = ri(1, lerp(2, 4, d)), e = pick(CRITTERS);
+        return { format: "keypad", prompt: `${a} + ${b} = ?`, say: `What is ${a} plus ${b}?`, visual: rep(e, a) + "   ➕   " + rep(e, b),
+          answer: a + b, hint: "Count them all together.",
+          steps: [`Start with ${a}.`, `Count on ${b} more.`, `${a} + ${b} = ${a + b}!`] }; }
+    },
+    "f.add.within10": {
+      name: "Adding Acorns", icon: "🌰", island: "f.addsub", unit: "f.add", prereqs: ["f.add.within5"],
+      gen(d) { let a = ri(1, 6), b = ri(1, lerp(3, 5, d)); if (a + b > 10) b = Math.max(1, 10 - a);
+        return { format: "keypad", prompt: `${a} + ${b} = ?`, say: `What is ${a} plus ${b}?`, visual: null, answer: a + b,
+          hint: "Count on from the bigger number.",
+          steps: [`Start at ${Math.max(a, b)}.`, `Count on ${Math.min(a, b)} more.`, `That makes ${a + b}!`] }; }
+    },
+    "f.add.story": {
+      name: "More Come Along", icon: "🦆", island: "f.addsub", unit: "f.add", prereqs: ["f.add.within10"],
+      gen(d) { const e = pick(["🦆", "🐥", "🐸", "🐰"]); let a = ri(1, 5), b = ri(1, lerp(2, 4, d)); if (a + b > 10) b = Math.max(1, 10 - a);
+        return { format: "keypad", prompt: `${a} ${e} here. ${b} more come. How many now?`, say: `${a} plus ${b} more. How many altogether?`,
+          visual: rep(e, a) + "   …and " + rep(e, b) + " more", answer: a + b, hint: "Put the two groups together.",
+          steps: [`There are ${a}.`, `${b} more arrive.`, `${a} + ${b} = ${a + b}!`] }; }
+    },
+    "f.sub.within10": {
+      name: "Take-Away Treats", icon: "🍪", island: "f.addsub", unit: "f.sub", prereqs: ["f.add.within10"],
+      gen(d) { const a = ri(3, lerp(6, 10, d)), b = ri(1, a - 1);
+        return { format: "keypad", prompt: `${a} − ${b} = ?`, say: `What is ${a} take away ${b}?`, visual: null, answer: a - b,
+          hint: "Start at the big number and count back.",
+          steps: [`Start at ${a}.`, `Count back ${b}.`, `That leaves ${a - b}!`] }; }
+    },
+    "f.bond.five": {
+      name: "Friends of Five & Ten", icon: "🖐️", island: "f.addsub", unit: "f.sub", prereqs: ["f.add.within5"],
+      gen(d) { const target = (d < 0.4 || Math.random() < 0.5) ? 5 : 10, a = ri(0, target);
+        return { format: "keypad", prompt: `${a} + ❓ = ${target}`, say: `${a} plus what makes ${target}?`, visual: null, answer: target - a,
+          hint: `How many more to reach ${target}?`,
+          steps: [`Start at ${a}.`, `Count up to ${target}.`, `You need ${target - a} more!`] }; }
+    },
+
+    /* — 🔺 Shape Sands — */
+    "f.shape.name2d": {
+      name: "Shape Spotter", icon: "🔷", island: "f.shape", unit: "f.shape2d", prereqs: [],
+      gen(d) { const SH = [["circle", "⚫"], ["square", "🟦"], ["triangle", "🔺"], ["star", "⭐"], ["heart", "❤️"], ["rectangle", "🟧"]];
+        const t = pick(SH), others = shuffle(SH.filter(s => s[0] !== t[0])).slice(0, 3);
+        return { format: "choice", prompt: "What shape is this?", say: "What shape is this?", visual: t[1],
+          choices: shuffle([{ label: t[0], correct: true }, ...others.map(o => ({ label: o[0], correct: false }))]),
+          hint: "Look at the sides and corners.", steps: ["Look at the shape.", "Count its sides.", "Match its name!"] }; }
+    },
+    "f.shape.sides": {
+      name: "Count the Sides", icon: "📐", island: "f.shape", unit: "f.shape2d", prereqs: ["f.shape.name2d"],
+      gen(d) { const SH = [["triangle", "🔺", 3], ["square", "🟦", 4], ["rectangle", "🟧", 4]], t = pick(SH);
+        return { format: "choice", prompt: `How many sides does a ${t[0]} have?`, say: `How many sides does a ${t[0]} have?`, visual: t[1],
+          choices: numChoices(t[2], 3, 6), hint: "Trace around the edge.",
+          steps: ["Start at one corner.", "Count each straight edge.", `A ${t[0]} has ${t[2]} sides!`] }; }
+    },
+    "f.shape.find": {
+      name: "Find the Shape", icon: "🔍", island: "f.shape", unit: "f.shape2d", prereqs: ["f.shape.name2d"],
+      gen(d) { const SH = [["circle", "⚫"], ["square", "🟦"], ["triangle", "🔺"], ["star", "⭐"], ["heart", "❤️"]];
+        const t = pick(SH); let pool = shuffle(SH).slice(0, 4); if (!pool.find(s => s[0] === t[0])) pool[0] = t;
+        return { format: "tap", prompt: `Tap the ${t[0]}!`, say: `Tap the ${t[0]}.`, visual: null,
+          items: shuffle(pool.map(s => ({ label: s[1], correct: s[0] === t[0] }))), hint: "Picture the shape's name.",
+          steps: ["Think of the shape.", "Find the matching one.", "Tap it!"] }; }
+    },
+    "f.shape.solid": {
+      name: "Solid Shapes", icon: "📦", island: "f.shape", unit: "f.shape3d", prereqs: ["f.shape.name2d"],
+      gen(d) { const SO = [["ball", "⚽"], ["box", "📦"], ["can", "🥫"], ["cone", "🍦"]]; const t = pick(SO), others = shuffle(SO.filter(s => s[0] !== t[0])).slice(0, 3);
+        return { format: "choice", prompt: "What solid is this like?", say: "What solid shape is this like?", visual: t[1],
+          choices: shuffle([{ label: t[0], correct: true }, ...others.map(o => ({ label: o[0], correct: false }))]),
+          hint: "Think of its real-life shape.", steps: ["Look at the object.", "Round, flat, or pointy?", "Match the solid!"] }; }
+    },
+
+    /* — 🎨 Pattern Path — */
+    "f.pattern.next": {
+      name: "Pattern Magic", icon: "🎨", island: "f.pattern", unit: "f.pat", prereqs: [],
+      gen(d) { const it = shuffle(F_THINGS).slice(0, 2), reps = lerp(2, 3, d), seq = [];
+        for (let i = 0; i < reps; i++) seq.push(it[0], it[1]);
+        return { format: "choice", prompt: "What comes next?", say: "What comes next in the pattern?", visual: seq.join(" ") + " ❓",
+          choices: shuffle([{ label: it[0], correct: true }, { label: it[1], correct: false }]),
+          hint: "Say the pattern out loud.", steps: ["Read the pattern.", "Find what repeats.", "What comes next?"] }; }
+    },
+    "f.pattern.abc": {
+      name: "Three-Step Pattern", icon: "🌈", island: "f.pattern", unit: "f.pat", prereqs: ["f.pattern.next"],
+      gen(d) { const it = shuffle(F_THINGS).slice(0, 3), seq = [];
+        for (let i = 0; i < 2; i++) seq.push(it[0], it[1], it[2]);
+        return { format: "choice", prompt: "What comes next?", say: "What comes next?", visual: seq.join(" ") + " ❓",
+          choices: shuffle(it.map((x, i) => ({ label: x, correct: i === 0 }))),
+          hint: "This pattern has three parts.", steps: ["Read: 1, 2, 3, 1, 2, 3…", "After 3 comes 1 again.", "Pick it!"] }; }
+    },
+    "f.pattern.size": {
+      name: "Big & Small", icon: "🔺", island: "f.pattern", unit: "f.pat", prereqs: ["f.pattern.next"],
+      gen(d) { const start = Math.random() < 0.5 ? "big" : "small", other = start === "big" ? "small" : "big";
+        const seq = [start, other, start, other, start];
+        return { format: "choice", prompt: `${seq.join(", ")}, … What comes next?`, say: `${start}, ${other}, ${start}… what comes next?`, visual: null,
+          choices: shuffle([{ label: other, correct: true }, { label: start, correct: false }]),
+          hint: "It keeps swapping.", steps: ["Read the pattern.", `${start}, ${other}, ${start}, ${other}…`, `Next is ${other}!`] }; }
+    },
+
+    /* — 📏 Measure Meadow — */
+    "f.measure.long": {
+      name: "Longer or Shorter", icon: "📏", island: "f.measure", unit: "f.meas", prereqs: [],
+      gen(d) { const PAIRS = [["🐛 a worm", "🐍 a snake"], ["✏️ a pencil", "🚌 a bus"], ["🌱 a sprout", "🌳 a tree"], ["🐭 a mouse", "🐘 an elephant"]];
+        const [shortT, longT] = pick(PAIRS), askLonger = Math.random() < 0.5;
+        return { format: "choice", prompt: `Which is ${askLonger ? "LONGER" : "SHORTER"}?`, say: `Which is ${askLonger ? "longer" : "shorter"}?`, visual: null,
+          choices: shuffle([{ label: longT, correct: askLonger }, { label: shortT, correct: !askLonger }]),
+          hint: "Picture them side by side.", steps: ["Imagine both.", "Compare their length.", "Pick the right one!"] }; }
+    },
+    "f.measure.heavy": {
+      name: "Heavy or Light", icon: "🪨", island: "f.measure", unit: "f.meas", prereqs: [],
+      gen(d) { const PAIRS = [["🪶 a feather", "🪨 a rock"], ["🐭 a mouse", "🐘 an elephant"], ["🍎 an apple", "🚗 a car"], ["🎈 a balloon", "📚 a stack of books"]];
+        const [lightT, heavyT] = pick(PAIRS), askHeavy = Math.random() < 0.5;
+        return { format: "choice", prompt: `Which is ${askHeavy ? "HEAVIER" : "LIGHTER"}?`, say: `Which is ${askHeavy ? "heavier" : "lighter"}?`, visual: null,
+          choices: shuffle([{ label: heavyT, correct: askHeavy }, { label: lightT, correct: !askHeavy }]),
+          hint: "Which is harder to lift?", steps: ["Imagine lifting each.", "Heavier is harder to lift.", "Choose!"] }; }
+    },
+    "f.measure.full": {
+      name: "Holds More", icon: "🥤", island: "f.measure", unit: "f.meas", prereqs: [],
+      gen(d) { const askMore = Math.random() < 0.5, full = "🥛 a full cup", empty = "🫙 an almost-empty jar";
+        return { format: "choice", prompt: `Which holds ${askMore ? "MORE" : "LESS"}?`, say: `Which holds ${askMore ? "more" : "less"}?`, visual: null,
+          choices: shuffle([{ label: full, correct: askMore }, { label: empty, correct: !askMore }]),
+          hint: "More inside means it holds more.", steps: ["Look at how full each is.", "Fuller holds more.", "Pick it!"] }; }
+    },
+    "f.sequence": {
+      name: "What Comes First?", icon: "🔢", island: "f.measure", unit: "f.pos", prereqs: [],
+      gen(d) { const SEQ = [["🥚 egg", "🐣 chick", "🐓 hen"], ["🌱 seed", "🌿 sprout", "🌳 tree"], ["🌅 morning", "☀️ midday", "🌙 night"]];
+        const ordered = pick(SEQ), askFirst = Math.random() < 0.5, target = askFirst ? ordered[0] : ordered[2];
+        return { format: "choice", prompt: `Which comes ${askFirst ? "FIRST" : "LAST"}?`, say: `Which comes ${askFirst ? "first" : "last"}?`, visual: shuffle(ordered).join("    "),
+          choices: shuffle(ordered.map(x => ({ label: x, correct: x === target }))),
+          hint: "Think about the order in real life.", steps: ["Picture the order.", "First → next → last.", `Pick the ${askFirst ? "first" : "last"}!`] }; }
+    },
+  };
+
+  const FISLANDS = [
+    { id: "f.count", name: "Counting Cove", emoji: "🐣", young: true,
+      boss: { name: "Hatch the Chick", emoji: "🐥", line: "Count with me and I'll hatch!" },
+      units: [
+        { id: "f.count1", name: "First Counts", skills: ["f.count.dots", "f.count.to10"] },
+        { id: "f.count2", name: "Bigger Counts", skills: ["f.count.to20", "f.count.next", "f.count.order"] },
+      ] },
+    { id: "f.compare", name: "More & Less Marsh", emoji: "⚖️", young: true,
+      boss: { name: "Croaky the Frog", emoji: "🐸", line: "More or fewer? Show me to cross!" },
+      units: [
+        { id: "f.cmp", name: "Compare Groups", skills: ["f.compare.more", "f.compare.same"] },
+        { id: "f.cmp2", name: "Compare Numbers", skills: ["f.compare.bigger", "f.compare.order3"] },
+      ] },
+    { id: "f.addsub", name: "Together Grove", emoji: "➕", young: true,
+      boss: { name: "Acorn the Squirrel", emoji: "🐿️", line: "Add and take away to fill my store!" },
+      units: [
+        { id: "f.add", name: "Adding", skills: ["f.add.within5", "f.add.within10", "f.add.story"] },
+        { id: "f.sub", name: "Taking Away", skills: ["f.sub.within10", "f.bond.five"] },
+      ] },
+    { id: "f.shape", name: "Shape Sands", emoji: "🔺", young: true,
+      boss: { name: "Sandy the Crab", emoji: "🦀", line: "Name my shapes and pass!" },
+      units: [
+        { id: "f.shape2d", name: "Flat Shapes", skills: ["f.shape.name2d", "f.shape.sides", "f.shape.find"] },
+        { id: "f.shape3d", name: "Solid Shapes", skills: ["f.shape.solid"] },
+      ] },
+    { id: "f.pattern", name: "Pattern Path", emoji: "🎨", young: true,
+      boss: { name: "Iris the Butterfly", emoji: "🦋", line: "Finish my patterns to set me free!" },
+      units: [
+        { id: "f.pat", name: "Patterns", skills: ["f.pattern.next", "f.pattern.abc", "f.pattern.size"] },
+      ] },
+    { id: "f.measure", name: "Measure Meadow", emoji: "📏", young: true,
+      boss: { name: "Tilly the Turtle", emoji: "🐢", line: "Compare and order — then race me!" },
+      units: [
+        { id: "f.meas", name: "Compare Size", skills: ["f.measure.long", "f.measure.heavy", "f.measure.full"] },
+        { id: "f.pos", name: "Order & Sequence", skills: ["f.sequence"] },
+      ] },
+  ];
+
+  /* ===================== SCHOOL YEARS ===================== */
+  /* Each school year is a self-contained curriculum: 6 unique islands of lessons.
+     Years not yet authored fall back to the Explorer map (the original spiral)
+     so every selection is fully playable while the remaining years are built. */
+  const YEARS = [
+    { id: "foundation", label: "Prep / Foundation", emoji: "🐣" },
+    { id: "year1", label: "Year 1", emoji: "1️⃣" },
+    { id: "year2", label: "Year 2", emoji: "2️⃣" },
+    { id: "year3", label: "Year 3", emoji: "3️⃣" },
+    { id: "year4", label: "Year 4", emoji: "4️⃣" },
+    { id: "year5", label: "Year 5", emoji: "5️⃣" },
+    { id: "year6", label: "Year 6", emoji: "6️⃣" },
+  ];
+  const EXPLORER = { islands: ISLANDS, skills: SKILLS, young: ["sprout", "bridge"] };
+  const CURRICULA = {
+    foundation: { islands: FISLANDS, skills: FSKILLS },
+  };
+  const youngOf = (c) => c.young || c.islands.filter(i => i.young).map(i => i.id);
+  function curriculumFor(yearId) {
+    const c = CURRICULA[yearId];
+    if (c) return { ISLANDS: c.islands, SKILLS: c.skills, YOUNG: new Set(youngOf(c)), year: yearId, draft: false };
+    return { ISLANDS: EXPLORER.islands, SKILLS: EXPLORER.skills, YOUNG: new Set(EXPLORER.young), year: yearId || null, draft: true };
+  }
+
+  const BT = { ISLANDS, SKILLS, YEARS, curriculumFor, YOUNG: new Set(EXPLORER.young), activeYear: null, activeDraft: true };
+  /* swap the live curriculum the app reads (BT.ISLANDS / BT.SKILLS / BT.YOUNG) */
+  BT.use = function (yearId) {
+    const c = curriculumFor(yearId);
+    BT.ISLANDS = c.ISLANDS; BT.SKILLS = c.SKILLS; BT.YOUNG = c.YOUNG;
+    BT.activeYear = c.year; BT.activeDraft = c.draft;
+    return c;
+  };
+  return BT;
 })();
 
 if (typeof window !== "undefined") window.BT = BT;
