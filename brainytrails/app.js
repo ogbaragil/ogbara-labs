@@ -50,11 +50,18 @@ function migrateProfile(p) {
   delete p.settings.kokoroVoice;
   delete p.settings.premiumVoice;
   if (p.settings.voiceURI === undefined) p.settings.voiceURI = null;
+  if (p.settings.volume === undefined) p.settings.volume = 80;
   for (const [id, b] of Object.entries(p.bosses)) if (b === true) p.bosses[id] = { won: true, best: 0 };
   return p;
 }
 Object.values(state.profiles).forEach(migrateProfile);
 const P = () => state.profiles[state.profile];
+/* settings of the active child, tolerant of a momentarily-missing profile
+   (mid profile-switch, after a delete, or leaving test mode) so audio and
+   render callbacks can never throw on `P().settings` */
+const settingsOf = () => (P() && P().settings) || {};
+/* master volume (0–1) scales every sound: effects, music and speech */
+const masterVol = () => { const v = settingsOf().volume; return v == null ? 0.8 : Math.max(0, Math.min(1, v / 100)); };
 
 /* point the live curriculum (BT.ISLANDS / BT.SKILLS / BT.YOUNG) at the active
    child's chosen school year. Unauthored years fall back to the Explorer map. */
@@ -69,7 +76,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "25";
+const APP_V = "27";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -82,6 +89,7 @@ function logErr(rec) {
 window.onerror = (m, src, line) => logErr({ m: String(m).slice(0, 160), f: String(src || "").split("/").pop(), l: line || 0, at: new Date().toISOString().slice(0, 16), v: APP_V });
 try { window.addEventListener("unhandledrejection", (e) => logErr({ m: "promise: " + String((e.reason && e.reason.message) || e.reason || "?").slice(0, 150), f: "promise", l: 0, at: new Date().toISOString().slice(0, 16), v: APP_V })); } catch { }
 const TESTP = "_test";
+let prevProfile = null;   // the child to return to when leaving test mode
 const inTest = () => state.profile === TESTP;
 const skv = (id) => P().skills[id] || SK0;   // read-only view: never creates records
 
@@ -298,7 +306,7 @@ function pic(p) {
 const SFX = (() => {
   let ctx = null;
   const ensure = () => {
-    if (!P().settings.sound) return null;
+    if (!settingsOf().sound) return null;
     try {
       ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === "suspended") ctx.resume();
@@ -309,7 +317,7 @@ const SFX = (() => {
     try {
       const o = c.createOscillator(), g = c.createGain();
       o.type = type; o.frequency.value = f;
-      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      g.gain.setValueAtTime(vol * masterVol(), t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.05);
     } catch { }
   };
@@ -407,7 +415,7 @@ function webSay(text) {
     if (!_wv) _wv = pickWebVoice();
     const u = new SpeechSynthesisUtterance(text);
     if (_wv) { u.voice = _wv; u.lang = _wv.lang; }
-    u.rate = 0.95; u.pitch = 1.05;
+    u.rate = 0.95; u.pitch = 1.05; u.volume = masterVol();
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   } catch { }
 }
@@ -440,7 +448,7 @@ const TRY_AGAIN = ["Try again! 💪", "Have another go!", "Almost — try once m
 const PRAISE = ["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Yes! Exactly right!", "Wonderful!", "Sharp work!", "That's the one!", "Champion!", "Beautiful maths!", "Too easy for you!", "Spot on!", "Cracked it!", "Legend!"];
 const NOT_QUITE = ["Not quite!", "So close!", "Good try!", "Almost!"];
 function say(text) {
-  if (!P().settings.speech) return;
+  if (!settingsOf().speech) return;
   webSay(text);
 }
 /* Turn an on-screen prompt into something that reads well aloud: maths symbols
@@ -472,7 +480,7 @@ const spokenQ = (q) => (q && q.prompt ? speechify(q.prompt) : (q && q.say) || ""
 /* read several lines in order (used by the Learn screen to read every step) */
 function sayLines(lines) {
   const list = (lines || []).map(t => String(t).trim()).filter(Boolean);
-  if (!list.length || !P().settings.speech) return;
+  if (!list.length || !settingsOf().speech) return;
   if (!("speechSynthesis" in window)) return;
   try {
     if (!_wv) _wv = pickWebVoice();
@@ -480,7 +488,7 @@ function sayLines(lines) {
     list.forEach(t => {
       const u = new SpeechSynthesisUtterance(t);
       if (_wv) { u.voice = _wv; u.lang = _wv.lang; }
-      u.rate = 0.95; u.pitch = 1.05;
+      u.rate = 0.95; u.pitch = 1.05; u.volume = masterVol();
       speechSynthesis.speak(u);   // queued, not cancelled between lines
     });
   } catch { }
@@ -494,7 +502,7 @@ addEventListener("pointerdown", function prime() {
 /* ---------------- map theme music (same loop as How Many?) ---------------- */
 const Music = (() => {
   let el = null;
-  const wanted = () => P().settings.music !== false;            // default on
+  const wanted = () => settingsOf().music !== false;            // default on
   const onMap = () => { try { return !document.body.classList.contains("in-play"); } catch { return true; } };
   const visible = () => { try { return document.visibilityState !== "hidden"; } catch { return true; } };
   const ensure = () => {
@@ -505,6 +513,7 @@ const Music = (() => {
   };
   function sync() {
     const e = ensure(); if (!e) return;
+    try { e.volume = 0.3 * masterVol(); } catch { }
     if (wanted() && onMap() && visible()) { const p = e.play && e.play(); if (p && p.catch) p.catch(() => { }); }
     else { try { e.pause(); } catch { } }
   }
@@ -512,7 +521,7 @@ const Music = (() => {
     start() { sync(); },
     sync,
     on: () => wanted(),
-    toggle() { P().settings.music = !wanted(); save(); sync(); paintMusicBtn(); },
+    toggle() { const pf = P(); if (pf) pf.settings.music = !wanted(); save(); sync(); paintMusicBtn(); },
   };
 })();
 function paintMusicBtn() {
@@ -527,7 +536,7 @@ try { document.addEventListener("visibilitychange", () => Music.sync()); } catch
 /* ---------------- lightning strike (dramatic tap → flash + thunder → round) ---------------- */
 let _thunder = null;
 function playThunder() {
-  if (!P().settings.sound) return;
+  if (!settingsOf().sound) return;
   try {
     if (!_thunder && typeof Audio !== "undefined") { _thunder = new Audio("thunder.mp3"); _thunder.volume = 0.55; }
     if (_thunder) { _thunder.currentTime = 0; const p = _thunder.play(); if (p && p.catch) p.catch(() => { }); }
@@ -879,7 +888,7 @@ function openSkill(id) {
 let Sess = null;
 
 function overLimit() {
-  const lim = P().settings.dailyLimit || 0;
+  const lim = settingsOf().dailyLimit || 0;
   return lim > 0 && (P().timeByDay[today()] || 0) >= lim * 60;
 }
 function beginSession(cfg) {
@@ -1195,7 +1204,7 @@ function submit(ok, correctShown, btn) {
   const failedQ = Sess.q;
   /* give the spoken praise room to finish before the next card appears */
   let delay = ok ? (Sess.msOk || MS_OK) : (Sess.msBad || MS_BAD);
-  if (ok && !FAST && Sess.kind !== "lightning" && P().settings.speech) delay = Math.max(delay, speechMs(spokenPraise) + 250);
+  if (ok && !FAST && Sess.kind !== "lightning" && settingsOf().speech) delay = Math.max(delay, speechMs(spokenPraise) + 250);
   setTimeout(() => {
     if (!Sess) return;
     Sess.i++;
@@ -1397,14 +1406,19 @@ function enterTestMode() {
   p.badges = {}; p.timeByDay = {}; p.bosses = {}; p.name = "Tester"; p.avatar = "🧪";
   p.streak = { count: 0, last: null }; p.settings.sound = true;
   state.profiles[TESTP] = p;
+  if (state.profile !== TESTP) prevProfile = state.profile;
   state.profile = TESTP;
   save(); paintTestChip(); renderMap(true);
   toast("🧪", "Test mode", "Every skill and boss is open. Nothing here counts or syncs — tap the amber chip to go back.");
 }
 function exitTestMode() {
   if (Sess) { Sess = null; $("scrPlay").hidden = true; $("scrMap").hidden = false; document.body.classList.remove("in-play"); }
-  state.profile = "default";
   delete state.profiles[TESTP];
+  // return to the child we came from; fall back to any real profile that exists
+  let back = (prevProfile && prevProfile !== TESTP && state.profiles[prevProfile]) ? prevProfile
+    : (state.profiles.default ? "default" : childIds()[0]);
+  if (!back || !state.profiles[back]) { state.profiles.default = migrateProfile(FRESH_PROFILE()); back = "default"; }
+  state.profile = back; prevProfile = null;
   save(); paintTestChip(); renderMap(true);
 }
 (function wireTestChip() {
@@ -1430,7 +1444,7 @@ function deleteChild(id) {
 }
 function addChild(name, avatar) {
   if (childIds().length >= 4) return null;
-  const id = "c" + Date.now();
+  const id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const p = migrateProfile(FRESH_PROFILE());
   p.name = (name || "Explorer").slice(0, 16);
   p.avatar = avatar || "🐸";
@@ -1512,237 +1526,447 @@ $("hud").onclick = openBackpack;
 
 /* ---------------- Parents' Corner (hold 3s gate) ---------------- */
 const fmtMins = (secs) => secs < 60 ? "under a minute" : Math.round(secs / 60) + " min";
+const fmtClock = (secs) => { const m = Math.round(secs / 60), h = Math.floor(m / 60); return h ? `${h}h ${m % 60}m` : `${m}m`; };
 function weekSecs(p) {
   let s = 0;
   for (let k = 0; k < 7; k++) { const d = new Date(); d.setDate(d.getDate() - k); s += p.timeByDay[localISO(d)] || 0; }
   return s;
 }
+/* — per-child progress helpers (work for any child, on their own curriculum) — */
+const ISLE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#7c4dff", "#14b8a6", "#eab308"];
+const RANKS = [
+  { e: "🌱", t: "New Explorer" }, { e: "🍃", t: "Forest Explorer" }, { e: "🌉", t: "Bridge Builder" },
+  { e: "⛰️", t: "Mountain Climber" }, { e: "🏔", t: "Mountain Master" }, { e: "🌋", t: "Volcano Hero" },
+  { e: "💎", t: "Crystal Sage" }, { e: "🏆", t: "Grand Champion" },
+];
+const curOf = (p) => BT.curriculumFor(p.year);
+const allSkillIds = (cur) => cur.ISLANDS.flatMap(i => i.units.flatMap(u => u.skills));
+const islSkillIds = (isl) => isl.units.flatMap(u => u.skills);
+const profCount = (p, ids) => ids.filter(id => (p.skills[id] || {}).m >= 2).length;
+function childIslandOpen(p, cur, islandId) {
+  const idx = cur.ISLANDS.findIndex(i => i.id === islandId);
+  if (idx <= 0) return true;
+  for (let k = 0; k < idx; k++) if (!islSkillIds(cur.ISLANDS[k]).every(id => (p.skills[id] || {}).m >= 2)) return false;
+  return true;
+}
+function childFrontier(p, cur) {
+  const ids = allSkillIds(cur);
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i], s = cur.SKILLS[id], st = p.skills[id] || { m: 0 };
+    const open = childIslandOpen(p, cur, s.island) && s.prereqs.every(pr => (p.skills[pr] || {}).m >= 1);
+    if (open && (st.m || 0) < 2) return { id, idx: i + 1, name: s.name };
+  }
+  return null;
+}
+function rankOf(p, cur) {
+  const ids = allSkillIds(cur), frac = ids.length ? profCount(p, ids) / ids.length : 0;
+  return RANKS[Math.min(RANKS.length - 1, Math.floor(frac * RANKS.length))];
+}
+function accuracyPct(p) {
+  let c = 0, a = 0;
+  for (const st of Object.values(p.skills)) if (st.attempts) { c += st.correct; a += st.attempts; }
+  return a ? Math.round(100 * c / a) : 0;
+}
+function weakSkills(p, cur, n = 5, minAtt = 3) {
+  return Object.entries(p.skills).filter(([id, st]) => cur.SKILLS[id] && st.attempts >= minAtt)
+    .map(([id, st]) => ({ id, acc: st.correct / st.attempts, st }))
+    .sort((a, b) => a.acc - b.acc).slice(0, n);
+}
+const islandOfSkill = (cur, id) => cur.ISLANDS.find(i => islSkillIds(i).includes(id));
+const shortTopic = (cur, id) => { const isl = islandOfSkill(cur, id); return isl ? isl.name : cur.SKILLS[id].name; };
+
 function openParents() {
+  const FACES = ["🦊", "🐸", "🦄", "🐯", "🐼", "🦖", "🐙", "🦉", "🚀", "🌟"];
   const back = el("div", "modal-back"), box = el("div", "modal parents");
-  box.innerHTML = `<h2>👨‍👩‍👧 Parents' Corner</h2>`;
-  const group = (title, openByDefault) => {
-    const wrapEl = el("div", "pgroup");
-    const head = el("button", "pgroup-head", `${title} <span class="caret">${openByDefault ? "▾" : "▸"}</span>`);
-    const bodyEl = el("div", "pgroup-body");
-    bodyEl.hidden = !openByDefault;
-    head.onclick = () => {
-      bodyEl.hidden = !bodyEl.hidden;
-      head.innerHTML = `${title} <span class="caret">${bodyEl.hidden ? "▸" : "▾"}</span>`;
-    };
-    wrapEl.append(head, bodyEl);
-    box.appendChild(wrapEl);
-    return bodyEl;
+
+  /* header */
+  const head = el("div", "pc-head");
+  const backB = el("button", "pc-back", "‹");
+  backB.setAttribute("aria-label", "Back to the map");
+  backB.onclick = () => { back.remove(); renderMap(); };
+  const sub = el("p", "pc-sub", "");
+  const titleCol = el("div", "pc-title");
+  titleCol.append(el("div", "pc-badge", "👨‍👩‍👧"), (() => { const d = el("div"); d.append(el("h2", null, "Parents' Corner"), sub); return d; })());
+  head.append(backB, titleCol);
+  box.appendChild(head);
+
+  /* tab bar */
+  const SUBS = {
+    progress: "See how your children are learning and growing.",
+    children: "Manage your children and their learning adventures.",
+    settings: "Adjust settings that help your kids learn and play.",
+  };
+  const tabBar = el("div", "pc-tabs");
+  const panels = {};
+  const setTab = (id) => {
+    sub.textContent = SUBS[id];
+    for (const k of Object.keys(panels)) panels[k].hidden = k !== id;
+    Array.from(tabBar.children).forEach(t => { const on = t.dataset.tab === id; t.className = "pc-tab" + (on ? " on" : ""); });
+  };
+  [["progress", "📈 Progress"], ["children", "👨‍👩‍👧 Children"], ["settings", "⚙️ Settings"]].forEach(([id, label]) => {
+    const t = el("button", "pc-tab", label); t.dataset.tab = id; t.onclick = () => setTab(id); tabBar.appendChild(t);
+  });
+  box.appendChild(tabBar);
+
+  /* shared little modal helper */
+  const sheet = (build) => {
+    const b2 = el("div", "modal-back"), x2 = el("div", "modal");
+    build(x2, () => b2.remove());
+    const cl = el("button", "soft-btn", "Close"); cl.onclick = () => b2.remove();
+    x2.appendChild(cl); b2.appendChild(x2); $("overlay").appendChild(b2);
+  };
+  const sampleSkill = (cur, id, st) => sheet((x2) => {
+    const q = cur.SKILLS[id].gen(0.5);
+    x2.innerHTML = `<p class="sheet-icon">${cur.SKILLS[id].icon}</p><h2>${esc(cur.SKILLS[id].name)}</h2>
+      <p class="sheet-state ${st ? "m" + st.m : ""}">${st ? M_LABEL[st.m] : "Not started"}</p>
+      ${st && st.attempts ? `<p class="sheet-acc">${st.correct}/${st.attempts} right (${Math.round(100 * st.correct / st.attempts)}%)</p>` : ""}
+      <p class="p-section">Sample question</p>
+      <p class="sheet-acc" style="font-weight:800; color:var(--ink);">${esc(q.prompt)}</p>
+      ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
+      ${q.visual ? `<p class="sheet-acc">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
+      <p class="sheet-acc">Answer: <b>${esc(correctLabel(q))}</b></p>`;
+  });
+
+  /* tile builder for the stat strips */
+  const tile = (icon, label, val, o = {}) => {
+    const t = el("div", "pc-stat" + (o.needs ? " tile-needs" : ""));
+    t.append(el("div", "stat-ico", icon), el("div", "stat-lbl", esc(label)), el("div", "stat-val" + (o.needs ? " needs" : ""), esc(val)));
+    if (typeof o.pct === "number") {
+      const bar = el("div", "stat-bar"), fill = el("div", "stat-fill" + (o.green ? " green" : ""));
+      fill.style.width = Math.max(0, Math.min(100, o.pct)) + "%"; bar.appendChild(fill); t.appendChild(bar);
+      if (o.showPct) t.appendChild(el("div", "stat-foot", o.pct + "%"));
+    }
+    if (o.sub) t.appendChild(el("div", "stat-foot" + (o.green ? " good" : ""), esc(o.sub)));
+    if (o.see) { const s = el("button", "tile-see", "See details"); s.onclick = o.see; t.appendChild(s); }
+    return t;
   };
 
-  /* ── 👧 Children ── */
-  const gKids = group("👧 Children", false);
-  const FACES = ["🦊", "🐸", "🦄", "🐯", "🐼", "🦖", "🐙", "🦉", "🚀", "🌟"];
+  /* ============ PROGRESS ============ */
+  const pProg = el("div", "pc-panel"); panels.progress = pProg;
+  let viewId = inTest() ? childIds()[0] : (childIds().includes(state.profile) ? state.profile : childIds()[0]);
+  const renderProg = () => {
+    pProg.innerHTML = "";
+    const cp = state.profiles[viewId], cur = curOf(cp);
+
+    const sel = el("div", "pc-sel");
+    childIds().forEach(id => {
+      const c = state.profiles[id];
+      const b = el("button", "pc-pill" + (id === viewId ? " on" : ""),
+        `<span class="pill-ava">${esc(c.avatar)}</span><span class="pill-txt"><b>${esc(c.name)}</b><small>${esc(yearLabelOf(c.year))}</small></span>`);
+      b.onclick = () => { viewId = id; renderProg(); };
+      sel.appendChild(b);
+    });
+    const rep = el("button", "view-report", "📄 View report");
+    rep.onclick = () => openReport(cp, cur);
+    sel.appendChild(rep);
+    pProg.appendChild(sel);
+
+    const ids = allSkillIds(cur), total = ids.length || 1, prof = profCount(cp, ids);
+    const acc = accuracyPct(cp), wk = weekSecs(cp), weak = weakSkills(cp, cur), needs = weak[0];
+    const stats = el("div", "pc-stats");
+    stats.append(
+      tile("🕐", "Time This Week", fmtClock(wk), { sub: `Daily average: ${fmtMins(Math.round(wk / 7))}` }),
+      tile("✅", "Quests Completed", `${prof} / ${total}`, { pct: Math.round(100 * prof / total), showPct: true }),
+      tile("⭐", "Overall Mastery", acc ? `${acc}%` : "—", { pct: acc, green: true, sub: acc >= 80 ? "Great job!" : acc >= 50 ? "Coming along!" : acc ? "Keep going!" : "Just getting started" }),
+      tile("❤️", "Needs Practice", needs ? shortTopic(cur, needs.id) : "—", { needs: true, see: needs ? (() => setTab("progress")) : null }),
+    );
+    pProg.appendChild(stats);
+
+    const unlockedN = cur.ISLANDS.filter(isl => childIslandOpen(cp, cur, isl.id)).length;
+    pProg.appendChild(secHead("🏝", "Island Progress", `${unlockedN} of ${cur.ISLANDS.length} islands unlocked`));
+    const isleList = el("div", "isle-list");
+    cur.ISLANDS.forEach((isl, ii) => {
+      const sk = islSkillIds(isl), tot = sk.length, pr = profCount(cp, sk), color = ISLE_COLORS[ii % ISLE_COLORS.length];
+      const open = childIslandOpen(cp, cur, isl.id);
+      const row = el("button", "isle-row" + (open ? "" : " isle-locked"));
+      const segs = sk.map((id, si) => `<span class="seg"${si < pr ? ` style="background:${color}"` : ""}></span>`).join("");
+      const subt = isl.units.map(u => u.name).join(" · ");
+      row.innerHTML = `<div class="isle-ico">${isl.emoji}</div>
+        <div class="isle-main"><b>${esc(isl.name)}</b><small>${esc(subt)}</small></div>
+        <div class="isle-segs">${segs}</div>
+        <div class="isle-num">${pr} / ${tot}</div>
+        <div class="isle-pct" style="color:${color}">${Math.round(100 * pr / tot)}%</div>
+        <div class="isle-go">${open ? "›" : "🔒"}</div>`;
+      row.onclick = () => openIsland(cp, cur, isl);
+      isleList.appendChild(row);
+    });
+    pProg.appendChild(isleList);
+
+    pProg.appendChild(secHead("❤️", "Needs a hand", null, weak.length > 1 ? { label: "View all", on: () => openWeakAll(cp, cur, weak) } : null));
+    if (needs) {
+      const card = el("div", "nah-card");
+      const pctv = Math.round(needs.acc * 100);
+      card.innerHTML = `<div class="nah-ico">${cur.SKILLS[needs.id].icon}</div>
+        <div class="nah-body">
+          <div class="nah-h"><b>${esc(cur.SKILLS[needs.id].name)}</b><span class="nah-tag">Needs practice</span></div>
+          <div class="nah-acc">Accuracy: <b>${pctv}%</b><span class="acc-bar"><span class="acc-fill" style="width:${pctv}%"></span></span></div>
+          <p class="nah-desc">${esc(cp.name)} is still building confidence with ${esc(cur.SKILLS[needs.id].name.toLowerCase())}. A short practice set together will help it click.</p>
+        </div>`;
+      const act = el("div", "nah-act");
+      const startB = el("button", "nah-start", "▶ Start practice");
+      startB.onclick = () => { back.remove(); if (viewId !== state.profile) switchProfile(viewId); startSet(needs.id, "practice"); };
+      const tipsB = el("button", "nah-tips", "📖 View parent tips");
+      tipsB.onclick = () => openTips(cp, cur, needs.id);
+      act.append(startB, tipsB); card.appendChild(act);
+      pProg.appendChild(card);
+    } else {
+      pProg.appendChild(el("p", "stat-line", "Not enough answers yet — after a few sessions we'll highlight where a little help goes a long way."));
+    }
+    pProg.appendChild(el("p", "pc-foot", "🔒 Your children's data is private and secure."));
+  };
+
+  const secHead = (icon, title, right, link) => {
+    const h = el("div", "sec-head");
+    h.innerHTML = `<span class="sec-ico">${icon}</span><b>${esc(title)}</b>`;
+    if (right) h.appendChild(el("span", "sec-right", esc(right)));
+    if (link) { const a = el("button", "sec-link", esc(link.label) + " ›"); a.onclick = link.on; h.appendChild(a); }
+    return h;
+  };
+  const openReport = (cp, cur) => sheet((x2) => {
+    x2.innerHTML = `<h2>📄 ${esc(cp.name)}'s report</h2><p class="sheet-acc">Every skill on the trail. Tap one to preview a question.</p>`;
+    for (const isl of cur.ISLANDS) {
+      const blk = el("div", "matrix-isl", `<small>${isl.emoji} ${esc(isl.name)}</small>`);
+      const grid = el("div", "matrix");
+      for (const id of islSkillIds(isl)) {
+        const st = cp.skills[id], m = st ? st.m : null, cls = !st ? "locked" : m >= 1 ? "m" + m : "";
+        const sq = el("button", "sq " + cls);
+        sq.title = `${cur.SKILLS[id].name} — ${st ? M_LABEL[st.m] : "Not started"}`;
+        sq.onclick = () => sampleSkill(cur, id, st);
+        grid.appendChild(sq);
+      }
+      blk.appendChild(grid); x2.appendChild(blk);
+    }
+    x2.appendChild(el("p", "legend", "▢ not started · ▣ Familiar · ■ violet Proficient · ■ gold Mastered"));
+  });
+  const openIsland = (cp, cur, isl) => sheet((x2) => {
+    const sk = islSkillIds(isl), pr = profCount(cp, sk);
+    x2.innerHTML = `<p class="sheet-icon">${isl.emoji}</p><h2>${esc(isl.name)}</h2>
+      <p class="sheet-acc">${pr} of ${sk.length} skills proficient${childIslandOpen(cp, cur, isl.id) ? "" : " · 🔒 locked until the island before is complete"}</p>`;
+    for (const id of sk) {
+      const st = cp.skills[id];
+      const r = el("button", "rep-row", `<span class="rep-ico">${cur.SKILLS[id].icon}</span><span class="rep-name">${esc(cur.SKILLS[id].name)}</span><span class="rep-state ${st ? "m" + st.m : ""}">${st ? M_LABEL[st.m] : "—"}</span>`);
+      r.onclick = () => sampleSkill(cur, id, st);
+      x2.appendChild(r);
+    }
+  });
+  const openTips = (cp, cur, id) => sheet((x2) => {
+    const nm = cur.SKILLS[id].name;
+    x2.innerHTML = `<p class="sheet-icon">${cur.SKILLS[id].icon}</p><h2>Tips: ${esc(nm)}</h2>
+      <p class="sheet-acc" style="text-align:left">Little and often beats long sessions. Try these together:</p>
+      <ul class="tips-list">
+        <li>Talk through one example out loud before they try — model your thinking.</li>
+        <li>Use everyday objects (blocks, coins, food) to make “${esc(nm.toLowerCase())}” concrete.</li>
+        <li>Celebrate effort and good strategies, not just right answers.</li>
+        <li>Keep it to 5–10 minutes, then stop on a win.</li>
+      </ul>`;
+    const go = el("button", "primary-btn", "▶ Practise this together");
+    go.onclick = () => { x2.parentElement.remove(); back.remove(); if (viewId !== state.profile) switchProfile(viewId); startSet(id, "practice"); };
+    x2.appendChild(go);
+  });
+  const openWeakAll = (cp, cur, weak) => sheet((x2) => {
+    x2.innerHTML = `<h2>❤️ Needs a hand</h2><p class="sheet-acc">Lowest accuracy right now. Tap to practise together.</p>`;
+    weak.forEach(w => {
+      const r = el("button", "rep-row", `<span class="rep-ico">${cur.SKILLS[w.id].icon}</span><span class="rep-name">${esc(cur.SKILLS[w.id].name)}</span><span class="rep-state">${Math.round(w.acc * 100)}%</span>`);
+      r.onclick = () => { x2.parentElement.remove(); back.remove(); if (viewId !== state.profile) switchProfile(viewId); startSet(w.id, "practice"); };
+      x2.appendChild(r);
+    });
+  });
+  renderProg();
+
+  /* ============ CHILDREN ============ */
+  const pKids = el("div", "pc-panel"); panels.children = pKids;
   const renderKids = () => {
-    gKids.innerHTML = "";
+    pKids.innerHTML = "";
     for (const id of childIds()) {
-      const cp = state.profiles[id];
-      const row = el("div", "child-row");
-      const faceB = el("button", "face-btn", esc(cp.avatar));
-      faceB.onclick = () => { cp.avatar = FACES[(FACES.indexOf(cp.avatar) + 1) % FACES.length]; faceB.textContent = cp.avatar; save(); };
-      const nameI = el("input"); nameI.type = "text"; nameI.value = cp.name; nameI.maxLength = 16;
-      nameI.oninput = () => { cp.name = nameI.value.trim() || "Explorer"; save(); };
-      row.append(faceB, nameI);
-      if (id === state.profile) row.appendChild(el("span", "active-tag", "playing"));
-      else {
-        const act = el("button", "mini-btn", "▶ play");
-        act.onclick = () => { switchProfile(id); renderKids(); };
-        row.appendChild(act);
-      }
-      if (childIds().length > 1) {
-        const del = el("button", "mini-btn del", "✕");
-        let armedDel = false;
-        del.onclick = () => {
-          if (!armedDel) { armedDel = true; del.textContent = "Remove forever?"; del.classList.add("armed"); return; }
-          deleteChild(id);
-          renderKids();
-        };
-        row.appendChild(del);
-      }
-      gKids.appendChild(row);
-      const yrow = el("div", "child-year-row");
-      const yb = el("button", "year-pick-btn", `📚 ${esc(yearLabelOf(cp.year))}${cp.year && BT.curriculumFor(cp.year).draft ? " · coming soon" : ""}`);
+      const cp = state.profiles[id], cur = curOf(cp), fr = childFrontier(cp, cur), rank = rankOf(cp, cur);
+      const ids = allSkillIds(cur), total = ids.length || 1, prof = profCount(cp, ids);
+      const acc = accuracyPct(cp), wk = weekSecs(cp), weak = weakSkills(cp, cur, 1)[0];
+      const card = el("div", "kid-card");
+
+      const headR = el("div", "kid-head");
+      const idCol = el("div", "kid-id");
+      idCol.appendChild(el("b", "kid-name", esc(cp.name)));
+      const yb = el("button", "kid-year", `📚 ${esc(yearLabelOf(cp.year))} <span class="yb-caret">▾</span>`);
       yb.onclick = () => openYearPicker(id, () => renderKids());
-      yrow.appendChild(yb);
-      gKids.appendChild(yrow);
+      idCol.appendChild(yb);
+      const right = el("div", "kid-right");
+      if (id === state.profile && !inTest()) right.appendChild(el("span", "kid-now", "● Playing now"));
+      else { const cont = el("button", "kid-cont", "▶ Continue"); cont.onclick = () => { switchProfile(id); back.remove(); renderMap(); }; right.appendChild(cont); }
+      const keb = el("button", "kid-keb", "⋮");
+      const actbar = el("div", "kid-actbar"); actbar.hidden = true;
+      keb.onclick = () => { actbar.hidden = !actbar.hidden; };
+      right.appendChild(keb);
+      headR.append(el("div", "kid-ava", esc(cp.avatar)), idCol, right);
+      card.append(headR, actbar);
+
+      // kebab actions: rename · change face · delete
+      const nameI = el("input"); nameI.type = "text"; nameI.value = cp.name; nameI.maxLength = 16; nameI.className = "kid-rename";
+      nameI.oninput = () => { cp.name = nameI.value.trim() || "Explorer"; save(); };
+      const faceB = el("button", "kid-face", `${esc(cp.avatar)} change`);
+      faceB.onclick = () => { cp.avatar = FACES[(FACES.indexOf(cp.avatar) + 1) % FACES.length]; faceB.innerHTML = `${cp.avatar} change`; save(); renderKids(); };
+      actbar.append(nameI, faceB);
+      if (childIds().length > 1) {
+        const del = el("button", "kid-del", "🗑 Delete child"); let armed = false;
+        del.onclick = () => { if (!armed) { armed = true; del.textContent = "Tap again — permanent"; return; } deleteChild(id); renderKids(); renderProg(); };
+        actbar.appendChild(del);
+      }
+
+      card.appendChild(el("div", "kid-rank", `${rank.e} ${esc(rank.t)}`));
+      card.appendChild(el("div", "kid-quest", fr ? `Current Quest: ${fr.idx} – ${esc(fr.name)}` : "All quests complete! 🎉"));
+
+      const stats = el("div", "pc-stats kid-stats");
+      stats.append(
+        tile("✅", "Quests Completed", `${prof} / ${total}`, { pct: Math.round(100 * prof / total), showPct: true }),
+        tile("⭐", "Mastery", acc ? `${acc}%` : "—", { pct: acc, green: true }),
+        tile("🕐", "Time This Week", fmtClock(wk), { sub: `Daily average: ${fmtMins(Math.round(wk / 7))}` }),
+        tile("❤️", "Needs Practice", weak ? shortTopic(cur, weak.id) : "—", { needs: true, see: weak ? (() => { setTab("progress"); viewId = id; renderProg(); }) : null }),
+      );
+      card.appendChild(stats);
+      pKids.appendChild(card);
     }
     if (childIds().length < 4) {
-      const add = el("button", "soft-btn", "➕ Add a child");
-      add.onclick = () => { const nid = addChild("Explorer", FACES[childIds().length % FACES.length]); renderKids(); if (nid) openYearPicker(nid, () => renderKids()); };
-      gKids.appendChild(add);
+      const add = el("button", "add-kid", `<div class="add-ico">＋</div><div class="add-txt"><b>Add a child</b><small>Create a new profile and start their adventure.</small></div><span class="add-go">›</span>`);
+      add.onclick = () => { const nid = addChild("Explorer", FACES[childIds().length % FACES.length]); renderKids(); renderProg(); if (nid) openYearPicker(nid, () => { renderKids(); renderProg(); }); };
+      pKids.appendChild(add);
     }
-    if (childIds().length > 1) gKids.appendChild(el("p", "stat-line", "Each child gets their own trail, streak, badges and crowns. The app asks who's playing at startup."));
+    pKids.appendChild(el("p", "pc-foot", "🔒 Each child's data is private and secure."));
   };
   renderKids();
 
-  /* ── 📈 Progress (viewable per child) ── */
-  const gProg = group("📈 Progress", false);
-  let viewId = state.profile === TESTP ? childIds()[0] : state.profile;
-  const progBody = el("div");
-  const renderProg = () => {
-    progBody.innerHTML = "";
-    const p = state.profiles[viewId];
-    if (childIds().length > 1) {
-      const tabs = el("div", "tgl-row");
-      childIds().forEach(id => {
-        const tb = el("button", "tgl" + (id === viewId ? " on" : ""), `${state.profiles[id].avatar} ${esc(state.profiles[id].name)}`);
-        tb.onclick = () => { viewId = id; renderProg(); };
-        tabs.appendChild(tb);
-      });
-      progBody.appendChild(tabs);
-    }
-    const todaySecs = p.timeByDay[today()] || 0;
-    progBody.appendChild(el("p", "stat-line",
-      `⏱ Played <b>${fmtMins(todaySecs)}</b> today · <b>${fmtMins(weekSecs(p))}</b> this week<br>` +
-      `⭐ Level ${levelOf(p.xp)} · ${countM(p, 1)} skills started · ${countM(p, 2)} proficient · ${countM(p, 3)} mastered` +
-      (p.lightningBest ? ` · ⚡ best ${p.lightningBest}` : "")));
-    for (const isl of BT.ISLANDS) {
-      const blk = el("div", "matrix-isl", `<small>${isl.emoji} ${esc(isl.name)}</small>`);
-      const grid = el("div", "matrix");
-      for (const id of isl.units.flatMap(u => u.skills)) {
-        const st = p.skills[id];
-        const m = st ? st.m : null;
-        const cls = !st ? "locked" : m >= 1 ? "m" + m : "";
-        const sq = el("button", "sq " + cls);
-        sq.title = `${BT.SKILLS[id].name} — ${st ? M_LABEL[st.m] : "Not started"}`;
-        sq.setAttribute("aria-label", sq.title);
-        sq.onclick = () => {
-          const q = BT.SKILLS[id].gen(0.5);
-          const b2 = el("div", "modal-back"), x2 = el("div", "modal");
-          x2.innerHTML = `<p class="sheet-icon">${BT.SKILLS[id].icon}</p><h2>${esc(BT.SKILLS[id].name)}</h2>
-            <p class="sheet-state ${st ? "m" + st.m : ""}">${st ? M_LABEL[st.m] : "Not started"}</p>
-            ${st && st.attempts ? `<p class="sheet-acc">${st.correct}/${st.attempts} right (${Math.round(100 * st.correct / st.attempts)}%)</p>` : ""}
-            <p class="p-section">Sample question</p>
-            <p class="sheet-acc" style="font-weight:800; color:var(--ink);">${esc(q.prompt)}</p>
-            ${q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : ""}
-            ${q.visual ? `<p class="sheet-acc">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : ""}
-            <p class="sheet-acc">Answer: <b>${esc(correctLabel(q))}</b></p>`;
-          const cl = el("button", "soft-btn", "Close");
-          cl.onclick = () => b2.remove();
-          x2.appendChild(cl); b2.appendChild(x2);
-          $("overlay").appendChild(b2);
-        };
-        grid.appendChild(sq);
-      }
-      blk.appendChild(grid); progBody.appendChild(blk);
-    }
-    progBody.appendChild(el("p", "legend", "▢ not started · ▣ outline = Familiar · ■ violet = Proficient · ■ gold = Mastered"));
-    progBody.appendChild(el("p", "p-section", "Needs a hand"));
-    const weak = Object.entries(p.skills)
-      .filter(([id, st]) => BT.SKILLS[id] && st.attempts >= 5)
-      .map(([id, st]) => ({ id, acc: st.correct / st.attempts, st }))
-      .sort((a, b) => a.acc - b.acc).slice(0, 3);
-    if (weak.length) weak.forEach(w => {
-      const row = el("button", "weak-row",
-        `${BT.SKILLS[w.id].icon} ${esc(BT.SKILLS[w.id].name)} — ${Math.round(w.acc * 100)}% right (${w.st.correct}/${w.st.attempts})<small>▶ Tap to start a practice set together right now.</small>`);
-      row.onclick = () => { back.remove(); if (viewId !== state.profile) switchProfile(viewId); startSet(w.id, "practice"); };
-      progBody.appendChild(row);
-    });
-    else progBody.appendChild(el("p", "stat-line", "Not enough answers yet — check back after a few sessions!"));
-  };
-  renderProg();
-  gProg.appendChild(progBody);
-
-  /* ── 🔊 Voice & sound ── */
-  const gVoice = group("🔊 Voice & sound", false);
+  /* ============ SETTINGS ============ */
+  const pSet = el("div", "pc-panel"); panels.settings = pSet;
   const p = P();
-  gVoice.appendChild(el("p", "p-section", "Reading voice"));
-  const vbox = el("div");
-  const renderVoices = () => {
-    vbox.innerHTML = "";
+  const card = (icon, bg, title, desc, open, danger) => {
+    const c = el("div", "pc-card" + (danger ? " danger" : ""));
+    const h = el("button", "pc-card-head");
+    h.innerHTML = `<div class="pc-ico" style="background:${bg}">${icon}</div><div class="pc-cardttl"><b>${esc(title)}</b><small>${esc(desc)}</small></div>`;
+    const caret = el("span", "pc-caret", open ? "▾" : "▸"); h.appendChild(caret);
+    const body = el("div", "pc-card-body"); body.hidden = !open;
+    h.onclick = () => { body.hidden = !body.hidden; caret.textContent = body.hidden ? "▸" : "▾"; };
+    c.append(h, body); pSet.appendChild(c); return body;
+  };
+
+  /* Voice & sound */
+  const gVoice = card("🔊", "#efe9ff", "Voice & sound", "Customize audio, effects and music.", true);
+  const volRow = el("div", "vol-row");
+  volRow.appendChild(el("div", "sw-ico", "🔊"));
+  const volMid = el("div", "vol-mid");
+  volMid.appendChild(el("b", "vol-lbl", "Master volume"));
+  const slider = el("input"); slider.type = "range"; slider.min = "0"; slider.max = "100"; slider.step = "5";
+  slider.value = String(p.settings.volume == null ? 80 : p.settings.volume); slider.className = "vol-range";
+  const volVal = el("span", "vol-val", (p.settings.volume == null ? 80 : p.settings.volume) + "%");
+  slider.oninput = () => { p.settings.volume = +slider.value; volVal.textContent = slider.value + "%"; save(); Music.sync(); };
+  volMid.appendChild(slider);
+  volRow.append(volMid, volVal);
+  gVoice.appendChild(volRow);
+
+  const swRow = (icon, title, desc, key, after) => {
+    const row = el("div", "sw-row");
+    row.innerHTML = `<div class="sw-ico">${icon}</div><div class="sw-txt"><b>${esc(title)}</b><small>${esc(desc)}</small></div>`;
+    const sw = el("button", "switch" + (p.settings[key] ? " on" : "")); sw.setAttribute("role", "switch");
+    sw.setAttribute("aria-checked", String(!!p.settings[key]));
+    sw.onclick = () => { p.settings[key] = !p.settings[key]; sw.className = "switch" + (p.settings[key] ? " on" : ""); sw.setAttribute("aria-checked", String(!!p.settings[key])); save(); if (after) after(); };
+    row.appendChild(sw); return row;
+  };
+  gVoice.append(
+    swRow("💬", "Voice guidance", "Play helpful instructions and feedback aloud.", "speech"),
+    swRow("🎮", "Sound effects", "Play game sounds and rewards.", "sound"),
+    swRow("🎵", "Background music", "Play ambient music during quests.", "music", () => { Music.sync(); paintMusicBtn(); }),
+  );
+
+  const voiceName = () => { const id = p.settings.voiceURI; if (!id) return "Friendly Voice (Default)"; const v = englishVoices().find(x => voiceId(x) === id); return v ? `${v.name} (${v.lang})` : "Friendly Voice (Default)"; };
+  const vrow = el("div", "sw-row voice-row");
+  vrow.innerHTML = `<div class="sw-ico">🎙</div><div class="sw-txt"><b>Voice</b><small>Choose the voice for instructions.</small></div>`;
+  const trig = el("button", "voice-trigger"); trig.innerHTML = `<span class="vt-name">${esc(voiceName())}</span> <span class="vt-caret">▾</span>`;
+  const vlist = el("div", "voice-list"); vlist.hidden = true;
+  const renderVoiceList = () => {
+    vlist.innerHTML = "";
     const voices = englishVoices();
-    if (!voices.length) {
-      vbox.appendChild(el("p", "stat-line", "Your device is still loading its voices — reopen this panel in a moment to choose one."));
-      return;
-    }
+    if (!voices.length) { vlist.appendChild(el("p", "stat-line", "Your device is still loading its voices — reopen in a moment.")); return; }
     const cur = p.settings.voiceURI || "";
-    const list = el("div", "voice-list");
-    const chip = (val, label, sub) => {
+    const chip = (val, label, subl) => {
       const on = (val || "") === cur;
-      const b = el("button", "voice-chip" + (on ? " on" : ""), `<b>${esc(label)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}`);
-      b.onclick = () => { setVoice(val); renderVoices(); say("G'day! I'm your reading voice. Let's go adventuring!"); };
+      const b = el("button", "voice-chip" + (on ? " on" : ""), `<b>${esc(label)}</b>${subl ? `<small>${esc(subl)}</small>` : ""}`);
+      b.onclick = () => { setVoice(val); trig.innerHTML = `<span class="vt-name">${esc(voiceName())}</span> <span class="vt-caret">▾</span>`; renderVoiceList(); say("G'day! I'm your reading voice. Let's go adventuring!"); };
       return b;
     };
-    list.appendChild(chip("", "Auto", "Best for this device"));
-    voices.forEach(v => list.appendChild(chip(voiceId(v), v.name, v.lang)));
-    vbox.appendChild(list);
-    vbox.appendChild(el("p", "stat-line", "Voices come from your device, so the list depends on what's installed — many phones and computers include several accents and both male and female voices. Tap one to hear it. (Tip: install more voices in your device's Accessibility or Language settings.)"));
+    vlist.appendChild(chip("", "Friendly Voice (Default)", "Best for this device"));
+    voices.forEach(v => vlist.appendChild(chip(voiceId(v), v.name, v.lang)));
   };
-  renderVoices();
-  gVoice.appendChild(vbox);
-  const tgls = el("div", "tgl-row");
-  const mk = (key, label) => {
-    const b = el("button", "tgl" + (p.settings[key] ? " on" : ""), `${label}: ${p.settings[key] ? "On" : "Off"}`);
-    b.onclick = () => { p.settings[key] = !p.settings[key]; b.className = "tgl" + (p.settings[key] ? " on" : ""); b.textContent = `${label}: ${p.settings[key] ? "On" : "Off"}`; save(); };
-    return b;
-  };
-  const musicTgl = mk("music", "🎶 Music");
-  const flipMusic = musicTgl.onclick;
-  musicTgl.onclick = () => { flipMusic(); Music.sync(); paintMusicBtn(); };
-  tgls.append(mk("speech", "🔊 Speech"), mk("sound", "🎵 Sounds"), musicTgl);
-  gVoice.appendChild(tgls);
+  renderVoiceList();
+  trig.onclick = () => { vlist.hidden = !vlist.hidden; };
+  vrow.appendChild(trig);
+  gVoice.append(vrow, vlist);
 
-  /* ── ⚙️ Limits, account & data ── */
-  const gAdv = group("⚙️ Limits, account & data", false);
-  gAdv.appendChild(el("p", "p-section", "Daily play limit (gentle nudge, never a lock)"));
+  /* Limits, account & data */
+  const gLim = card("🛡", "#e7f7ee", "Limits, account & data", "Set limits, manage data and privacy.", false);
+  gLim.appendChild(el("p", "p-section", "Daily play limit (gentle nudge, never a lock)"));
   const limRow = el("div", "tgl-row");
   [0, 15, 30, 45].forEach(v => {
     const lb = el("button", "tgl" + ((p.settings.dailyLimit || 0) === v ? " on" : ""), v === 0 ? "Off" : v + " min");
-    lb.onclick = () => {
-      p.settings.dailyLimit = v; save();
-      Array.from(limRow.children).forEach(c => c.className = "tgl");
-      lb.className = "tgl on";
-    };
+    lb.onclick = () => { p.settings.dailyLimit = v; save(); Array.from(limRow.children).forEach(c => c.className = "tgl"); lb.className = "tgl on"; };
     limRow.appendChild(lb);
   });
-  gAdv.appendChild(limRow);
+  gLim.appendChild(limRow);
 
-  const testB = el("button", "soft-btn", inTest() ? "🧪 Exit test mode" : "🧪 Test mode — try every skill (throwaway)");
+  /* Test mode */
+  const gTest = card("🧪", "#fff3e0", "Test mode (throwaway)", "Try every skill without affecting progress.", false);
+  const testB = el("button", "soft-btn", inTest() ? "🧪 Exit test mode" : "🧪 Enter test mode");
   testB.onclick = () => { back.remove(); inTest() ? exitTestMode() : enterTestMode(); };
-  gAdv.appendChild(testB);
+  gTest.appendChild(testB);
+
+  /* Account & sync */
+  const gAcc = card("☁️", "#e7f0ff", "Account & sync", "Manage your account and sync across devices.", false);
   const acct = el("button", "soft-btn", "☁️ Account & sync");
   acct.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); else toast("☁️", "Sync not configured", "Cloud sync isn't set up on this build."); };
-  gAdv.appendChild(acct);
+  gAcc.appendChild(acct);
 
-  gAdv.appendChild(el("p", "p-section", "Diagnostics"));
+  /* Diagnostics */
+  const gDiag = card("🐛", "#efe9ff", "Diagnostics", "View app health, logs and error reports.", false);
   let errLog = [];
   try { errLog = JSON.parse(localStorage.getItem("bt_errlog") || "[]"); } catch { }
-  if (!errLog.length) {                                  // adopt a pre-v12 single error if present
-    try { const old = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); if (old) errLog = [old]; } catch { }
-  }
+  if (!errLog.length) { try { const old = JSON.parse(localStorage.getItem("bt_lasterr") || "null"); if (old) errLog = [old]; } catch { } }
   const newest = errLog[0];
-  gAdv.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (newest
+  gDiag.appendChild(el("p", "stat-line", `App v${APP_V} · ` + (newest
     ? `${errLog.length} recent error${errLog.length > 1 ? "s" : ""} — latest ${esc(newest.at)}: ${esc(newest.m)} (${esc(newest.f)}:${newest.l})`
     : "no recent errors 🎉")));
   if (errLog.length) {
     const report = errLog.map(e => `${e.at} v${e.v || "?"} ${e.f}:${e.l} ${e.m}`).join("\n");
     const copy = el("button", "soft-btn", "📋 Copy error report");
-    copy.onclick = () => {
-      try { navigator.clipboard.writeText(report).then(() => { copy.textContent = "Copied ✓"; }, () => { copy.textContent = report.slice(0, 64); }); }
-      catch { copy.textContent = report.slice(0, 64); }
-    };
+    copy.onclick = () => { try { navigator.clipboard.writeText(report).then(() => { copy.textContent = "Copied ✓"; }, () => { copy.textContent = report.slice(0, 64); }); } catch { copy.textContent = report.slice(0, 64); } };
     const ce = el("button", "soft-btn", "Clear error log");
     ce.onclick = () => { try { localStorage.removeItem("bt_errlog"); localStorage.removeItem("bt_lasterr"); } catch { } copy.remove(); ce.remove(); };
-    gAdv.append(copy, ce);
+    gDiag.append(copy, ce);
   }
 
-  const danger = el("button", "danger-btn", `Erase ${esc(P().name)}'s progress`);
-  let armed = false;
-  danger.onclick = () => {
-    if (!armed) { armed = true; danger.textContent = `Tap again to erase ${P().name}'s EVERYTHING — cannot be undone`; return; }
-    state.profiles[state.profile] = migrateProfile(FRESH_PROFILE());
-    save(); back.remove(); renderMap(true);
+  /* Danger zone */
+  const gDz = card("⚠️", "#fde8ec", "Danger zone", "Irreversible actions. Please be careful.", true, true);
+  const dzRow = (icon, title, desc, run) => {
+    const r = el("button", "dz-row");
+    r.innerHTML = `<div class="dz-ico">${icon}</div><div class="dz-txt"><b>${esc(title)}</b><small>${esc(desc)}</small></div><span class="dz-go">›</span>`;
+    let armed = false;
+    r.onclick = () => { if (!armed) { armed = true; r.classList.add("armed"); r.children[1].children[0].textContent = "Tap again to confirm — cannot be undone"; return; } run(); };
+    return r;
   };
-  gAdv.appendChild(danger);
+  gDz.appendChild(dzRow("🗑", `Erase ${P().name}'s progress`, `Delete all of ${P().name}'s progress, quests and data.`, () => {
+    state.profiles[state.profile] = migrateProfile(FRESH_PROFILE()); save(); back.remove(); renderMap(true);
+  }));
+  if (childIds().length > 1) gDz.appendChild(dzRow("👤", "Delete child", "Permanently remove this child's profile and data.", () => {
+    deleteChild(state.profile); back.remove(); renderMap(true);
+  }));
+  gDz.appendChild(dzRow("🗄", "Clear local data", "Remove all downloaded content and cached data.", async () => {
+    try { if (typeof caches !== "undefined") { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch { }
+    try { if (navigator.serviceWorker) { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r => r.unregister())); } } catch { }
+    try { location.reload(); } catch { }
+  }));
 
-  const close = el("button", "primary-btn", "Done");
-  close.onclick = () => { back.remove(); renderMap(); };
-  box.appendChild(close); back.appendChild(box);
-  $("overlay").appendChild(back);
+  /* assemble */
+  for (const k of ["progress", "children", "settings"]) box.appendChild(panels[k]);
+  const done = el("button", "primary-btn pc-done", "Done");
+  done.onclick = () => { back.remove(); renderMap(); };
+  box.appendChild(done);
+  setTab("progress");
+  back.appendChild(box); $("overlay").appendChild(back);
 }
 function openParentGate() {
   const back = el("div", "modal-back"), box = el("div", "modal");
