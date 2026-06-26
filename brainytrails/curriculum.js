@@ -1769,6 +1769,380 @@ const BT = (() => {
       ] },
   ];
 
+  /* ===================== YEARS 3–6 (ACARA v9) ===================== */
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const fracChoice = (right, pool) => { const seen = new Set([right]); const out = [{ label: right, correct: true }]; for (const c of shuffle(pool)) { if (out.length < 4 && !seen.has(c)) { seen.add(c); out.push({ label: c, correct: false }); } } return shuffle(out); };
+  const PCT = [10, 20, 25, 50, 75, 100];
+
+  /* ---------- YEAR 3 ---------- */
+  const Y3SKILLS = {
+    "y3.num.place": { name: "Place Value", icon: "🔢", island: "y3.num", unit: "y3.n1", prereqs: [],
+      gen(d) { const n = ri(1000, lerp(3000, 9999, d)), PL = ["thousands", "hundreds", "tens", "ones"], pi = ri(0, 3), digs = String(n).padStart(4, "0");
+        return { format: "keypad", prompt: `In ${n}, which digit is in the ${PL[pi]} place?`, say: `Which digit is in the ${PL[pi]} place of ${n}?`, visual: null, answer: +digs[pi], hint: "Thousands, hundreds, tens, ones.", steps: [`Read ${n}.`, `Find the ${PL[pi]} column.`, `It's ${+digs[pi]}!`] }; } },
+    "y3.num.compare": { name: "Compare Big", icon: "🔝", island: "y3.num", unit: "y3.n1", prereqs: ["y3.num.place"],
+      gen(d) { const hi = lerp(1000, 9999, d); let a = ri(100, hi), b = ri(100, hi); while (b === a) b = ri(100, hi); const big = Math.max(a, b);
+        return { format: "choice", prompt: "Which is BIGGER?", say: "Which is bigger?", visual: null, choices: shuffle([{ label: String(a), correct: a === big }, { label: String(b), correct: b === big }]), hint: "Compare the thousands first.", steps: ["Line up the digits.", "Compare left to right.", `${big} wins!`] }; } },
+    "y3.num.order": { name: "Order to 9999", icon: "🚂", island: "y3.num", unit: "y3.n1", prereqs: ["y3.num.compare"],
+      gen(d) { const hi = lerp(1000, 9999, d), s = new Set(); while (s.size < 4) s.add(ri(100, hi)); const correct = [...s].sort((a, b) => a - b);
+        return { format: "order", prompt: "Tap smallest to biggest!", say: "Order smallest to biggest.", visual: null, items: shuffle(correct), correct, hint: "Smallest first.", steps: ["Find the smallest.", "Then the next.", "Order them!"] }; } },
+    "y3.num.round10": { name: "Round to 10", icon: "🎯", island: "y3.num", unit: "y3.n2", prereqs: ["y3.num.place"],
+      gen(d) { const n = ri(11, lerp(99, 499, d));
+        return { format: "keypad", prompt: `Round ${n} to the nearest 10`, say: `Round ${n} to the nearest ten.`, visual: null, answer: Math.round(n / 10) * 10, hint: "Look at the ones digit.", steps: [`Ones digit of ${n}.`, "5 or more rounds up.", `It's ${Math.round(n / 10) * 10}!`] }; } },
+    "y3.num.round100": { name: "Round to 100", icon: "💯", island: "y3.num", unit: "y3.n2", prereqs: ["y3.num.round10"],
+      gen(d) { const n = ri(50, lerp(499, 999, d));
+        return { format: "keypad", prompt: `Round ${n} to the nearest 100`, say: `Round ${n} to the nearest hundred.`, visual: null, answer: Math.round(n / 100) * 100, hint: "Look at the tens digit.", steps: [`Tens digit of ${n}.`, "5 or more rounds up.", `It's ${Math.round(n / 100) * 100}!`] }; } },
+
+    "y3.add.3dig": { name: "Add Big", icon: "➕", island: "y3.addsub", unit: "y3.a", prereqs: [],
+      gen(d) { const a = ri(20, lerp(200, 500, d)), b = ri(20, Math.min(499, 999 - a));
+        return { format: "keypad", prompt: `${a} + ${b} = ?`, say: `${a} plus ${b}?`, visual: null, answer: a + b, hint: "Add hundreds, tens, then ones.", steps: ["Add the hundreds.", "Add tens and ones.", `Total ${a + b}!`] }; } },
+    "y3.sub.3dig": { name: "Take Big", icon: "➖", island: "y3.addsub", unit: "y3.a", prereqs: ["y3.add.3dig"],
+      gen(d) { const a = ri(lerp(120, 400, d), 999), b = ri(10, a - 1);
+        return { format: "keypad", prompt: `${a} − ${b} = ?`, say: `${a} take away ${b}?`, visual: null, answer: a - b, hint: "Subtract place by place.", steps: [`Start at ${a}.`, `Take ${b}.`, `Leaves ${a - b}!`] }; } },
+    "y3.missing": { name: "Find Unknown", icon: "🧩", island: "y3.addsub", unit: "y3.a", prereqs: ["y3.add.3dig"],
+      gen(d) { const t = ri(lerp(30, 200, d), 500), a = ri(1, t), ans = t - a;
+        return { format: "keypad", prompt: `${a} + ❓ = ${t}`, say: `${a} plus what makes ${t}?`, visual: null, answer: ans, hint: "Subtract to find it.", steps: [`${t} − ${a}.`, "That's the missing part.", `${ans}!`] }; } },
+    "y3.money.change": { name: "Money & Change", icon: "🪙", island: "y3.addsub", unit: "y3.money", prereqs: [],
+      gen(d) { const cost = ri(2, 9), paid = pick([10, 20]);
+        return { format: "keypad", prompt: `A toy costs $${cost}. You pay with $${paid}. Change?`, say: `Change from ${paid} dollars?`, visual: null, answer: paid - cost, hint: "Take the cost from what you paid.", steps: [`Paid $${paid}.`, `Cost $${cost}.`, `Change $${paid - cost}!`] }; } },
+
+    "y3.mult.facts": { name: "Times Tables", icon: "✖️", island: "y3.mult", unit: "y3.x", prereqs: [],
+      gen(d) { const t = pick([3, 4, 5, 10]), a = ri(1, lerp(6, 10, d));
+        return { format: "keypad", prompt: `${t} × ${a} = ?`, say: `${t} times ${a}?`, visual: null, answer: t * a, hint: `Skip count by ${t}.`, steps: [`${a} groups of ${t}.`, `Skip count by ${t}.`, `${t * a}!`] }; } },
+    "y3.div.facts": { name: "Division Facts", icon: "➗", island: "y3.mult", unit: "y3.x", prereqs: ["y3.mult.facts"],
+      gen(d) { const t = pick([3, 4, 5, 10]), q = ri(1, lerp(6, 10, d)), total = t * q;
+        return { format: "keypad", prompt: `${total} ÷ ${t} = ?`, say: `${total} divided by ${t}?`, visual: null, answer: q, hint: "How many groups?", steps: [`Share ${total} into ${t}s.`, "Count the groups.", `${q}!`] }; } },
+    "y3.mult.missing": { name: "Missing Factor", icon: "🔍", island: "y3.mult", unit: "y3.x", prereqs: ["y3.mult.facts"],
+      gen(d) { const t = pick([3, 4, 5, 10]), a = ri(2, 10);
+        return { format: "keypad", prompt: `${t} × ❓ = ${t * a}`, say: `${t} times what makes ${t * a}?`, visual: null, answer: a, hint: "Divide to undo.", steps: [`${t * a} ÷ ${t}.`, "Find the factor.", `${a}!`] }; } },
+    "y3.mult.pattern": { name: "Multiple Patterns", icon: "📈", island: "y3.mult", unit: "y3.pat", prereqs: ["y3.mult.facts"],
+      gen(d) { const t = pick([3, 4, 5]), start = t * ri(1, 3), seq = [start, start + t, start + 2 * t], ans = start + 3 * t;
+        return { format: "choice", prompt: `${seq.join(", ")}, … next?`, say: "What comes next?", visual: null, choices: numChoices(ans, Math.max(0, ans - 12), ans + 12), hint: `Multiples of ${t}.`, steps: [`Adding ${t}.`, `${seq[2]} + ${t}.`, `${ans}!`] }; } },
+
+    "y3.frac.name": { name: "Name Fraction", icon: "🍕", island: "y3.frac", unit: "y3.f", prereqs: [],
+      gen(d) { const den = pick([2, 3, 4, 5]), num = ri(1, den - 1), right = `${num}/${den}`;
+        return { format: "choice", prompt: "What fraction is shaded?", say: "What fraction is shaded?", visual: rep("🟩", num) + rep("⬜", den - num), choices: fracChoice(right, [`${den - num}/${den}`, `${num}/${den + 1}`, `${num + 1}/${den}`, `1/${den}`]), hint: "Shaded over total parts.", steps: [`${den} parts in all.`, `${num} shaded.`, `${right}!`] }; } },
+    "y3.frac.ofqty": { name: "Fraction Of", icon: "🍰", island: "y3.frac", unit: "y3.f", prereqs: ["y3.frac.name"],
+      gen(d) { const den = pick([2, 3, 4, 5]), k = ri(1, lerp(3, 6, d)), n = den * k;
+        return { format: "keypad", prompt: `1/${den} of ${n} = ?`, say: `One ${den === 2 ? "half" : den + "th"} of ${n}?`, visual: null, answer: k, hint: `Share ${n} into ${den} equal parts.`, steps: [`Split ${n} into ${den}.`, "Equal groups.", `Each is ${k}!`] }; } },
+    "y3.frac.compare": { name: "Which is Bigger", icon: "⚖️", island: "y3.frac", unit: "y3.f", prereqs: ["y3.frac.name"],
+      gen(d) { const dens = shuffle([2, 3, 4, 5]).slice(0, 2), big = Math.min(...dens);
+        return { format: "choice", prompt: "Which fraction is BIGGER?", say: "Which is bigger?", visual: null, choices: shuffle(dens.map(x => ({ label: `1/${x}`, correct: x === big }))), hint: "Fewer parts means bigger pieces.", steps: ["Same top (1).", "Smaller bottom = bigger piece.", `1/${big}!`] }; } },
+    "y3.frac.multiple": { name: "Count Fractions", icon: "🔢", island: "y3.frac", unit: "y3.f2", prereqs: ["y3.frac.name"],
+      gen(d) { const den = pick([3, 4, 5]), k = ri(1, den - 1), ans = `${k + 1}/${den}`;
+        return { format: "choice", prompt: `${[...Array(k)].map((_, i) => `${i + 1}/${den}`).join(", ")}, … next?`, say: "What comes next?", visual: null, choices: fracChoice(ans, [`${k}/${den}`, `${k + 2}/${den}`, `1/${den}`]), hint: `Count up by 1/${den}.`, steps: [`Add 1/${den}.`, `After ${k}/${den}.`, `${ans}!`] }; } },
+
+    "y3.measure.unit": { name: "Best Unit", icon: "📐", island: "y3.measure", unit: "y3.m", prereqs: [],
+      gen(d) { const T = [["the length of a pencil", "cm"], ["the distance to school", "km"], ["a bag of apples", "kg"], ["water in a bottle", "L"], ["a feather", "g"]]; const t = pick(T), opts = ["cm", "km", "kg", "L", "g"];
+        const choices = shuffle([{ label: t[1], correct: true }, ...shuffle(opts.filter(o => o !== t[1])).slice(0, 3).map(o => ({ label: o, correct: false }))]);
+        return { format: "choice", prompt: `Best unit to measure ${t[0]}?`, say: `Best unit for ${t[0]}?`, visual: null, choices, hint: "Match the size to the unit.", steps: ["Think of the size.", "Pick the right unit.", `${t[1]}!`] }; } },
+    "y3.time.convert": { name: "Time Units", icon: "⏱", island: "y3.measure", unit: "y3.m", prereqs: [],
+      gen(d) { const F = [["minutes in an hour", 60], ["hours in a day", 24], ["minutes in half an hour", 30], ["seconds in a minute", 60]]; const f = pick(F);
+        return { format: "keypad", prompt: `How many ${f[0]}?`, say: `How many ${f[0]}?`, visual: null, answer: f[1], hint: "A time fact.", steps: ["Recall the unit.", "Count it.", `${f[1]}!`] }; } },
+    "y3.time.elapsed": { name: "How Long", icon: "🕐", island: "y3.measure", unit: "y3.m", prereqs: ["y3.time.convert"],
+      gen(d) { const start = ri(1, 9), mins = pick([10, 15, 20, 30, 45]);
+        return { format: "keypad", prompt: `A show starts at ${start}:00 and ends at ${start}:${String(mins).padStart(2, "0")}. How many minutes long?`, say: `How many minutes long?`, visual: null, answer: mins, hint: "Count from the start.", steps: [`Start ${start}:00.`, `End ${start}:${String(mins).padStart(2, "0")}.`, `${mins} minutes!`] }; } },
+    "y3.angle.right": { name: "Right Angle?", icon: "📐", island: "y3.measure", unit: "y3.ang", prereqs: [],
+      gen(d) { const deg = pick([30, 45, 60, 90, 120, 150]), ans = deg < 90 ? "smaller" : deg === 90 ? "a right angle" : "bigger";
+        return { format: "choice", prompt: `An angle of ${deg}°. Compared to a right angle (90°) it is…`, say: `${deg} degrees compared to a right angle?`, visual: null, choices: shuffle([{ label: "smaller", correct: ans === "smaller" }, { label: "a right angle", correct: ans === "a right angle" }, { label: "bigger", correct: ans === "bigger" }]), hint: "A right angle is 90°.", steps: ["Right angle = 90°.", `Compare ${deg}°.`, `It's ${ans}!`] }; } },
+    "y3.symmetry": { name: "Line Symmetry", icon: "🦋", island: "y3.measure", unit: "y3.ang", prereqs: [],
+      gen(d) { const SYM = ["❤️", "⭐", "🟦", "🔺", "🦋", "🔷"], NO = ["🐟", "🅿️", "🌙", "✋", "🦶"]; const yes = Math.random() < 0.5; const e = yes ? pick(SYM) : pick(NO);
+        return { format: "tf", prompt: `Does ${e} have matching halves (a line of symmetry)?`, say: "Does it have matching halves?", visual: e, answer: yes, hint: "Could you fold it onto itself?", steps: ["Imagine folding it.", "Do the halves match?", yes ? "Yes!" : "No!"] }; } },
+
+    "y3.data.read": { name: "Read Graph", icon: "📊", island: "y3.data", unit: "y3.d", prereqs: [],
+      gen(d) { const es = shuffle(["🍎", "🍌", "🍓", "🍊"]).slice(0, 3), cs = (() => { const s = new Set(); while (s.size < 3) s.add(ri(1, 6)); return [...s]; })(), t = ri(0, 2);
+        return { format: "keypad", prompt: `How many chose ${es[t]}?`, say: `How many for ${es[t]}?`, visual: es.map((e, i) => `${e}  ${rep(e, cs[i])}`).join("\n"), answer: cs[t], hint: "Count that row.", steps: [`Find ${es[t]}.`, "Count it.", `${cs[t]}!`] }; } },
+    "y3.data.compare": { name: "How Many More", icon: "➕", island: "y3.data", unit: "y3.d", prereqs: ["y3.data.read"],
+      gen(d) { const es = shuffle(["🍎", "🍌", "🍓"]).slice(0, 2), cs = (() => { const s = new Set(); while (s.size < 2) s.add(ri(1, 6)); return [...s]; })(), hi = cs[0] > cs[1] ? 0 : 1, lo = 1 - hi;
+        return { format: "keypad", prompt: `How many MORE ${es[hi]} than ${es[lo]}?`, say: "How many more?", visual: es.map((e, i) => `${e}  ${rep(e, cs[i])}`).join("\n"), answer: cs[hi] - cs[lo], hint: "Find the difference.", steps: [`${cs[hi]} and ${cs[lo]}.`, "Subtract.", `${cs[hi] - cs[lo]}!`] }; } },
+    "y3.chance.word": { name: "How Likely", icon: "🎲", island: "y3.data", unit: "y3.ch", prereqs: [],
+      gen(d) { const EV = [["The sun will rise tomorrow", "certain"], ["A pig will fly", "impossible"], ["You will roll a 7 on a normal dice", "impossible"], ["Tomorrow comes after today", "certain"], ["It might rain this week", "might happen"], ["You flip a coin and get heads", "might happen"]]; const e = pick(EV);
+        return { format: "choice", prompt: `"${e[0]}" — how likely?`, say: "How likely is it?", visual: null, choices: shuffle([{ label: "certain", correct: e[1] === "certain" }, { label: "might happen", correct: e[1] === "might happen" }, { label: "impossible", correct: e[1] === "impossible" }]), hint: "Will it always, sometimes, or never happen?", steps: ["Think it through.", "Always? Sometimes? Never?", `It's ${e[1]}!`] }; } },
+  };
+  const Y3ISLANDS = [
+    { id: "y3.num", name: "Number Nest", emoji: "🔢", boss: { name: "Rok the Eagle", emoji: "🦅", line: "Master big numbers to fly!" }, units: [{ id: "y3.n1", name: "Place & Order", skills: ["y3.num.place", "y3.num.compare", "y3.num.order"] }, { id: "y3.n2", name: "Rounding", skills: ["y3.num.round10", "y3.num.round100"] }] },
+    { id: "y3.addsub", name: "Add & Take Trail", emoji: "➕", boss: { name: "Bramble the Bear", emoji: "🐻", line: "Add and take in the hundreds to pass!" }, units: [{ id: "y3.a", name: "3-Digit", skills: ["y3.add.3dig", "y3.sub.3dig", "y3.missing"] }, { id: "y3.money", name: "Money", skills: ["y3.money.change"] }] },
+    { id: "y3.mult", name: "Times Table Trail", emoji: "✖️", boss: { name: "Cinder the Dragon", emoji: "🐉", line: "Know your tables to face my flames!" }, units: [{ id: "y3.x", name: "× and ÷", skills: ["y3.mult.facts", "y3.div.facts", "y3.mult.missing"] }, { id: "y3.pat", name: "Patterns", skills: ["y3.mult.pattern"] }] },
+    { id: "y3.frac", name: "Fraction Falls", emoji: "🍕", boss: { name: "Misty the Wyrm", emoji: "💧", line: "Split it fairly to cross my falls!" }, units: [{ id: "y3.f", name: "Fractions", skills: ["y3.frac.name", "y3.frac.ofqty", "y3.frac.compare"] }, { id: "y3.f2", name: "Counting Fractions", skills: ["y3.frac.multiple"] }] },
+    { id: "y3.measure", name: "Measure Mesa", emoji: "📐", boss: { name: "Quill the Echidna", emoji: "🦔", line: "Measure, time and angle to pass!" }, units: [{ id: "y3.m", name: "Units & Time", skills: ["y3.measure.unit", "y3.time.convert", "y3.time.elapsed"] }, { id: "y3.ang", name: "Angles & Symmetry", skills: ["y3.angle.right", "y3.symmetry"] }] },
+    { id: "y3.data", name: "Data & Chance Den", emoji: "📊", boss: { name: "Pip the Magpie", emoji: "🐦", line: "Read my data and guess the chance!" }, units: [{ id: "y3.d", name: "Data", skills: ["y3.data.read", "y3.data.compare"] }, { id: "y3.ch", name: "Chance", skills: ["y3.chance.word"] }] },
+  ];
+
+  /* ---------- YEAR 4 ---------- */
+  const Y4SKILLS = {
+    "y4.num.place": { name: "Big Place Value", icon: "🔢", island: "y4.num", unit: "y4.n1", prereqs: [],
+      gen(d) { const n = ri(10000, lerp(40000, 99999, d)), PL = ["ten-thousands", "thousands", "hundreds", "tens", "ones"], pi = ri(0, 4), digs = String(n).padStart(5, "0");
+        return { format: "keypad", prompt: `In ${n}, which digit is in the ${PL[pi]} place?`, say: `Which digit is in the ${PL[pi]} place?`, visual: null, answer: +digs[pi], hint: "Read the columns left to right.", steps: [`Read ${n}.`, `Find ${PL[pi]}.`, `It's ${+digs[pi]}!`] }; } },
+    "y4.num.round": { name: "Round to 1000", icon: "🎯", island: "y4.num", unit: "y4.n1", prereqs: ["y4.num.place"],
+      gen(d) { const n = ri(1100, lerp(9000, 49999, d));
+        return { format: "keypad", prompt: `Round ${n} to the nearest 1000`, say: `Round ${n} to the nearest thousand.`, visual: null, answer: Math.round(n / 1000) * 1000, hint: "Look at the hundreds digit.", steps: ["Hundreds digit.", "5+ rounds up.", `${Math.round(n / 1000) * 1000}!`] }; } },
+    "y4.num.oddeven": { name: "Odd or Even", icon: "🔵", island: "y4.num", unit: "y4.n1", prereqs: [],
+      gen(d) { const n = ri(2, lerp(50, 200, d)), even = n % 2 === 0;
+        return { format: "choice", prompt: `Is ${n} odd or even?`, say: `Is ${n} odd or even?`, visual: null, choices: shuffle([{ label: "even", correct: even }, { label: "odd", correct: !even }]), hint: "Even numbers end in 0,2,4,6,8.", steps: [`Last digit of ${n}.`, "0/2/4/6/8 = even.", even ? "Even!" : "Odd!"] }; } },
+    "y4.mult.facts": { name: "Tables to 10×10", icon: "✖️", island: "y4.num", unit: "y4.x", prereqs: [],
+      gen(d) { const a = ri(2, lerp(6, 10, d)), b = ri(2, 10);
+        return { format: "keypad", prompt: `${a} × ${b} = ?`, say: `${a} times ${b}?`, visual: null, answer: a * b, hint: "Recall your tables.", steps: [`${a} times ${b}.`, "Use a known fact.", `${a * b}!`] }; } },
+    "y4.div.facts": { name: "Division to 100", icon: "➗", island: "y4.num", unit: "y4.x", prereqs: ["y4.mult.facts"],
+      gen(d) { const a = ri(2, 10), b = ri(2, lerp(6, 10, d)), p = a * b;
+        return { format: "keypad", prompt: `${p} ÷ ${a} = ?`, say: `${p} divided by ${a}?`, visual: null, answer: b, hint: "Use the matching times fact.", steps: [`${a} times what is ${p}?`, "Find it.", `${b}!`] }; } },
+    "y4.factor": { name: "Factor Pairs", icon: "🔗", island: "y4.num", unit: "y4.x", prereqs: ["y4.mult.facts"],
+      gen(d) { const a = ri(2, 9), b = ri(2, 9);
+        return { format: "keypad", prompt: `${a} × ❓ = ${a * b}`, say: `${a} times what makes ${a * b}?`, visual: null, answer: b, hint: "A missing factor.", steps: [`${a * b} ÷ ${a}.`, "Find the factor.", `${b}!`] }; } },
+
+    "y4.dec.tenths": { name: "Tenths", icon: "🔟", island: "y4.dec", unit: "y4.d1", prereqs: [],
+      gen(d) { const t = ri(1, 9);
+        return { format: "keypad", decimal: true, prompt: `${t} tenths as a decimal = ?`, say: `What is ${t} tenths as a decimal?`, visual: null, answer: t / 10, hint: "Tenths go after the point.", steps: [`${t} tenths.`, "Write 0 point.", `0.${t}!`] }; } },
+    "y4.dec.place": { name: "Decimal Place", icon: "🔢", island: "y4.dec", unit: "y4.d1", prereqs: ["y4.dec.tenths"],
+      gen(d) { const whole = ri(1, 9), ten = ri(1, 9);
+        return { format: "keypad", prompt: `In ${whole}.${ten}, which digit is in the TENTHS place?`, say: `Which digit is in the tenths place?`, visual: null, answer: ten, hint: "Tenths is just after the point.", steps: [`Look after the point.`, "First spot = tenths.", `${ten}!`] }; } },
+    "y4.dec.x10": { name: "Times Ten", icon: "⏫", island: "y4.dec", unit: "y4.d2", prereqs: ["y4.dec.tenths"],
+      gen(d) { const t = ri(1, 9);
+        return { format: "keypad", prompt: `0.${t} × 10 = ?`, say: `Zero point ${t} times ten?`, visual: null, answer: t, hint: "×10 moves digits one place left.", steps: [`0.${t} × 10.`, "Shift left.", `${t}!`] }; } },
+    "y4.dec.compare": { name: "Compare Decimals", icon: "⚖️", island: "y4.dec", unit: "y4.d2", prereqs: ["y4.dec.tenths"],
+      gen(d) { let a = ri(1, 9) / 10, b = ri(1, 9) / 10; while (b === a) b = ri(1, 9) / 10; const big = Math.max(a, b);
+        return { format: "choice", prompt: "Which decimal is BIGGER?", say: "Which is bigger?", visual: null, choices: shuffle([{ label: a.toFixed(1), correct: a === big }, { label: b.toFixed(1), correct: b === big }]), hint: "Compare the tenths.", steps: ["Look after the point.", "Bigger tenths wins.", `${big.toFixed(1)}!`] }; } },
+
+    "y4.frac.equiv": { name: "Equivalent", icon: "🟰", island: "y4.frac", unit: "y4.f", prereqs: [],
+      gen(d) { const base = pick([2, 3, 4, 5]), mult = ri(2, 4);
+        return { format: "keypad", prompt: `1/${base} = ❓/${base * mult}`, say: `One ${base}th equals how many ${base * mult}ths?`, visual: null, answer: mult, hint: "Multiply top and bottom the same.", steps: [`Bottom ×${mult}.`, "Top ×same.", `${mult}!`] }; } },
+    "y4.frac.ofqty": { name: "Fraction Of", icon: "🍰", island: "y4.frac", unit: "y4.f", prereqs: [],
+      gen(d) { const den = pick([2, 3, 4, 5]), num = ri(1, den - 1), k = ri(1, lerp(3, 6, d)), n = den * k;
+        return { format: "keypad", prompt: `${num}/${den} of ${n} = ?`, say: `${num} ${den}ths of ${n}?`, visual: null, answer: num * k, hint: `Find 1/${den}, then ×${num}.`, steps: [`1/${den} of ${n} = ${k}.`, `Then ×${num}.`, `${num * k}!`] }; } },
+    "y4.frac.compare": { name: "Same Bottom", icon: "⚖️", island: "y4.frac", unit: "y4.f", prereqs: [],
+      gen(d) { const den = pick([4, 5, 6, 8]); let a = ri(1, den - 1), b = ri(1, den - 1); while (b === a) b = ri(1, den - 1); const big = Math.max(a, b);
+        return { format: "choice", prompt: "Which fraction is BIGGER?", say: "Which is bigger?", visual: null, choices: shuffle([{ label: `${a}/${den}`, correct: a === big }, { label: `${b}/${den}`, correct: b === big }]), hint: "Same bottom — bigger top wins.", steps: ["Bottoms match.", "Compare the tops.", `${big}/${den}!`] }; } },
+    "y4.frac.count": { name: "Count by Fractions", icon: "🔢", island: "y4.frac", unit: "y4.f2", prereqs: ["y4.frac.compare"],
+      gen(d) { const den = pick([3, 4, 5]), k = ri(1, den - 1), ans = k + 1 === den ? "1 whole" : `${k + 1}/${den}`;
+        return { format: "choice", prompt: `${[...Array(k)].map((_, i) => `${i + 1}/${den}`).join(", ")}, … next?`, say: "What comes next?", visual: null, choices: fracChoice(ans, [`${k}/${den}`, `${k + 2 <= den ? k + 2 : k}/${den}`, `1/${den}`]), hint: `Add 1/${den} each time.`, steps: [`Add 1/${den}.`, `After ${k}/${den}.`, `${ans}!`] }; } },
+
+    "y4.meas.scale": { name: "Read the Scale", icon: "📏", island: "y4.meas", unit: "y4.m", prereqs: [],
+      gen(d) { const cm = ri(3, lerp(8, 20, d));
+        return { format: "keypad", prompt: `The pencil ends at the ${cm} mark. How many cm long?`, say: "How many centimetres?", visual: "📏 " + rep("▪️", cm), answer: cm, hint: "Read where it ends.", steps: ["Find the end.", "Read the number.", `${cm} cm!`] }; } },
+    "y4.temp": { name: "Temperature", icon: "🌡", island: "y4.meas", unit: "y4.m", prereqs: [],
+      gen(d) { const a = ri(10, 30), b = ri(1, 15);
+        return { format: "keypad", prompt: `It was ${a}°C, then rose ${b}°C. New temperature?`, say: "New temperature?", visual: null, answer: a + b, hint: "Add the rise.", steps: [`Start ${a}°C.`, `Up ${b}°C.`, `${a + b}°C!`] }; } },
+    "y4.time.convert": { name: "Convert Time", icon: "⏱", island: "y4.meas", unit: "y4.m", prereqs: [],
+      gen(d) { const F = [["minutes in", "hours", 60], ["days in", "weeks", 7], ["hours in", "days", 24]]; const f = pick(F), n = ri(2, 5);
+        return { format: "keypad", prompt: `How many ${f[0]} ${n} ${f[1]}?`, say: `How many ${f[0]} ${n} ${f[1]}?`, visual: null, answer: n * f[2], hint: `One ${f[1].slice(0, -1)} = ${f[2]}.`, steps: [`1 = ${f[2]}.`, `×${n}.`, `${n * f[2]}!`] }; } },
+    "y4.angle.classify": { name: "Classify Angle", icon: "📐", island: "y4.meas", unit: "y4.ang", prereqs: [],
+      gen(d) { const A = [[30, "acute"], [45, "acute"], [90, "right"], [120, "obtuse"], [150, "obtuse"]]; const a = pick(A);
+        return { format: "choice", prompt: `An angle of ${a[0]}° is…`, say: `${a[0]} degrees is what kind of angle?`, visual: null, choices: shuffle([{ label: "acute", correct: a[1] === "acute" }, { label: "right", correct: a[1] === "right" }, { label: "obtuse", correct: a[1] === "obtuse" }]), hint: "Less than 90 = acute, 90 = right, more = obtuse.", steps: ["Compare to 90°.", a[0] < 90 ? "Smaller." : a[0] === 90 ? "Exactly 90." : "Bigger.", `It's ${a[1]}!`] }; } },
+
+    "y4.sym.lines": { name: "Lines of Symmetry", icon: "🔷", island: "y4.sym", unit: "y4.s", prereqs: [],
+      gen(d) { const S = [["square", 4], ["rectangle", 2], ["equilateral triangle", 3]]; const s = pick(S);
+        return { format: "keypad", prompt: `How many lines of symmetry does a ${s[0]} have?`, say: `How many lines of symmetry?`, visual: null, answer: s[1], hint: "Lines that fold it onto itself.", steps: [`Picture a ${s[0]}.`, "Find folding lines.", `${s[1]}!`] }; } },
+    "y4.sym.has": { name: "Symmetry?", icon: "🦋", island: "y4.sym", unit: "y4.s", prereqs: [],
+      gen(d) { const SYM = ["❤️", "⭐", "🟦", "🦋", "🔷", "🔺"], NO = ["🐟", "🅿️", "🌙", "✋"]; const yes = Math.random() < 0.5, e = yes ? pick(SYM) : pick(NO);
+        return { format: "tf", prompt: `Does ${e} have a line of symmetry?`, say: "Does it have a line of symmetry?", visual: e, answer: yes, hint: "Could you fold it onto itself?", steps: ["Imagine folding.", "Do halves match?", yes ? "Yes!" : "No!"] }; } },
+    "y4.data.manyone": { name: "Many-to-One", icon: "📊", island: "y4.sym", unit: "y4.d", prereqs: [],
+      gen(d) { const per = pick([2, 5, 10]), stars = ri(2, 5);
+        return { format: "keypad", prompt: `Each ⭐ stands for ${per} votes. A fruit has ${stars} stars. How many votes?`, say: `${stars} stars of ${per}?`, visual: rep("⭐", stars), answer: per * stars, hint: `Each star is ${per}.`, steps: [`${stars} stars.`, `×${per}.`, `${per * stars}!`] }; } },
+    "y4.chance.likely": { name: "More Likely", icon: "🎲", island: "y4.sym", unit: "y4.d", prereqs: [],
+      gen(d) { const n1 = ri(2, 5); // ways to roll <=n1 vs roll a 6
+        return { format: "choice", prompt: `On a dice: roll ${n1} or less, OR roll a 6 — which is MORE likely?`, say: "Which is more likely?", visual: null, choices: shuffle([{ label: `${n1} or less`, correct: n1 >= 1 }, { label: "a 6", correct: false }]), hint: "More winning numbers = more likely.", steps: [`${n1} or less has ${n1} numbers.`, "A 6 has just 1.", `${n1} or less!`] }; } },
+  };
+  const Y4ISLANDS = [
+    { id: "y4.num", name: "Big Number Butte", emoji: "🔢", boss: { name: "Gale the Thunderbird", emoji: "🦅", line: "Big numbers and tables — show me!" }, units: [{ id: "y4.n1", name: "Place & Round", skills: ["y4.num.place", "y4.num.round", "y4.num.oddeven"] }, { id: "y4.x", name: "× and ÷", skills: ["y4.mult.facts", "y4.div.facts", "y4.factor"] }] },
+    { id: "y4.dec", name: "Decimal Drifts", emoji: "🔟", boss: { name: "Dot the Dolphin", emoji: "🐬", line: "Master tenths to swim my drifts!" }, units: [{ id: "y4.d1", name: "Tenths", skills: ["y4.dec.tenths", "y4.dec.place"] }, { id: "y4.d2", name: "Use Decimals", skills: ["y4.dec.x10", "y4.dec.compare"] }] },
+    { id: "y4.frac", name: "Fraction Forge", emoji: "🍕", boss: { name: "Ferro the Fox", emoji: "🦊", line: "Forge equal fractions to pass!" }, units: [{ id: "y4.f", name: "Equivalence", skills: ["y4.frac.equiv", "y4.frac.ofqty", "y4.frac.compare"] }, { id: "y4.f2", name: "Counting", skills: ["y4.frac.count"] }] },
+    { id: "y4.meas", name: "Measure & Angle Mesa", emoji: "📐", boss: { name: "Chrono the Echidna", emoji: "🦔", line: "Measure and angle to pass!" }, units: [{ id: "y4.m", name: "Measure & Time", skills: ["y4.meas.scale", "y4.temp", "y4.time.convert"] }, { id: "y4.ang", name: "Angles", skills: ["y4.angle.classify"] }] },
+    { id: "y4.sym", name: "Symmetry & Data Shore", emoji: "🔷", boss: { name: "Marlo the Heron", emoji: "🦢", line: "Mirror, graph and guess to pass!" }, units: [{ id: "y4.s", name: "Symmetry", skills: ["y4.sym.lines", "y4.sym.has"] }, { id: "y4.d", name: "Data & Chance", skills: ["y4.data.manyone", "y4.chance.likely"] }] },
+    { id: "y4.review", name: "Explorer's Rest", emoji: "🏕", boss: { name: "Sage the Wombat", emoji: "🐨", line: "Bring it all together to rest here!" }, units: [{ id: "y4.r", name: "Mixed Mastery", skills: ["y4.mult.facts", "y4.frac.ofqty", "y4.dec.compare"] }] },
+  ];
+
+  /* ---------- YEAR 5 ---------- */
+  const Y5SKILLS = {
+    "y5.factor": { name: "Factors", icon: "🔗", island: "y5.num", unit: "y5.n1", prereqs: [],
+      gen(d) { const base = pick([12, 18, 20, 24, 30]); const facs = []; for (let i = 1; i <= base; i++) if (base % i === 0) facs.push(i); const f = pick(facs.filter(x => x > 1 && x < base)); const nons = []; for (let i = 2; i < base; i++) if (base % i !== 0) nons.push(i);
+        return { format: "choice", prompt: `Which is a FACTOR of ${base}?`, say: `Which is a factor of ${base}?`, visual: null, choices: shuffle([{ label: String(f), correct: true }, ...shuffle(nons).slice(0, 3).map(x => ({ label: String(x), correct: false }))]), hint: "A factor divides it with no remainder.", steps: [`Does it divide ${base}?`, "No leftovers.", `${f} does!`] }; } },
+    "y5.multiple": { name: "Multiples", icon: "🔢", island: "y5.num", unit: "y5.n1", prereqs: [],
+      gen(d) { const base = pick([3, 4, 6, 7, 8]), k = ri(2, 6), right = base * k; const nons = []; for (let i = 0; i < 6; i++) { const x = right + pick([-1, 1, 2, -2]); if (x % base !== 0 && x > 0) nons.push(x); }
+        return { format: "choice", prompt: `Which is a MULTIPLE of ${base}?`, say: `Which is a multiple of ${base}?`, visual: null, choices: shuffle([{ label: String(right), correct: true }, ...[...new Set(nons)].slice(0, 3).map(x => ({ label: String(x), correct: false }))]), hint: `Count by ${base}s.`, steps: [`Multiples of ${base}.`, `${base}×${k}.`, `${right}!`] }; } },
+    "y5.num.place": { name: "Place to 100000", icon: "🔢", island: "y5.num", unit: "y5.n1", prereqs: [],
+      gen(d) { const n = ri(100000, 999999), PL = ["hundred-thousands", "ten-thousands", "thousands", "hundreds", "tens", "ones"], pi = ri(0, 5), digs = String(n);
+        return { format: "keypad", prompt: `In ${n}, which digit is in the ${PL[pi]} place?`, say: `Which digit is in the ${PL[pi]} place?`, visual: null, answer: +digs[pi], hint: "Read the columns.", steps: [`Read ${n}.`, `Find ${PL[pi]}.`, `${+digs[pi]}!`] }; } },
+    "y5.mult.large": { name: "Multiply Big", icon: "✖️", island: "y5.ops", unit: "y5.o", prereqs: [],
+      gen(d) { const a = ri(12, lerp(30, 99, d)), b = ri(2, 9);
+        return { format: "keypad", prompt: `${a} × ${b} = ?`, say: `${a} times ${b}?`, visual: null, answer: a * b, hint: "Split into tens and ones.", steps: [`${Math.floor(a / 10) * 10}×${b} + ${a % 10}×${b}.`, "Add them.", `${a * b}!`] }; } },
+    "y5.div.single": { name: "Divide Big", icon: "➗", island: "y5.ops", unit: "y5.o", prereqs: ["y5.mult.large"],
+      gen(d) { const b = ri(2, 9), q = ri(11, lerp(20, 50, d)), p = b * q;
+        return { format: "keypad", prompt: `${p} ÷ ${b} = ?`, say: `${p} divided by ${b}?`, visual: null, answer: q, hint: "How many groups of the divisor?", steps: [`Share ${p} into ${b}s.`, "Count groups.", `${q}!`] }; } },
+    "y5.inverse": { name: "Inverse", icon: "🔁", island: "y5.ops", unit: "y5.o", prereqs: ["y5.mult.large"],
+      gen(d) { const a = ri(3, 9), b = ri(3, 9), p = a * b;
+        return { format: "keypad", prompt: `If ${a} × ${b} = ${p}, then ${p} ÷ ${a} = ?`, say: `${p} divided by ${a}?`, visual: null, answer: b, hint: "Division undoes multiplication.", steps: [`${a}×${b}=${p}.`, "So divide back.", `${b}!`] }; } },
+
+    "y5.frac.addsame": { name: "Add Fractions", icon: "➕", island: "y5.frac", unit: "y5.f", prereqs: [],
+      gen(d) { const den = pick([5, 6, 8, 10]); let a = ri(1, den - 2), b = ri(1, den - a - 1); const sum = a + b; const right = sum === den ? "1 whole" : `${sum}/${den}`;
+        return { format: "choice", prompt: `${a}/${den} + ${b}/${den} = ?`, say: `${a} ${den}ths plus ${b} ${den}ths?`, visual: null, choices: fracChoice(right, [`${a + b + 1}/${den}`, `${Math.max(1, a + b - 1)}/${den}`, `${a}/${den}`]), hint: "Same bottom — add the tops.", steps: ["Bottoms match.", `${a}+${b}=${sum}.`, `${right}!`] }; } },
+    "y5.frac.subsame": { name: "Subtract Fractions", icon: "➖", island: "y5.frac", unit: "y5.f", prereqs: ["y5.frac.addsame"],
+      gen(d) { const den = pick([5, 6, 8, 10]); let a = ri(2, den - 1), b = ri(1, a - 1); const right = `${a - b}/${den}`;
+        return { format: "choice", prompt: `${a}/${den} − ${b}/${den} = ?`, say: `${a} ${den}ths minus ${b} ${den}ths?`, visual: null, choices: fracChoice(right, [`${a - b + 1}/${den}`, `${a + b}/${den}`, `${a}/${den}`]), hint: "Same bottom — subtract the tops.", steps: ["Bottoms match.", `${a}−${b}=${a - b}.`, `${right}!`] }; } },
+    "y5.frac.related": { name: "Related Bottoms", icon: "🔗", island: "y5.frac", unit: "y5.f", prereqs: ["y5.frac.addsame"],
+      gen(d) { const pairs = [["1/2", "1/4", "3/4"], ["1/2", "1/6", "4/6"], ["1/3", "1/6", "3/6"], ["1/4", "2/4", "3/4"]]; const p = pick(pairs);
+        return { format: "choice", prompt: `${p[0]} + ${p[1]} = ?`, say: `${p[0]} plus ${p[1]}?`, visual: null, choices: fracChoice(p[2], ["1/2", "2/3", "5/6", "1 whole"].filter(x => x !== p[2])), hint: "Make the bottoms match first.", steps: ["Match the bottoms.", "Add the tops.", `${p[2]}!`] }; } },
+    "y5.frac.ofqty": { name: "Fraction Of", icon: "🍰", island: "y5.frac", unit: "y5.f2", prereqs: [],
+      gen(d) { const den = pick([3, 4, 5, 6]), num = ri(1, den - 1), k = ri(2, 6), n = den * k;
+        return { format: "keypad", prompt: `${num}/${den} of ${n} = ?`, say: `${num} ${den}ths of ${n}?`, visual: null, answer: num * k, hint: `1/${den}, then ×${num}.`, steps: [`1/${den} of ${n} = ${k}.`, `×${num}.`, `${num * k}!`] }; } },
+
+    "y5.pct.fromfrac": { name: "Fraction to %", icon: "💯", island: "y5.pct", unit: "y5.p", prereqs: [],
+      gen(d) { const F = [["1/2", 50], ["1/4", 25], ["3/4", 75], ["1/10", 10], ["1/5", 20], ["1/1", 100]]; const f = pick(F);
+        return { format: "keypad", prompt: `${f[0]} as a percentage = ?%`, say: `${f[0]} as a percent?`, visual: null, answer: f[1], hint: "Per cent means out of 100.", steps: [`${f[0]} of 100.`, "Work it out.", `${f[1]}%!`] }; } },
+    "y5.pct.ofqty": { name: "Percent Of", icon: "🏷", island: "y5.pct", unit: "y5.p", prereqs: ["y5.pct.fromfrac"],
+      gen(d) { const pc = pick([10, 25, 50, 75, 100]), base = pick([20, 40, 60, 80, 100]);
+        return { format: "keypad", prompt: `${pc}% of ${base} = ?`, say: `${pc} percent of ${base}?`, visual: null, answer: Math.round(pc / 100 * base), hint: "50% is half, 25% is a quarter.", steps: [`${pc}% = ${pc}/100.`, `Of ${base}.`, `${Math.round(pc / 100 * base)}!`] }; } },
+    "y5.pct.todec": { name: "Percent to Decimal", icon: "🔟", island: "y5.pct", unit: "y5.p2", prereqs: ["y5.pct.fromfrac"],
+      gen(d) { const pc = pick([10, 20, 30, 50, 70, 90]);
+        return { format: "keypad", decimal: true, prompt: `${pc}% as a decimal = ?`, say: `${pc} percent as a decimal?`, visual: null, answer: pc / 100, hint: "Divide by 100.", steps: [`${pc} ÷ 100.`, "Move the point.", `${(pc / 100).toFixed(1)}!`] }; } },
+    "y5.dec.powers": { name: "Powers of Ten", icon: "⏫", island: "y5.pct", unit: "y5.p2", prereqs: [],
+      gen(d) { const t = ri(1, 9), mul = pick([10, 100]);
+        return { format: "keypad", prompt: `0.${t} × ${mul} = ?`, say: `Zero point ${t} times ${mul}?`, visual: null, answer: t / 10 * mul, hint: "Each ×10 shifts one place.", steps: [`0.${t} × ${mul}.`, "Shift the digits.", `${t / 10 * mul}!`] }; } },
+
+    "y5.angle.line": { name: "Angles on a Line", icon: "📐", island: "y5.meas", unit: "y5.m", prereqs: [],
+      gen(d) { const a = pick([30, 45, 60, 110, 120, 135]);
+        return { format: "keypad", prompt: `Two angles sit on a straight line. One is ${a}°. The other?`, say: `The other angle on the line?`, visual: null, answer: 180 - a, hint: "A straight line is 180°.", steps: ["Line = 180°.", `180 − ${a}.`, `${180 - a}°!`] }; } },
+    "y5.angle.classify": { name: "Angle Type", icon: "🔺", island: "y5.meas", unit: "y5.m", prereqs: [],
+      gen(d) { const A = [[40, "acute"], [90, "right"], [130, "obtuse"], [180, "straight"]]; const a = pick(A);
+        return { format: "choice", prompt: `An angle of ${a[0]}° is…`, say: `${a[0]} degrees is what kind?`, visual: null, choices: shuffle([{ label: "acute", correct: a[1] === "acute" }, { label: "right", correct: a[1] === "right" }, { label: "obtuse", correct: a[1] === "obtuse" }, { label: "straight", correct: a[1] === "straight" }]), hint: "90 right, 180 straight, between = obtuse.", steps: ["Compare to 90 and 180.", "Classify.", `${a[1]}!`] }; } },
+    "y5.area.rect": { name: "Area", icon: "🟧", island: "y5.meas", unit: "y5.m", prereqs: [],
+      gen(d) { const l = ri(3, lerp(6, 12, d)), w = ri(2, 9);
+        return { format: "keypad", prompt: `A rectangle ${l} by ${w}. Area (squares)?`, say: `Area of ${l} by ${w}?`, visual: null, answer: l * w, hint: "Length × width.", steps: [`${l} × ${w}.`, "Multiply.", `${l * w}!`] }; } },
+    "y5.convert": { name: "Convert Units", icon: "📏", island: "y5.meas", unit: "y5.m2", prereqs: [],
+      gen(d) { const U = [["m", "cm", 100], ["km", "m", 1000], ["L", "mL", 1000], ["kg", "g", 1000]]; const u = pick(U), n = ri(2, 8);
+        return { format: "keypad", prompt: `${n} ${u[0]} = ❓ ${u[1]}`, say: `${n} ${u[0]} in ${u[1]}?`, visual: null, answer: n * u[2], hint: `1 ${u[0]} = ${u[2]} ${u[1]}.`, steps: [`1 ${u[0]} = ${u[2]}.`, `×${n}.`, `${n * u[2]}!`] }; } },
+    "y5.time.2412": { name: "24-Hour Time", icon: "🕘", island: "y5.meas", unit: "y5.m2", prereqs: [],
+      gen(d) { const h = ri(1, 11); const opts = [`${h} pm`, `${h} am`, `${h + 1} pm`, `${(h + 11) % 12 + 1} am`];
+        return { format: "choice", prompt: `${h + 12}:00 in 12-hour time is…`, say: `${h + 12} hundred in twelve hour time?`, visual: null, choices: shuffle([...new Set(opts)].map(l => ({ label: l, correct: l === `${h} pm` }))), hint: "After 12:00 it's pm; subtract 12.", steps: [`${h + 12} − 12 = ${h}.`, "Afternoon = pm.", `${h} pm!`] }; } },
+
+    "y5.coord.read": { name: "Coordinates", icon: "🧭", island: "y5.space", unit: "y5.sp", prereqs: [],
+      gen(d) { const x = ri(1, 6), y = ri(1, 6); const askX = Math.random() < 0.5;
+        return { format: "keypad", prompt: `A point is ${x} across and ${y} up. What is the ${askX ? "ACROSS" : "UP"} coordinate?`, say: `What is the ${askX ? "across" : "up"} number?`, visual: null, answer: askX ? x : y, hint: "Across first, then up.", steps: ["Across = first.", "Up = second.", `${askX ? x : y}!`] }; } },
+    "y5.coord.move": { name: "Move a Point", icon: "➡️", island: "y5.space", unit: "y5.sp", prereqs: ["y5.coord.read"],
+      gen(d) { const x = ri(1, 5), step = ri(1, 4);
+        return { format: "keypad", prompt: `Start at across = ${x}. Move right ${step}. New across?`, say: "New across number?", visual: null, answer: x + step, hint: "Right adds to across.", steps: [`From ${x}.`, `+${step}.`, `${x + step}!`] }; } },
+    "y5.net": { name: "Nets", icon: "📦", island: "y5.space", unit: "y5.sp", prereqs: [],
+      gen(d) { const N = [["6 equal squares", "cube"], ["a circle and a curved part", "cylinder"], ["a circle and a triangle part", "cone"], ["4 triangles and a square", "pyramid"]]; const n = pick(N), opts = ["cube", "cylinder", "cone", "pyramid"];
+        return { format: "choice", prompt: `A net made of ${n[0]} folds into a…`, say: `What solid does it make?`, visual: null, choices: shuffle(opts.map(o => ({ label: o, correct: o === n[1] }))), hint: "Picture it folding up.", steps: ["Imagine folding.", "What forms?", `${n[1]}!`] }; } },
+    "y5.transform": { name: "Transformations", icon: "🔄", island: "y5.space", unit: "y5.st", prereqs: [],
+      gen(d) { const T = [["slid across", "translation"], ["flipped over", "reflection"], ["turned around a point", "rotation"]]; const t = pick(T), opts = ["translation", "reflection", "rotation"];
+        return { format: "choice", prompt: `A shape is ${t[0]}. This is a…`, say: `What transformation is it?`, visual: null, choices: shuffle(opts.map(o => ({ label: o, correct: o === t[1] }))), hint: "Slide, flip or turn.", steps: ["Slide = translation.", "Flip = reflection.", `It's a ${t[1]}!`] }; } },
+    "y5.data.mode": { name: "Mode", icon: "📊", island: "y5.space", unit: "y5.st", prereqs: [],
+      gen(d) { const mode = ri(1, 6); const arr = shuffle([mode, mode, mode, ri(1, 6), ri(1, 6)]);
+        return { format: "keypad", prompt: `The MODE (most common) of ${arr.join(", ")} = ?`, say: "What is the mode?", visual: null, answer: mode, hint: "The value that appears most.", steps: ["Find repeats.", "Most common wins.", `${mode}!`] }; } },
+  };
+  const Y5ISLANDS = [
+    { id: "y5.num", name: "Factor Forest", emoji: "🌳", boss: { name: "Rooty the Stag", emoji: "🦌", line: "Find factors and multiples to pass!" }, units: [{ id: "y5.n1", name: "Factors & Multiples", skills: ["y5.factor", "y5.multiple", "y5.num.place"] }] },
+    { id: "y5.ops", name: "Big Ops Basin", emoji: "✖️", boss: { name: "Boulder the Bison", emoji: "🦬", line: "Multiply and divide big to cross!" }, units: [{ id: "y5.o", name: "× and ÷", skills: ["y5.mult.large", "y5.div.single", "y5.inverse"] }] },
+    { id: "y5.frac", name: "Fraction Falls", emoji: "🍕", boss: { name: "Misty the Wyrm", emoji: "💧", line: "Add and take fractions to flow on!" }, units: [{ id: "y5.f", name: "Add & Subtract", skills: ["y5.frac.addsame", "y5.frac.subsame", "y5.frac.related"] }, { id: "y5.f2", name: "Fraction Of", skills: ["y5.frac.ofqty"] }] },
+    { id: "y5.pct", name: "Percent Peak", emoji: "💯", boss: { name: "Percy the Falcon", emoji: "🦅", line: "Master percents to reach the peak!" }, units: [{ id: "y5.p", name: "Percentages", skills: ["y5.pct.fromfrac", "y5.pct.ofqty"] }, { id: "y5.p2", name: "Decimals & %", skills: ["y5.pct.todec", "y5.dec.powers"] }] },
+    { id: "y5.meas", name: "Measure & Angle Mesa", emoji: "📐", boss: { name: "Chrono the Echidna", emoji: "🦔", line: "Measure, angle and convert to pass!" }, units: [{ id: "y5.m", name: "Angles & Area", skills: ["y5.angle.line", "y5.angle.classify", "y5.area.rect"] }, { id: "y5.m2", name: "Convert & Time", skills: ["y5.convert", "y5.time.2412"] }] },
+    { id: "y5.space", name: "Coordinate Cove", emoji: "🧭", boss: { name: "Marlo the Heron", emoji: "🦢", line: "Plot, fold and transform to pass!" }, units: [{ id: "y5.sp", name: "Coordinates & Nets", skills: ["y5.coord.read", "y5.coord.move", "y5.net"] }, { id: "y5.st", name: "Transform & Data", skills: ["y5.transform", "y5.data.mode"] }] },
+  ];
+
+  /* ---------- YEAR 6 ---------- */
+  const Y6SKILLS = {
+    "y6.int.compare": { name: "Compare Integers", icon: "➖", island: "y6.int", unit: "y6.i", prereqs: [],
+      gen(d) { let a = ri(-9, 9), b = ri(-9, 9); while (b === a) b = ri(-9, 9); const big = Math.max(a, b);
+        return { format: "choice", prompt: "Which is BIGGER?", say: "Which is bigger?", visual: null, choices: shuffle([{ label: String(a), correct: a === big }, { label: String(b), correct: b === big }]), hint: "On a number line, right is bigger.", steps: ["Picture a number line.", "Right = bigger.", `${big}!`] }; } },
+    "y6.int.order": { name: "Order Integers", icon: "🔢", island: "y6.int", unit: "y6.i", prereqs: ["y6.int.compare"],
+      gen(d) { const s = new Set(); while (s.size < 4) s.add(ri(-9, 9)); const correct = [...s].sort((a, b) => a - b);
+        return { format: "order", prompt: "Tap from smallest to biggest!", say: "Order smallest to biggest.", visual: null, items: shuffle(correct), correct, hint: "Negatives are smallest.", steps: ["Most negative first.", "Work up to positive.", "Order them!"] }; } },
+    "y6.int.line": { name: "Below Zero", icon: "🌡", island: "y6.int", unit: "y6.i", prereqs: ["y6.int.compare"],
+      gen(d) { const start = ri(1, 6), drop = ri(start + 1, start + 8), ans = start - drop;
+        return { format: "choice", prompt: `It is ${start}°C, then drops ${drop}°C. New temperature?`, say: "New temperature?", visual: null, choices: shuffle([{ label: `${ans}°C`, correct: true }, { label: `${ans + 2}°C`, correct: false }, { label: `${start + drop}°C`, correct: false }, { label: `${ans - 1}°C`, correct: false }]), hint: "Count down past zero.", steps: [`From ${start}.`, `Down ${drop}.`, `${ans}°C!`] }; } },
+    "y6.bodmas": { name: "Order of Operations", icon: "🧮", island: "y6.int", unit: "y6.op", prereqs: [],
+      gen(d) { const a = ri(2, 9), b = ri(2, 6), c = ri(2, 6);
+        return { format: "keypad", prompt: `${a} + ${b} × ${c} = ?`, say: `${a} plus ${b} times ${c}?`, visual: null, answer: a + b * c, hint: "Multiply before you add.", steps: [`${b}×${c} first = ${b * c}.`, `Then + ${a}.`, `${a + b * c}!`] }; } },
+    "y6.bodmas.bracket": { name: "Brackets First", icon: "🔣", island: "y6.int", unit: "y6.op", prereqs: ["y6.bodmas"],
+      gen(d) { const a = ri(2, 9), b = ri(2, 6), c = ri(2, 5);
+        return { format: "keypad", prompt: `(${a} + ${b}) × ${c} = ?`, say: `Bracket ${a} plus ${b}, times ${c}?`, visual: null, answer: (a + b) * c, hint: "Do the brackets first.", steps: [`${a}+${b} = ${a + b}.`, `× ${c}.`, `${(a + b) * c}!`] }; } },
+
+    "y6.prime.is": { name: "Prime?", icon: "🔢", island: "y6.prime", unit: "y6.pr", prereqs: [],
+      gen(d) { const PR = [2, 3, 5, 7, 11, 13, 17, 19, 23], CO = [4, 6, 8, 9, 10, 12, 15, 21, 25]; const isP = Math.random() < 0.5, n = isP ? pick(PR) : pick(CO);
+        return { format: "tf", prompt: `Is ${n} a prime number?`, say: `Is ${n} prime?`, visual: null, answer: isP, hint: "A prime has only 1 and itself as factors.", steps: [`Factors of ${n}?`, "Only two means prime.", isP ? "Prime!" : "Not prime!"] }; } },
+    "y6.prime.pick": { name: "Find the Prime", icon: "✨", island: "y6.prime", unit: "y6.pr", prereqs: ["y6.prime.is"],
+      gen(d) { const PR = [2, 3, 5, 7, 11, 13], CO = [4, 6, 8, 9, 10, 12, 14, 15]; const p = pick(PR);
+        return { format: "choice", prompt: "Which is a PRIME number?", say: "Which is prime?", visual: null, choices: shuffle([{ label: String(p), correct: true }, ...shuffle(CO).slice(0, 3).map(x => ({ label: String(x), correct: false }))]), hint: "Only factors are 1 and itself.", steps: ["Check each.", "Only two factors?", `${p}!`] }; } },
+    "y6.ops4": { name: "Four Operations", icon: "🧮", island: "y6.prime", unit: "y6.op4", prereqs: [],
+      gen(d) { const a = ri(20, lerp(60, 200, d)), b = ri(10, 50); const op = pick(["+", "−", "×"]); const ans = op === "+" ? a + b : op === "−" ? a - b : a * (b % 9 + 2);
+        const prompt = op === "×" ? `${a} × ${b % 9 + 2} = ?` : `${a} ${op} ${b} = ?`;
+        return { format: "keypad", prompt, say: "Work it out.", visual: null, answer: ans, hint: "Use an efficient strategy.", steps: ["Read the operation.", "Calculate carefully.", `${ans}!`] }; } },
+    "y6.multiple": { name: "Common Multiple", icon: "🔗", island: "y6.prime", unit: "y6.op4", prereqs: [],
+      gen(d) { const a = pick([2, 3, 4]), b = pick([3, 4, 5]); const lcm = a * b / gcd(a, b); const k = ri(1, 4), right = lcm * k;
+        const distract = new Set(); let guard = 0;
+        while (distract.size < 3 && guard++ < 80) { const x = right + pick([-2, -1, 1, 2, 3, a, b, lcm + 1]); if (x > 0 && x !== right && !(x % a === 0 && x % b === 0)) distract.add(x); }
+        const choices = shuffle([{ label: String(right), correct: true }, ...[...distract].slice(0, 3).map(x => ({ label: String(x), correct: false }))]);
+        return { format: "choice", prompt: `Which is a multiple of BOTH ${a} and ${b}?`, say: `A multiple of ${a} and ${b}?`, visual: null, choices, hint: "It must divide evenly by both.", steps: [`Multiples of ${a} and ${b}.`, "Find a shared one.", `${right}!`] }; } },
+
+    "y6.frac.add": { name: "Add Related", icon: "➕", island: "y6.fd", unit: "y6.f", prereqs: [],
+      gen(d) { const pairs = [["1/2", "1/4", "3/4"], ["1/3", "1/6", "1/2"], ["1/2", "1/6", "2/3"], ["2/3", "1/6", "5/6"]]; const p = pick(pairs);
+        return { format: "choice", prompt: `${p[0]} + ${p[1]} = ?`, say: `${p[0]} plus ${p[1]}?`, visual: null, choices: fracChoice(p[2], ["1/2", "3/4", "5/6", "2/3", "1 whole"].filter(x => x !== p[2])), hint: "Make the bottoms the same.", steps: ["Common bottom.", "Add the tops.", `${p[2]}!`] }; } },
+    "y6.dec.mult": { name: "Multiply Decimals", icon: "🔟", island: "y6.fd", unit: "y6.f", prereqs: [],
+      gen(d) { const t = ri(1, 9), w = ri(2, 5);
+        return { format: "keypad", decimal: true, prompt: `0.${t} × ${w} = ?`, say: `Zero point ${t} times ${w}?`, visual: null, answer: Math.round(t * w) / 10, hint: "Multiply, then place the point.", steps: [`${t} × ${w} = ${t * w}.`, "One decimal place.", `${(t * w / 10).toFixed(1)}!`] }; } },
+    "y6.dec.div10": { name: "Divide by 10", icon: "⏬", island: "y6.fd", unit: "y6.f2", prereqs: [],
+      gen(d) { const n = ri(11, 99);
+        return { format: "keypad", decimal: true, prompt: `${n} ÷ 10 = ?`, say: `${n} divided by ten?`, visual: null, answer: n / 10, hint: "÷10 shifts digits one place right.", steps: [`${n} ÷ 10.`, "Shift right.", `${(n / 10).toFixed(1)}!`] }; } },
+    "y6.fdp": { name: "Decimal to %", icon: "💯", island: "y6.fd", unit: "y6.f2", prereqs: [],
+      gen(d) { const t = pick([1, 2, 5, 25, 50, 75]); const dec = t / 100;
+        return { format: "keypad", prompt: `${dec.toFixed(2)} as a percentage = ?%`, say: `${dec} as a percent?`, visual: null, answer: t, hint: "× 100 to get percent.", steps: [`${dec} × 100.`, "Shift the point.", `${t}%!`] }; } },
+
+    "y6.pct.ofqty": { name: "Percent Of", icon: "🏷", island: "y6.pct", unit: "y6.p", prereqs: [],
+      gen(d) { const pc = pick([10, 20, 25, 50, 75]), base = pick([20, 40, 60, 80, 200]);
+        return { format: "keypad", prompt: `${pc}% of ${base} = ?`, say: `${pc} percent of ${base}?`, visual: null, answer: Math.round(pc / 100 * base), hint: "Find 10% or 50% first.", steps: [`${pc}% of ${base}.`, "Use easy chunks.", `${Math.round(pc / 100 * base)}!`] }; } },
+    "y6.pct.discount": { name: "Discounts", icon: "🛍", island: "y6.pct", unit: "y6.p", prereqs: ["y6.pct.ofqty"],
+      gen(d) { const pc = pick([10, 20, 25, 50]), price = pick([20, 40, 60, 80, 100]);
+        return { format: "keypad", prompt: `A $${price} item is ${pc}% off. How many $ is the discount?`, say: `${pc} percent off ${price} dollars?`, visual: null, answer: Math.round(pc / 100 * price), hint: "Find the percentage of the price.", steps: [`${pc}% of $${price}.`, "Calculate.", `$${Math.round(pc / 100 * price)}!`] }; } },
+    "y6.pct.fromfrac": { name: "Fraction to %", icon: "💯", island: "y6.pct", unit: "y6.p2", prereqs: [],
+      gen(d) { const F = [["1/2", 50], ["1/4", 25], ["3/4", 75], ["1/5", 20], ["3/5", 60], ["1/10", 10]]; const f = pick(F);
+        return { format: "keypad", prompt: `${f[0]} as a percentage = ?%`, say: `${f[0]} as a percent?`, visual: null, answer: f[1], hint: "Out of 100.", steps: [`${f[0]} of 100.`, "Work it out.", `${f[1]}%!`] }; } },
+    "y6.fdp.order": { name: "Order F/D/%", icon: "📊", island: "y6.pct", unit: "y6.p2", prereqs: ["y6.pct.fromfrac"],
+      gen(d) { const items = [["1/2", 0.5], ["0.25", 0.25], ["75%", 0.75]]; const big = items.reduce((m, x) => x[1] > m[1] ? x : m);
+        return { format: "choice", prompt: "Which is the BIGGEST?", say: "Which is biggest?", visual: null, choices: shuffle(items.map(x => ({ label: x[0], correct: x === big }))), hint: "Turn them all into decimals.", steps: ["Convert each.", "Compare.", `${big[0]}!`] }; } },
+
+    "y6.area.rect": { name: "Rectangle Area", icon: "🟧", island: "y6.meas", unit: "y6.m", prereqs: [],
+      gen(d) { const l = ri(4, lerp(8, 20, d)), w = ri(3, 12);
+        return { format: "keypad", prompt: `Rectangle ${l} cm by ${w} cm. Area in cm²?`, say: `Area of ${l} by ${w}?`, visual: null, answer: l * w, hint: "Area = length × width.", steps: [`${l} × ${w}.`, "Multiply.", `${l * w} cm²!`] }; } },
+    "y6.area.tri": { name: "Triangle Area", icon: "🔺", island: "y6.meas", unit: "y6.m", prereqs: ["y6.area.rect"],
+      gen(d) { const b = pick([4, 6, 8, 10]), h = pick([3, 5, 7, 9]);
+        return { format: "keypad", prompt: `A triangle with base ${b} and height ${h}. Area?`, say: `Area of the triangle?`, visual: null, answer: b * h / 2, hint: "Half of base × height.", steps: [`${b} × ${h} = ${b * h}.`, "Halve it.", `${b * h / 2}!`] }; } },
+    "y6.angle.unknown": { name: "Find the Angle", icon: "📐", island: "y6.meas", unit: "y6.m", prereqs: [],
+      gen(d) { const around = Math.random() < 0.5; const total = around ? 360 : 180; const a = ri(40, total - 40);
+        return { format: "keypad", prompt: `Angles ${around ? "around a point" : "on a line"} add to ${total}°. One is ${a}°. The other?`, say: "The other angle?", visual: null, answer: total - a, hint: `They total ${total}°.`, steps: [`Total ${total}°.`, `${total} − ${a}.`, `${total - a}°!`] }; } },
+    "y6.convert": { name: "Convert Units", icon: "📏", island: "y6.meas", unit: "y6.m2", prereqs: [],
+      gen(d) { const U = [["m", "cm", 100], ["km", "m", 1000], ["kg", "g", 1000], ["L", "mL", 1000]]; const u = pick(U), n = ri(2, 9);
+        return { format: "keypad", prompt: `${n} ${u[0]} = ❓ ${u[1]}`, say: `${n} ${u[0]} in ${u[1]}?`, visual: null, answer: n * u[2], hint: `1 ${u[0]} = ${u[2]} ${u[1]}.`, steps: [`1 ${u[0]} = ${u[2]}.`, `×${n}.`, `${n * u[2]}!`] }; } },
+    "y6.timetable": { name: "Timetables", icon: "🚌", island: "y6.meas", unit: "y6.m2", prereqs: [],
+      gen(d) { const h = ri(1, 9), m1 = pick([0, 10, 15, 20]), dur = pick([20, 30, 40, 45]); const totalM = m1 + dur; const eh = h + Math.floor(totalM / 60), em = totalM % 60;
+        return { format: "keypad", prompt: `A bus leaves ${h}:${String(m1).padStart(2, "0")} and takes ${dur} min. How many minutes is the trip?`, say: "How many minutes?", visual: null, answer: dur, hint: "The trip length is given.", steps: ["Read the duration.", "That's the trip.", `${dur} minutes!`] }; } },
+
+    "y6.coord.quad": { name: "Quadrants", icon: "🧭", island: "y6.space", unit: "y6.sp", prereqs: [],
+      gen(d) { const x = pick([-3, -2, 2, 3]), y = pick([-3, -2, 2, 3]); const q = x > 0 && y > 0 ? "1st" : x < 0 && y > 0 ? "2nd" : x < 0 && y < 0 ? "3rd" : "4th";
+        return { format: "choice", prompt: `Which quadrant is the point (${x}, ${y}) in?`, say: `Which quadrant?`, visual: null, choices: shuffle(["1st", "2nd", "3rd", "4th"].map(o => ({ label: o, correct: o === q }))), hint: "(+,+)=1st, then anticlockwise.", steps: [`Across ${x}, up ${y}.`, "Check the signs.", `${q}!`] }; } },
+    "y6.coord.move": { name: "Move Point", icon: "➡️", island: "y6.space", unit: "y6.sp", prereqs: ["y6.coord.quad"],
+      gen(d) { const x = ri(1, 4), step = ri(x + 1, x + 5), ans = x - step;
+        const distract = new Set(); for (const cand of [x + step, ans + 1, ans - 1, -x, x, ans + 2]) if (cand !== ans) distract.add(cand);
+        const choices = shuffle([{ label: String(ans), correct: true }, ...[...distract].slice(0, 3).map(v => ({ label: String(v), correct: false }))]);
+        return { format: "choice", prompt: `Start at across = ${x}. Move LEFT ${step}. New across coordinate?`, say: "New across coordinate?", visual: null, choices, hint: "Left subtracts; you may pass zero.", steps: [`From ${x}.`, `−${step}.`, `${ans}!`] }; } },
+    "y6.transform": { name: "Transformations", icon: "🔄", island: "y6.space", unit: "y6.sp", prereqs: [],
+      gen(d) { const T = [["slid across", "translation"], ["flipped over", "reflection"], ["turned around a point", "rotation"]]; const t = pick(T), opts = ["translation", "reflection", "rotation"];
+        return { format: "choice", prompt: `A shape is ${t[0]}. This is a…`, say: "Which transformation?", visual: null, choices: shuffle(opts.map(o => ({ label: o, correct: o === t[1] }))), hint: "Slide, flip or turn.", steps: ["Match the action.", "Name it.", `${t[1]}!`] }; } },
+    "y6.prob": { name: "Probability", icon: "🎲", island: "y6.space", unit: "y6.pr", prereqs: [],
+      gen(d) { const F = [["a coin landing heads", 50], ["rolling an even number on a dice", 50], ["rolling a 1 on a dice", 17], ["a certain event", 100], ["an impossible event", 0]]; const f = pick(F);
+        return { format: "keypad", prompt: `Chance of ${f[0]}, as a percentage (nearest whole)?`, say: `Chance of ${f[0]} as a percent?`, visual: null, answer: f[1], hint: "0% impossible, 100% certain, 50% even chance.", steps: ["Think of the chance.", "As a percent.", `${f[1]}%!`] }; } },
+    "y6.mean": { name: "Mean & Range", icon: "📊", island: "y6.space", unit: "y6.pr", prereqs: [],
+      gen(d) { if (Math.random() < 0.5) { const a = ri(2, 9), b = ri(2, 9), c = ri(2, 9); const arr = [a, b, c]; const sum = a + b + c; if (sum % 3 !== 0) arr[0] += 3 - sum % 3; const m = (arr[0] + b + c) / 3;
+          return { format: "keypad", prompt: `The MEAN (average) of ${arr.join(", ")} = ?`, say: "What is the mean?", visual: null, answer: m, hint: "Add them up, divide by how many.", steps: [`Sum = ${arr[0] + b + c}.`, "Divide by 3.", `${m}!`] }; }
+        const s = new Set(); while (s.size < 4) s.add(ri(1, 20)); const arr = [...s]; const range = Math.max(...arr) - Math.min(...arr);
+        return { format: "keypad", prompt: `The RANGE of ${arr.join(", ")} = ?`, say: "What is the range?", visual: null, answer: range, hint: "Biggest minus smallest.", steps: [`Max ${Math.max(...arr)}, min ${Math.min(...arr)}.`, "Subtract.", `${range}!`] }; } },
+  };
+  const Y6ISLANDS = [
+    { id: "y6.int", name: "Integer Isle", emoji: "➖", boss: { name: "Frost the Yeti", emoji: "🧊", line: "Brave the negatives and order to pass!" }, units: [{ id: "y6.i", name: "Integers", skills: ["y6.int.compare", "y6.int.order", "y6.int.line"] }, { id: "y6.op", name: "Order of Operations", skills: ["y6.bodmas", "y6.bodmas.bracket"] }] },
+    { id: "y6.prime", name: "Prime Plains", emoji: "🔢", boss: { name: "Sage the Owl", emoji: "🦉", line: "Know primes and operations to pass!" }, units: [{ id: "y6.pr", name: "Primes", skills: ["y6.prime.is", "y6.prime.pick"] }, { id: "y6.op4", name: "Operations", skills: ["y6.ops4", "y6.multiple"] }] },
+    { id: "y6.fd", name: "Fraction & Decimal Forge", emoji: "🍕", boss: { name: "Ember the Phoenix", emoji: "🔥", line: "Forge fractions and decimals to rise!" }, units: [{ id: "y6.f", name: "Add & Multiply", skills: ["y6.frac.add", "y6.dec.mult"] }, { id: "y6.f2", name: "Divide & Convert", skills: ["y6.dec.div10", "y6.fdp"] }] },
+    { id: "y6.pct", name: "Percent Peak", emoji: "💯", boss: { name: "Percy the Falcon", emoji: "🦅", line: "Master percents and discounts to summit!" }, units: [{ id: "y6.p", name: "Percent Of", skills: ["y6.pct.ofqty", "y6.pct.discount"] }, { id: "y6.p2", name: "Convert & Order", skills: ["y6.pct.fromfrac", "y6.fdp.order"] }] },
+    { id: "y6.meas", name: "Area & Angle Aerie", emoji: "📐", boss: { name: "Chrono the Echidna", emoji: "🦔", line: "Area, angles and units — show me!" }, units: [{ id: "y6.m", name: "Area & Angles", skills: ["y6.area.rect", "y6.area.tri", "y6.angle.unknown"] }, { id: "y6.m2", name: "Convert & Time", skills: ["y6.convert", "y6.timetable"] }] },
+    { id: "y6.space", name: "Cartesian Cove", emoji: "🧭", boss: { name: "Professor Polaris", emoji: "🦉", line: "The summit's final riddles await!" }, units: [{ id: "y6.sp", name: "Coordinates", skills: ["y6.coord.quad", "y6.coord.move", "y6.transform"] }, { id: "y6.pr", name: "Chance & Data", skills: ["y6.prob", "y6.mean"] }] },
+  ];
+
   /* ===================== SCHOOL YEARS ===================== */
   /* Each school year is a self-contained curriculum: 6 unique islands of lessons.
      Years not yet authored fall back to the Explorer map (the original spiral)
@@ -1787,6 +2161,10 @@ const BT = (() => {
     foundation: { islands: FISLANDS, skills: FSKILLS },
     year1: { islands: Y1ISLANDS, skills: Y1SKILLS },
     year2: { islands: Y2ISLANDS, skills: Y2SKILLS },
+    year3: { islands: Y3ISLANDS, skills: Y3SKILLS },
+    year4: { islands: Y4ISLANDS, skills: Y4SKILLS },
+    year5: { islands: Y5ISLANDS, skills: Y5SKILLS },
+    year6: { islands: Y6ISLANDS, skills: Y6SKILLS },
   };
   const youngOf = (c) => c.young || c.islands.filter(i => i.young).map(i => i.id);
   function curriculumFor(yearId) {

@@ -1,10 +1,10 @@
 /* Brainy Trails · service worker — cache-first, redirect-safe from day one */
-const CACHE = "brainytrails-v29";
+const CACHE = "brainytrails-v30";
 const ASSETS = [
   "./",
-  "./app.js?v=29",
-  "./curriculum.js?v=29",
-  "./cloud.js?v=29",
+  "./app.js?v=30",
+  "./curriculum.js?v=30",
+  "./cloud.js?v=30",
   "./supabase-config.js",
   "./kids-happy-music.mp3",
   "./thunder.mp3",

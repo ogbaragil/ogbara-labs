@@ -60,6 +60,10 @@
   .isl-name{font-size:19px; font-weight:900; display:flex; align-items:center; gap:9px; color:var(--ia);}
   .isl-progress{margin-left:auto; font-size:12px; font-weight:900; background:var(--ib); color:var(--ia);
     border-radius:999px; padding:5px 12px;}
+  .isl-lock{margin:10px 2px 2px; font-size:13px; font-weight:800; color:#b26a00; background:#fff3e0;
+    border:1.5px solid #ffe2b8; border-radius:13px; padding:9px 13px; line-height:1.5;}
+  .locked-island{opacity:.92;}
+  .locked-island .trail, .locked-island .boss-node{opacity:.5; filter:grayscale(.35);}
   .unit-name{margin:16px 2px 4px; font-size:12px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted);}
 
   /* ---------- snaking trail ---------- */
@@ -484,10 +488,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=29"></script>
+<script src="curriculum.js?v=30"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=29"></script>
-<script src="app.js?v=29"></script>
+<script src="cloud.js?v=30"></script>
+<script src="app.js?v=30"></script>
 </body>
 </html>

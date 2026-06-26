@@ -69,7 +69,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "22";
+const APP_V = "23";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -103,8 +103,27 @@ const dueSkills = () => Object.keys(P().skills).filter(id => {
   return st.m >= 2 && st.nextReview && st.nextReview <= today();
 });
 
-/* unlock rule: every prerequisite at least Familiar */
-const unlocked = (id) => inTest() || BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1);
+/* an island is "complete" when every skill on it is Proficient (m≥2) */
+const islandComplete = (isl) => isl.units.flatMap(u => u.skills).every(id => skv(id).m >= 2);
+/* islands unlock in order: an island opens only once every island before it is complete */
+function islandOpen(islandId) {
+  if (inTest()) return true;
+  const arr = (window.BT && BT.ISLANDS) || [];
+  const idx = arr.findIndex(i => i.id === islandId);
+  if (idx <= 0) return true;
+  for (let k = 0; k < idx; k++) if (!islandComplete(arr[k])) return false;
+  return true;
+}
+/* the first not-yet-complete island before this one (the thing blocking it) */
+const islandBlocker = (islandId) => {
+  const arr = (window.BT && BT.ISLANDS) || [];
+  const idx = arr.findIndex(i => i.id === islandId);
+  for (let k = 0; k < idx; k++) if (!islandComplete(arr[k])) return arr[k];
+  return null;
+};
+
+/* unlock rule: the skill's island must be open AND every prerequisite at least Familiar */
+const unlocked = (id) => inTest() || (islandOpen(BT.SKILLS[id].island) && BT.SKILLS[id].prereqs.every(p => (P().skills[p] || {}).m >= 1));
 
 /* ---------------- cloud merge (everything earned crosses devices) ---------------- */
 function mergeRemote(remote) {
@@ -625,6 +644,12 @@ function renderMap(scrollToHere) {
     card.dataset.isl = isl.id;
     card.setAttribute("data-emoji", isl.emoji);
     card.appendChild(el("h2", "isl-name", `${isl.emoji} ${esc(isl.name)} <span class="isl-progress">${done}/${skillsHere.length}</span>`));
+    const islOpen = islandOpen(isl.id);
+    const blocker = islOpen ? null : islandBlocker(isl.id);
+    if (!islOpen) {
+      card.classList.add("locked-island");
+      card.appendChild(el("p", "isl-lock", `🔒 Unlock by reaching Proficient on every skill in ${esc(blocker ? blocker.name : "the island before")}.`));
+    }
     for (const u of isl.units) {
       card.appendChild(el("p", "unit-name", esc(u.name)));
       const row = el("div", "trail");
@@ -639,7 +664,11 @@ function renderMap(scrollToHere) {
           <span class="node-face">${open ? s.icon : "🔒"}</span>
           <span class="node-name">${esc(s.name)}</span>
           <span class="node-badge">${due ? "🛡" : (st.stars ? "⭐".repeat(st.stars) : "")}</span>`;
-        node.onclick = () => open ? openSkill(id) : toast("🔒", "Not yet!", "Finish the skills before it first.");
+        node.onclick = () => {
+          if (open) return openSkill(id);
+          if (!islOpen) return toast("🔒", "Island locked", `Reach Proficient on every skill in ${blocker ? blocker.name : "the previous island"} first.`);
+          toast("🔒", "Not yet!", "Finish the skills before it first.");
+        };
         if (id === frontier) frontierEl = node;
         row.appendChild(node);
       }

@@ -19,7 +19,7 @@ module.exports = async function (t) {
     && BT.YEARS[0].id === "foundation" && BT.YEARS[6].id === "year6");
 
   // ---- authored years ----
-  for (const yid of ["foundation", "year1", "year2"]) {
+  for (const yid of ["foundation", "year1", "year2", "year3", "year4", "year5", "year6"]) {
     const c = BT.curriculumFor(yid);
     t(`${yid}: authored (not a draft)`, c.draft === false);
     t(`${yid}: 6 unique islands`, c.ISLANDS.length === 6
@@ -56,8 +56,8 @@ module.exports = async function (t) {
     t(`${yid}: all prereqs resolve`, prereqOk, pbad);
   }
 
-  // ---- unauthored years fall back to a fully playable Explorer map ----
-  const fb = BT.curriculumFor("year3");
+  // ---- an unregistered year still falls back to a fully playable Explorer map ----
+  const fb = BT.curriculumFor("year_not_yet_written");
   t("unauthored year falls back to Explorer (flagged draft)", fb.draft === true
     && fb.ISLANDS.length === 6 && fb.ISLANDS[0].id === "sprout");
 
