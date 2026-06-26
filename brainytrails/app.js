@@ -46,10 +46,10 @@ function migrateProfile(p) {
   if (p.year === undefined) p.year = null;
   if (p.settings.sound === undefined) p.settings.sound = true;
   if (p.settings.music === undefined) p.settings.music = true;
-  if (p.settings.kokoroVoice !== undefined) {
-    if (p.settings.premiumVoice === undefined) p.settings.premiumVoice = p.settings.kokoroVoice;
-    delete p.settings.kokoroVoice;
-  }
+  // legacy premium-voice settings are retired; the app uses device voices only
+  delete p.settings.kokoroVoice;
+  delete p.settings.premiumVoice;
+  if (p.settings.voiceURI === undefined) p.settings.voiceURI = null;
   for (const [id, b] of Object.entries(p.bosses)) if (b === true) p.bosses[id] = { won: true, best: 0 };
   return p;
 }
@@ -69,7 +69,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "24";
+const APP_V = "25";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -370,24 +370,35 @@ function addPlayTime() {
 
 /* ---------------- speech ---------------- */
 let speechPrimed = false;
-/* Web Speech: pick the best installed voice instead of the platform default. */
-function pickWebVoice() {
-  try {
-    const vs = speechSynthesis.getVoices() || [];
-    if (!vs.length) return null;
-    const score = (v) => {
-      let sc = 0;
-      const n = (v.name || "").toLowerCase(), l = (v.lang || "").toLowerCase();
-      if (l.startsWith("en-au")) sc += 40; else if (l.startsWith("en-gb")) sc += 30; else if (l.startsWith("en")) sc += 15;
-      if (/karen/.test(n)) sc += 25;
-      if (/premium|enhanced|natural|neural/.test(n)) sc += 20;
-      if (/google/.test(n)) sc += 8;
-      if (v.localService) sc += 3;
-      return sc;
-    };
-    return vs.slice().sort((a, b) => score(b) - score(a))[0] || null;
-  } catch { return null; }
+/* Web Speech only — voices come from the child's device. They can pick any
+   installed voice (different accents, male/female); we remember the choice and
+   otherwise auto-pick the best-sounding English voice available. */
+const allVoices = () => { try { return speechSynthesis.getVoices() || []; } catch { return []; } };
+function voiceScore(v) {
+  let sc = 0; const n = (v.name || "").toLowerCase(), l = (v.lang || "").toLowerCase();
+  if (l.startsWith("en-au")) sc += 40; else if (l.startsWith("en-gb")) sc += 30; else if (l.startsWith("en")) sc += 15;
+  if (/karen|catherine|matilda|olivia|lee/.test(n)) sc += 8;
+  if (/premium|enhanced|natural|neural/.test(n)) sc += 20;
+  if (/google/.test(n)) sc += 8;
+  if (v.localService) sc += 3;
+  return sc;
 }
+/* English voices to offer in the picker, best-sounding first */
+function englishVoices() {
+  const all = allVoices();
+  const en = all.filter(v => /^en/i.test(v.lang || ""));
+  return (en.length ? en : all).slice().sort((a, b) => voiceScore(b) - voiceScore(a));
+}
+const voiceId = (v) => v && (v.voiceURI || v.name) || "";
+/* the voice to speak with: the child's chosen one if still installed, else best auto-pick */
+function pickWebVoice() {
+  const vs = allVoices(); if (!vs.length) return null;
+  const chosen = P() && P().settings ? P().settings.voiceURI : null;
+  if (chosen) { const hit = vs.find(v => voiceId(v) === chosen); if (hit) return hit; }
+  return englishVoices()[0] || vs[0] || null;
+}
+/* remember a chosen voice (id ""/null → Auto) and re-pick on next utterance */
+function setVoice(id) { if (P() && P().settings) { P().settings.voiceURI = id || null; _wv = null; save(); } }
 let _wv = null;
 try { if ("speechSynthesis" in window && speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", () => { _wv = pickWebVoice(); }); } catch { }
 function webSay(text) {
@@ -401,84 +412,8 @@ function webSay(text) {
   } catch { }
 }
 
-/* Premium voice: Google Cloud TTS (en-AU Neural2) behind our Cloudflare Worker.
-   Phrases are edge-cached server-side, memory-cached here, and stored in the
-   page Cache API so repeated phrases keep working offline. Unlocked by sync
-   sign-in; configured per-deployment via window.TTS_PROXY (see /tts-worker). */
-const TTS_VOICE = "en-AU-Neural2-A";
-const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
-const TTS = {
-  mem: new Map(), el: null, lastErr: null,
-  proxy: () => String(window.TTS_PROXY || "").trim(),
-  unlocked() { return !!this.proxy() && !!(window.Cloud && Cloud.isSignedIn && Cloud.isSignedIn()); },
-  enabled: () => !!P().settings.premiumVoice,
-  prime() {   // iOS: one user-gesture play unlocks this element for all later srcs
-    try {
-      if (!this.el && typeof Audio !== "undefined") {
-        this.el = new Audio(SILENT_WAV);
-        this.el.play().catch(() => { });
-      }
-    } catch { }
-  },
-  async fetchClip(text) {
-    if (this.mem.has(text)) return this.mem.get(text);
-    const cacheUrl = this.proxy() + "?t=" + encodeURIComponent(text) + "&v=" + TTS_VOICE;
-    let blob = null;
-    try {
-      if (typeof caches !== "undefined") {
-        const c = await caches.open("bt-tts-v1");
-        const hit = await c.match(cacheUrl);
-        if (hit) blob = await hit.blob();
-      }
-    } catch { }
-    if (!blob) {
-      let signal;
-      try { const ac = new AbortController(); signal = ac.signal; setTimeout(() => ac.abort(), 3500); } catch { }
-      const r = await fetch(this.proxy(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice: TTS_VOICE }),
-        signal,
-      });
-      if (!r.ok) throw new Error("tts " + r.status);
-      blob = await r.blob();
-      try {
-        if (typeof caches !== "undefined") {
-          const c = await caches.open("bt-tts-v1");
-          await c.put(cacheUrl, new Response(blob, { headers: { "Content-Type": "audio/mpeg" } }));
-        }
-      } catch { }
-    }
-    const url = URL.createObjectURL(blob);
-    if (this.mem.size > 150) { const k = this.mem.keys().next().value; try { URL.revokeObjectURL(this.mem.get(k)); } catch { } this.mem.delete(k); }
-    this.mem.set(text, url);
-    return url;
-  },
-  async say(text) {
-    try {
-      const url = await this.fetchClip(text);
-      if (this.el) { try { this.el.pause(); } catch { } this.el.src = url; this.el.play().catch(() => { }); }
-      else { const a = new Audio(url); this.el = a; a.play().catch(() => { }); }
-    } catch (e) { this.lastErr = String(e && e.message || e); webSay(text); }
-  },
-  prefetch(arr) { if (this.enabled() && this.unlocked()) arr.forEach(t => this.fetchClip(t).catch(() => { })); },
-  async sayQueue(lines) {   // play clips back-to-back; a newer call supersedes us
-    const seq = (this._seq = (this._seq || 0) + 1);
-    try {
-      for (const t of lines) {
-        if (seq !== this._seq) return;
-        const url = await this.fetchClip(t);
-        if (seq !== this._seq) return;
-        if (!this.el) this.el = new Audio();
-        await new Promise(res => {
-          this.el.onended = res; this.el.onerror = res;
-          try { this.el.pause(); } catch { }
-          this.el.src = url; this.el.play().catch(() => res());
-        });
-      }
-    } catch (e) { this.lastErr = String(e && e.message || e); }
-  },
-};
+/* (Premium cloud voice removed — the app now uses only the device's built-in
+   Web Speech voices, chosen by the parent in the Voice & sound settings.) */
 
 /* Sprout & Bridge are for 4–7 year olds: typing multi-digit answers is a motor
    tax, so any keypad question on those islands becomes four tappable choices. */
@@ -506,7 +441,6 @@ const PRAISE = ["Brilliant!", "You got it!", "Super!", "Nice thinking!", "Yes! E
 const NOT_QUITE = ["Not quite!", "So close!", "Good try!", "Almost!"];
 function say(text) {
   if (!P().settings.speech) return;
-  if (TTS.enabled() && TTS.unlocked()) { TTS.say(text); return; }
   webSay(text);
 }
 /* Turn an on-screen prompt into something that reads well aloud: maths symbols
@@ -539,7 +473,6 @@ const spokenQ = (q) => (q && q.prompt ? speechify(q.prompt) : (q && q.say) || ""
 function sayLines(lines) {
   const list = (lines || []).map(t => String(t).trim()).filter(Boolean);
   if (!list.length || !P().settings.speech) return;
-  if (TTS.enabled() && TTS.unlocked()) { TTS.sayQueue(list); return; }
   if (!("speechSynthesis" in window)) return;
   try {
     if (!_wv) _wv = pickWebVoice();
@@ -554,7 +487,6 @@ function sayLines(lines) {
 }
 addEventListener("pointerdown", function prime() {
   if (!speechPrimed && "speechSynthesis" in window) { try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch { } speechPrimed = true; }
-  TTS.prime();
   Music.start();   // browsers only let audio start inside a user gesture
   removeEventListener("pointerdown", prime);
 });
@@ -975,12 +907,6 @@ function beginSession(cfg) {
   $("playTitle").textContent = cfg.title;
   $("reviewBanner").hidden = true;
   $("continueBtn").hidden = true;
-  {
-    const nm = P().name && P().name !== "Explorer" ? P().name : null;
-    const lines = [...PRAISE, ...NOT_QUITE, ...TRY_AGAIN.map(t => t.replace(" 💪", ""))];
-    if (nm) PRAISE.forEach(t => lines.push(t.replace("!", `, ${nm}!`)));
-    TTS.prefetch(lines);
-  }
   Sess.outcomes = [];
   nextQ();
 }
@@ -1724,31 +1650,30 @@ function openParents() {
   /* ── 🔊 Voice & sound ── */
   const gVoice = group("🔊 Voice & sound", false);
   const p = P();
-  gVoice.appendChild(el("p", "p-section", "Premium voice"));
-  const pv = el("div");
-  const renderPV = () => {
-    pv.innerHTML = "";
-    if (!TTS.proxy()) {
-      pv.appendChild(el("p", "stat-line", "Premium voice isn't configured on this deployment — see tts-worker/README.md in the repo to set it up (free)."));
-    } else if (!TTS.unlocked()) {
-      pv.appendChild(el("p", "stat-line", "A studio-quality Australian reading voice is unlocked with a sync account. It streams instantly and repeated phrases work offline."));
-      const sb = el("button", "soft-btn", "☁️ Sign in to unlock");
-      sb.onclick = () => { const c = document.getElementById("cloudChip"); if (c && c.click) c.click(); };
-      pv.appendChild(sb);
-    } else {
-      const on = !!p.settings.premiumVoice;
-      const tg = el("button", "tgl" + (on ? " on" : ""), `✨ Premium voice: ${on ? "On" : "Off"}`);
-      tg.onclick = () => { p.settings.premiumVoice = !p.settings.premiumVoice; save(); renderPV(); if (p.settings.premiumVoice) say("G'day! I'm your new reading voice. Let's go adventuring!"); };
-      pv.appendChild(tg);
-      if (on) {
-        const tryB = el("button", "soft-btn", "🔊 Hear a sample");
-        tryB.onclick = () => say("Three tens and four ones make thirty four. Brilliant!");
-        pv.appendChild(tryB);
-      }
+  gVoice.appendChild(el("p", "p-section", "Reading voice"));
+  const vbox = el("div");
+  const renderVoices = () => {
+    vbox.innerHTML = "";
+    const voices = englishVoices();
+    if (!voices.length) {
+      vbox.appendChild(el("p", "stat-line", "Your device is still loading its voices — reopen this panel in a moment to choose one."));
+      return;
     }
+    const cur = p.settings.voiceURI || "";
+    const list = el("div", "voice-list");
+    const chip = (val, label, sub) => {
+      const on = (val || "") === cur;
+      const b = el("button", "voice-chip" + (on ? " on" : ""), `<b>${esc(label)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}`);
+      b.onclick = () => { setVoice(val); renderVoices(); say("G'day! I'm your reading voice. Let's go adventuring!"); };
+      return b;
+    };
+    list.appendChild(chip("", "Auto", "Best for this device"));
+    voices.forEach(v => list.appendChild(chip(voiceId(v), v.name, v.lang)));
+    vbox.appendChild(list);
+    vbox.appendChild(el("p", "stat-line", "Voices come from your device, so the list depends on what's installed — many phones and computers include several accents and both male and female voices. Tap one to hear it. (Tip: install more voices in your device's Accessibility or Language settings.)"));
   };
-  renderPV();
-  gVoice.appendChild(pv);
+  renderVoices();
+  gVoice.appendChild(vbox);
   const tgls = el("div", "tgl-row");
   const mk = (key, label) => {
     const b = el("button", "tgl" + (p.settings[key] ? " on" : ""), `${label}: ${p.settings[key] ? "On" : "Off"}`);
@@ -1934,7 +1859,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, voice: () => ({ cached: TTS.mem.size, enabled: TTS.enabled(), unlocked: TTS.unlocked(), lastErr: TTS.lastErr }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, setVoice, listVoices: () => englishVoices().map(v => ({ name: v.name, lang: v.lang, id: voiceId(v) })), voice: () => ({ name: (pickWebVoice() || {}).name || null, count: englishVoices().length, chosen: (P().settings && P().settings.voiceURI) || null }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds, openYearPicker, applyYear };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));

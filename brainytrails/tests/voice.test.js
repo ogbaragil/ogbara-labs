@@ -1,85 +1,73 @@
-/* Voice stack: web-voice picking, premium gating, remote routing, caching, fallback, migration. */
+/* Voice stack: device (Web Speech) voices only — auto-pick, user choice,
+   persistence, fallback, full-prompt reading, and the picker UI. */
 const { makeHarness, boot, sleep, walk } = require("./harness");
 module.exports = async function (t) {
   const h = makeHarness();
-  let spoken = [], fetches = [];
+  let spoken = [];
   global.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const V = (name, lang) => ({ name, lang, voiceURI: name, localService: true });
   global.speechSynthesis = {
-    getVoices: () => [
-      { name: "Fred", lang: "en-US", localService: true },
-      { name: "Karen", lang: "en-AU", localService: true },
-      { name: "Google UK English Female", lang: "en-GB" },
-    ],
+    getVoices: () => [V("Karen", "en-AU"), V("Daniel", "en-GB"), V("Samantha", "en-US"), V("Fred", "en-US"), V("Amelie", "fr-FR")],
     cancel() { }, speak(u) { spoken.push(u); }, addEventListener() { },
   };
-  global.Blob = class { };
-  global.URL = { createObjectURL: () => "blob:x", revokeObjectURL() { } };
-  global.Audio = class { constructor(u) { this.src = u; } play() { return { catch() { } }; } pause() { } };
-  global.fetch = async (url, opts) => { fetches.push({ url, opts }); return { ok: true, blob: async () => new Blob() }; };
-  global.AbortController = class { constructor() { this.signal = {}; } abort() { } };
-  // pre-seed a v13-era profile with the old setting name → migration must rename it
+  global.Cloud = { isSignedIn: () => false, schedulePush() { } };
+  // pre-seed a legacy profile carrying retired premium settings → migration cleans them
   h.store["bt_state_v1"] = JSON.stringify({ v: 1, profile: "default", profiles: { default: {
-    skills: {}, xp: 0, streak: { count: 0, last: null }, settings: { speech: true, kokoroVoice: true } } } });
+    skills: {}, xp: 0, streak: { count: 0, last: null },
+    settings: { speech: true, kokoroVoice: true, premiumVoice: true } } } });
   boot(require("path").join(__dirname, ".."));
   await sleep(30);
   const S = () => BTApp.state().profiles[BTApp.state().profile];
 
-  t("voice picker prefers the en-AU 'Karen' voice", (BTApp.pickWebVoice() || {}).name === "Karen");
-  t("kokoroVoice migrates to premiumVoice", S().settings.premiumVoice === true && S().settings.kokoroVoice === undefined);
+  // migration retires the old premium settings and defaults voice to Auto
+  t("retired premium settings are removed", S().settings.kokoroVoice === undefined && S().settings.premiumVoice === undefined);
+  t("voice defaults to Auto (null)", S().settings.voiceURI === null);
 
-  // gating: no proxy configured → locked regardless of sign-in
-  global.Cloud = { isSignedIn: () => true, schedulePush() { } };
-  global.TTS_PROXY = "";
-  t("no proxy configured → premium locked", BTApp.voice().unlocked === false);
-  BTApp.openParents();
-  let note = false;
-  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("isn't configured")) note = true; });
-  t("parents' corner explains missing config", note);
-  h.ids["overlay"].children.length = 0;
+  // auto-pick prefers the en-AU voice; the picker lists English voices only
+  t("auto voice prefers en-AU 'Karen'", (BTApp.pickWebVoice() || {}).name === "Karen");
+  const list = BTApp.listVoices();
+  t("picker lists the English device voices only", list.length === 4 && list.every(v => /^en/.test(v.lang)) && !list.find(v => v.name === "Amelie"));
 
-  // proxy set + signed out → CTA
-  global.TTS_PROXY = "https://tts.test";
-  global.Cloud = undefined;
-  BTApp.openParents();
-  let cta = false;
-  walk(h.ids["overlay"], e => { if (String(e._inner || "").includes("Sign in to unlock")) cta = true; });
-  t("signed out: sign-in CTA shown", cta);
-  h.ids["overlay"].children.length = 0;
-
-  // proxy + signed in + enabled → say() routes remotely, caches, never double-speaks
-  global.Cloud = { isSignedIn: () => true, schedulePush() { } };
-  spoken = []; fetches = [];
-  BTApp.startSet("count.to10", "practice");
-  await sleep(60);
-  t("premium say() fetches from the proxy", fetches.length >= 1 && fetches[0].url === "https://tts.test");
-  t("clip cached in memory", BTApp.voice().cached >= 1);
-  t("feedback phrases prefetched at session start", fetches.length >= 5);
-  t("web speech stays silent on the premium path", spoken.length === 0);
-  BTApp.exitPlay();
-
-  // network failure → graceful fallback to the picked web voice
-  global.fetch = async () => { throw new Error("offline"); };
+  // choosing a voice persists and is used when speaking
+  BTApp.setVoice("Daniel");
+  t("chosen voice persists", S().settings.voiceURI === "Daniel");
+  t("pick honours the chosen voice", (BTApp.pickWebVoice() || {}).name === "Daniel");
   spoken = [];
-  const before = BTApp.voice().cached;
-  BTApp.startSet("count.compare", "practice");
-  await sleep(60);
-  t("offline premium falls back to web speech", spoken.length >= 1 && spoken[0].voice && spoken[0].voice.name === "Karen");
-  BTApp.exitPlay();
-
-  // toggled off → straight to web speech, no fetches
-  S().settings.premiumVoice = false;
-  global.fetch = async (u, o) => { fetches.push({ u, o }); return { ok: true, blob: async () => new Blob() }; };
-  fetches = []; spoken = [];
   BTApp.startSet("count.to10", "practice");
-  await sleep(60);
-  t("toggled off: web voice speaks, proxy untouched", spoken.length >= 1 && fetches.length === 0);
+  await sleep(20);
+  t("speaking uses the chosen voice", spoken.length >= 1 && spoken[0].voice && spoken[0].voice.name === "Daniel");
   BTApp.exitPlay();
 
-  // the spoken question is the WHOLE prompt, with maths symbols voiced as words
+  // a chosen voice that isn't installed falls back to auto
+  BTApp.setVoice("Cortana-not-installed");
+  t("missing chosen voice falls back to auto", (BTApp.pickWebVoice() || {}).name === "Karen");
+
+  // back to Auto clears the choice
+  BTApp.setVoice("");
+  t("Auto clears the saved choice", S().settings.voiceURI === null);
+
+  // there is no network path any more: speaking is local only
+  let fetched = 0; global.fetch = async () => { fetched++; return { ok: true }; };
+  spoken = [];
+  BTApp.startSet("count.to10", "practice");
+  await sleep(20);
+  t("speech is local only (no network)", spoken.length >= 1 && fetched === 0);
+  BTApp.exitPlay();
+
+  // the spoken question is the WHOLE prompt, maths symbols voiced as words
   spoken = [];
   BTApp.startSet("add.to100", "practice");
   await sleep(20);
   const utt = (spoken.find(u => u && /plus/.test(u.text)) || {}).text || "";
   t("spoken question reads the full prompt, symbols as words", /\d+\s+plus\s+\d+/.test(utt) && !utt.includes("+") && !utt.includes("="));
   BTApp.exitPlay();
+
+  // Parents' Corner shows a tappable voice picker
+  BTApp.openParents();
+  let chips = [], danielChip = null;
+  walk(h.ids["overlay"], e => { const c = String(e.className || ""); if (c.includes("voice-chip")) { chips.push(e); if (String(e._inner || "").includes("Daniel")) danielChip = e; } });
+  t("voice picker renders a chip per voice (plus Auto)", chips.length === 5);
+  danielChip.onclick();
+  t("tapping a voice chip selects it", S().settings.voiceURI === "Daniel" && (BTApp.pickWebVoice() || {}).name === "Daniel");
+  h.ids["overlay"].children.length = 0;
 };

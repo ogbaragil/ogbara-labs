@@ -273,6 +273,14 @@
   .tgl{flex:1; padding:12px; border-radius:13px; background:var(--bg); border:1.5px solid var(--line);
     font-weight:800; font-size:13.5px; color:var(--muted);}
   .tgl.on{background:#efe9ff; border-color:var(--violet); color:var(--violet);}
+  .voice-list{display:flex; flex-direction:column; gap:7px; margin-top:8px; max-height:240px; overflow-y:auto;
+    padding:2px; -webkit-overflow-scrolling:touch;}
+  .voice-chip{display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left;
+    padding:11px 14px; border-radius:13px; background:var(--bg); border:1.5px solid var(--line); color:var(--ink);}
+  .voice-chip b{font-size:14.5px; font-weight:800;}
+  .voice-chip small{font-size:11.5px; font-weight:700; color:var(--muted); letter-spacing:.4px; text-transform:uppercase;}
+  .voice-chip.on{background:#efe9ff; border-color:var(--violet);}
+  .voice-chip.on b, .voice-chip.on small{color:var(--violet);}
   .danger-btn{width:100%; margin-top:9px; padding:13px; border-radius:14px; font-weight:800; font-size:14px;
     background:transparent; border:1.5px solid #f3b8c4; color:var(--coral);}
 
@@ -488,10 +496,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=31"></script>
+<script src="curriculum.js?v=32"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=31"></script>
-<script src="app.js?v=31"></script>
+<script src="cloud.js?v=32"></script>
+<script src="app.js?v=32"></script>
 </body>
 </html>

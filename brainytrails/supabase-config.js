@@ -5,6 +5,6 @@
 window.SUPABASE_URL = "https://qfjudxzxyvqraogwskwc.supabase.co";
 window.SUPABASE_ANON_KEY = "sb_publishable_0Gg8WSiFdWTk17YqclSODg_kdJl0qqB";
 
-// Premium voice proxy (Cloudflare Worker — see /tts-worker/README.md).
-// Leave "" to disable the premium voice feature on this deployment.
-window.TTS_PROXY = "https://ogbara-tts.ogbaragil.workers.dev";
+// Premium cloud voice has been retired — the app uses the device's built-in
+// voices only (parents pick one in Voice & sound settings). Left blank.
+window.TTS_PROXY = "";
