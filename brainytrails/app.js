@@ -54,13 +54,14 @@ function migrateProfile(p) {
 Object.values(state.profiles).forEach(migrateProfile);
 const P = () => state.profiles[state.profile];
 const sk = (id) => {
-  const st = P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
+  const st = P().skills[id] || (P().skills[id] = { m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
   if (st.reviewStep === undefined) st.reviewStep = 0;
+  if (st.perfects === undefined) st.perfects = 0;
   return st;
 };
 const bosses = () => P().bosses || (P().bosses = {});
-const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "19";
+const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
+const APP_V = "20";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -858,6 +859,10 @@ function openSkill(id) {
   practice.onclick = () => { back.remove(); startSet(id, "practice"); };
   box.appendChild(practice);
   if (st.m >= 1 && st.m < 2) {
+    const pf = st.perfects || 0;
+    box.appendChild(el("p", "sheet-acc", pf >= 1
+      ? "✨ One more perfect practice (everything right) levels this up to Proficient!"
+      : "✨ Ace two perfect practices to level up — or take the Level Up below."));
     const lvl = el("button", "gold-btn", `⚡ Level Up · ${levelupNeed(id)} of 5 to pass`);
     lvl.onclick = () => { back.remove(); startSet(id, "levelup"); };
     box.appendChild(lvl);
@@ -1267,15 +1272,29 @@ function finishSet() {
   const id = Sess.queue[0];
   const st = sk(id);
   let headline, sub, levelled = false;
+  /* Two perfect runs fast-track a skill straight to Proficient (complete),
+     skipping the separate Level Up step. */
+  const perfect = correct === total;
+  if (perfect && (kind === "practice" || kind === "levelup") && st.m < 2) {
+    st.perfects = (st.perfects || 0) + 1;
+  }
+  const fastProf = (st.perfects || 0) >= 2 && st.m < 2;
   if (kind === "practice") {
     const stars = Math.max(0, correct - (total - 3));     // 5/7→1★ 6/7→2★ 7/7→3★
     if (stars > st.stars) st.stars = stars;
     if (correct >= 5 && st.m < 1) { st.m = 1; levelled = true; }
-    headline = stars ? "⭐".repeat(stars) : "Good try!";
-    sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "");
+    if (fastProf) {
+      st.m = 2; st.nextReview = isoPlusDays(REVIEW_DAYS[0]); levelled = true;
+      headline = "⚡ PROFICIENT! ⚡";
+      sub = `Two perfect runs — this skill is complete! It comes back for review in ${REVIEW_DAYS[0]} days to be mastered.`;
+    } else {
+      headline = stars ? "⭐".repeat(stars) : "Good try!";
+      sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "")
+        + (st.m === 1 && (st.perfects || 0) === 1 ? " One more perfect run levels you up!" : "");
+    }
   } else {
     const pass = need || 5;
-    if (correct >= pass) {
+    if (correct >= pass || fastProf) {
       if (st.m < 2) { st.m = 2; levelled = true; }
       st.nextReview = isoPlusDays(REVIEW_DAYS[0]);
       headline = "⚡ PROFICIENT! ⚡";
@@ -1495,7 +1514,7 @@ function openParents() {
   };
 
   /* ── 👧 Children ── */
-  const gKids = group("👧 Children", true);
+  const gKids = group("👧 Children", false);
   const FACES = ["🦊", "🐸", "🦄", "🐯", "🐼", "🦖", "🐙", "🦉", "🚀", "🌟"];
   const renderKids = () => {
     gKids.innerHTML = "";
@@ -1535,7 +1554,7 @@ function openParents() {
   renderKids();
 
   /* ── 📈 Progress (viewable per child) ── */
-  const gProg = group("📈 Progress", true);
+  const gProg = group("📈 Progress", false);
   let viewId = state.profile === TESTP ? childIds()[0] : state.profile;
   const progBody = el("div");
   const renderProg = () => {
@@ -1707,34 +1726,54 @@ function openParentGate() {
   const disp = el("div", "pad-display", "");
   box.appendChild(disp);
   let entry = "";
+
+  let onKey = null;
+  const close = () => {
+    if (onKey && document.removeEventListener) document.removeEventListener("keydown", onKey);
+    back.remove();
+  };
+  const sub = el("p", "sheet-acc", "");
+
+  /* shared by the on-screen keypad and a physical keyboard */
+  const press = (kk) => {
+    if (kk === "⌫") entry = entry.slice(0, -1);
+    else if (kk === "OK") {
+      const y = parseInt(entry, 10);
+      const nowY = parseInt(today().slice(0, 4), 10);
+      if (entry.length === 4 && y >= 1900 && nowY - y >= 18) { close(); openParents(); return; }
+      /* no clue about the rule — just redirect gently */
+      entry = "";
+      disp.textContent = "";
+      disp.classList.add("shake"); setTimeout(() => disp.classList.remove("shake"), 400);
+      sub.textContent = "Please pass the device to a grown-up 😊";
+      return;
+    }
+    else if (entry.length < 4 && /^[0-9]$/.test(kk)) entry += kk;
+    disp.textContent = entry;
+  };
+
   const grid = el("div", "keypad");
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"].forEach(kk => {
     const b = el("button", "key" + (kk === "OK" ? " ok" : kk === "⌫" ? " back" : ""), kk);
-    b.onclick = () => {
-      if (kk === "⌫") entry = entry.slice(0, -1);
-      else if (kk === "OK") {
-        const y = parseInt(entry, 10);
-        const nowY = parseInt(today().slice(0, 4), 10);
-        if (entry.length === 4 && y >= 1900 && nowY - y >= 18) { back.remove(); openParents(); return; }
-        /* no clue about the rule — just redirect gently */
-        entry = "";
-        disp.textContent = "";
-        box.children.length && (disp.classList.add("shake"), setTimeout(() => disp.classList.remove("shake"), 400));
-        sub.textContent = "Please pass the device to a grown-up 😊";
-        return;
-      }
-      else if (entry.length < 4) entry += kk;
-      disp.textContent = entry;
-    };
+    b.onclick = () => press(kk);
     grid.appendChild(b);
   });
   box.appendChild(grid);
-  const sub = el("p", "sheet-acc", "");
   box.appendChild(sub);
   const cancel = el("button", "soft-btn", "Back to the map");
-  cancel.onclick = () => back.remove();
+  cancel.onclick = close;
   box.appendChild(cancel);
   back.appendChild(box);
+
+  /* physical keyboard: digits type, Backspace deletes, Enter submits, Esc closes */
+  onKey = (e) => {
+    if (/^[0-9]$/.test(e.key)) { press(e.key); e.preventDefault(); }
+    else if (e.key === "Backspace") { press("⌫"); e.preventDefault(); }
+    else if (e.key === "Enter") { press("OK"); e.preventDefault(); }
+    else if (e.key === "Escape") { e.preventDefault(); close(); }
+  };
+  if (document.addEventListener) document.addEventListener("keydown", onKey);
+
   $("overlay").appendChild(back);
 }
 (function wireParentsGate() {

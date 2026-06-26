@@ -140,16 +140,31 @@
     } else {
       box.innerHTML = `
         <h3>Your account ☁️</h3>
-        <p>Progress in this app syncs automatically while you're signed in. Same login works in every Ogbara Labs app.</p>
+        <p>Progress backs up automatically while you're signed in — or do it by hand below. The same login works in every Ogbara Labs app.</p>
         <div class="cloud-acct">${user.email || user.id}</div>
-        <button class="cloud-btn pri" id="clSync">Sync now</button>
+        <button class="cloud-btn pri" id="clBackup">⬆️ Back up now</button>
+        <button class="cloud-btn soft" id="clRestore">⬇️ Restore from cloud</button>
         <button class="cloud-btn danger" id="clOut">Sign out</button>
         <div class="cloud-msg"></div>
         <button class="cloud-close" id="clClose">Close</button>`;
-      box.querySelector("#clSync").onclick = async () => {
-        say("Syncing…");
-        try { await pull(true); await pushNow(); say("Everything is up to date.", "ok"); }
-        catch (e) { say("Sync failed: " + (e.message || e), "err"); }
+      box.querySelector("#clBackup").onclick = async () => {
+        say("Backing up…");
+        try { await pushNow(); say("Backed up to the cloud ✓", "ok"); }
+        catch (e) { say("Back-up failed: " + (e.message || e), "err"); }
+      };
+      let armedRestore = false;
+      const rb = box.querySelector("#clRestore");
+      rb.onclick = async () => {
+        if (!armedRestore) {
+          armedRestore = true;
+          rb.textContent = "⬇️ Tap again to overwrite this device";
+          say("Restoring replaces this device's progress with the cloud copy.");
+          return;
+        }
+        armedRestore = false; rb.textContent = "⬇️ Restore from cloud";
+        say("Restoring…");
+        try { await pull(true); say("Restored the latest cloud backup ✓", "ok"); }
+        catch (e) { say("Restore failed: " + (e.message || e), "err"); }
       };
       box.querySelector("#clOut").onclick = async () => {
         await client.auth.signOut();
