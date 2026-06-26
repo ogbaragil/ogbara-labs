@@ -74,4 +74,12 @@ module.exports = async function (t) {
   await sleep(60);
   t("toggled off: web voice speaks, proxy untouched", spoken.length >= 1 && fetches.length === 0);
   BTApp.exitPlay();
+
+  // the spoken question is the WHOLE prompt, with maths symbols voiced as words
+  spoken = [];
+  BTApp.startSet("add.to100", "practice");
+  await sleep(20);
+  const utt = (spoken.find(u => u && /plus/.test(u.text)) || {}).text || "";
+  t("spoken question reads the full prompt, symbols as words", /\d+\s+plus\s+\d+/.test(utt) && !utt.includes("+") && !utt.includes("="));
+  BTApp.exitPlay();
 };

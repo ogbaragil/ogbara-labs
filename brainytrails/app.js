@@ -69,7 +69,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "23";
+const APP_V = "24";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -509,6 +509,32 @@ function say(text) {
   if (TTS.enabled() && TTS.unlocked()) { TTS.say(text); return; }
   webSay(text);
 }
+/* Turn an on-screen prompt into something that reads well aloud: maths symbols
+   become words, fractions become spoken fractions, "❓"/"= ?" become "what".
+   Emoji are kept — voices read them by name (🍎 → "apple"), which is the content
+   we want spoken. This guarantees the WHOLE question is read, not a short label. */
+const FRAC_WORD = { 2: "half", 3: "third", 4: "quarter", 5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth" };
+function speechify(s) {
+  let t = " " + String(s == null ? "" : s) + " ";
+  t = t.replace(/(\d+)\s*\/\s*(\d+)/g, (m, a, b) => {       // 3/4 → "3 quarters", 1/2 → "1 half"
+    const w = FRAC_WORD[+b]; if (!w) return `${a} over ${b}`;
+    const plural = +a === 1 ? w : (b === "2" ? "halves" : w + "s");
+    return `${a} ${plural}`;
+  });
+  t = t.replace(/=\s*\?/g, " equals what ")
+    .replace(/❓/g, " what ")
+    .replace(/×/g, " times ").replace(/÷/g, " divided by ")
+    .replace(/[−–]/g, " minus ")
+    .replace(/(^|[\s(,])-(?=\d)/g, "$1 negative ")          // "(-3, 2)" → "negative 3, 2"
+    .replace(/\+/g, " plus ").replace(/=/g, " equals ")
+    .replace(/%/g, " percent ")
+    .replace(/°C/g, " degrees Celsius ").replace(/°/g, " degrees ")
+    .replace(/\//g, " over ");                              // any leftover slash
+  return t.replace(/\s+([,.?!…])/g, "$1").replace(/\s+/g, " ").trim();
+}
+/* full spoken form of a question: read the entire prompt, cleaned for speech,
+   falling back to the author's `say` only if a prompt somehow isn't present */
+const spokenQ = (q) => (q && q.prompt ? speechify(q.prompt) : (q && q.say) || "");
 /* read several lines in order (used by the Learn screen to read every step) */
 function sayLines(lines) {
   const list = (lines || []).map(t => String(t).trim()).filter(Boolean);
@@ -873,7 +899,7 @@ function learnSkill(id) {
   const go = el("button", "primary-btn", "I'm ready — let's practice! 🚀");
   go.onclick = () => { P().taught[id] = today(); save(); back.remove(); startSet(id, "practice"); };
   const hear = el("button", "soft-btn", "🔊 Read it to me again");
-  const readAll = () => sayLines([s.name, ...steps]);
+  const readAll = () => sayLines([s.name, ...steps].map(speechify));
   hear.onclick = readAll;
   const later = el("button", "soft-btn", "Back to map");
   later.onclick = () => back.remove();
@@ -1048,7 +1074,7 @@ function nextQ() {
     (Sess.kind === "review" ? "🛡 " : "") + BT.SKILLS[Sess.curSkill].name;
   paintPips();
   renderQuestion(Sess.q);
-  say(Sess.q.say);
+  say(spokenQ(Sess.q));
 }
 
 function renderQuestion(q) {
@@ -1876,7 +1902,7 @@ function openHelp() {
 }
 $("helpBtn").onclick = openHelp;
 $("musicBtn") && ($("musicBtn").onclick = () => Music.toggle());
-$("promptCard").onclick = () => { if (Sess && Sess.q) say(Sess.q.say); };
+$("promptCard").onclick = () => { if (Sess && Sess.q) say(spokenQ(Sess.q)); };
 
 /* ---------------- cloud (basic wiring; per-skill best-wins merge) ---------------- */
 if (window.Cloud && Cloud.init) {
