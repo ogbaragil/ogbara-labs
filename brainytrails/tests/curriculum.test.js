@@ -19,7 +19,7 @@ module.exports = async function (t) {
     && BT.YEARS[0].id === "foundation" && BT.YEARS[6].id === "year6");
 
   // ---- authored years ----
-  for (const yid of ["foundation"]) {
+  for (const yid of ["foundation", "year1", "year2"]) {
     const c = BT.curriculumFor(yid);
     t(`${yid}: authored (not a draft)`, c.draft === false);
     t(`${yid}: 6 unique islands`, c.ISLANDS.length === 6
