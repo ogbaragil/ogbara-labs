@@ -4,11 +4,14 @@ module.exports = async function (t) {
   const h = makeHarness();
   boot(require("path").join(__dirname, ".."));
   await sleep(30);
-  let nodes = 0, rail = 0;
-  walk(h.ids["mapRoot"], e => { if (e.dataset && e.dataset.skill) nodes++; });
-  walk(h.ids["islRail"], e => { if (String(e.className).includes("rail-dot")) rail++; });
-  t("58 trail nodes render", nodes === 58);
-  t("island rail: 6 jump dots", rail === 6);
+  let isles = 0;
+  walk(h.ids["mapRoot"], e => { if (String(e.className).split(" ").includes("world-isle")) isles++; });
+  t("world map shows the six islands", isles === 6);
+  BTApp.enterIsland(0);
+  let nodes = 0;
+  walk(h.ids["islandRoot"], e => { if (e.dataset && e.dataset.skill) nodes++; });
+  t("entering island 1 renders its lesson nodes", nodes === BT.ISLANDS[0].units.flatMap(u => u.skills).length);
+  BTApp.exitIsland();
   t("HUD ring paints", String(h.ids["hudLv"].textContent) === "1" && String(h.ids["hud"].style.background).includes("conic"));
 
   BTApp.startSet("count.to10", "practice");
@@ -73,8 +76,6 @@ module.exports = async function (t) {
   const svgDrawn = String(h.ids["promptCard"]._inner).includes("<svg") && String(h.ids["promptCard"]._inner).includes("circle");
   t("clock question renders a drawn SVG clock", svgDrawn);
   BTApp.exitPlay();
-  let locked = 0;
-  walk(h.ids["mapRoot"], e => { if (e.dataset && e.dataset.skill && e.classList.contains("locked")) locked++; });
   t("test mode unlocks everything", BTApp.state().profile === "_test");
   BTApp.exitTestMode();
   t("exit restores the family profile", BTApp.state().profile === "default" && !BTApp.state().profiles._test);

@@ -35,15 +35,17 @@ module.exports = async function (t) {
   // ── Boss gate matches the Proficient counter ──
   const sproutSkills = BT.ISLANDS[0].units.flatMap(u => u.skills);
   sproutSkills.forEach(id => S().skills[id] = { m: 1, attempts: 7, correct: 6, stars: 1, nextReview: null, reviewStep: 0 });
-  BTApp.renderMap();
+  BTApp.enterIsland(0);
   let waitingAtFamiliar = false;
-  walk(h.ids["mapRoot"], e => { const c = String(e.className); if (c.includes("boss-node") && c.includes("waiting")) waitingAtFamiliar = true; });
+  walk(h.ids["islandRoot"], e => { const c = String(e.className); if (c.includes("iz-guardian") && c.includes("waiting")) waitingAtFamiliar = true; });
+  BTApp.exitIsland();
   t("boss stays locked while skills are only Familiar", waitingAtFamiliar);
 
   sproutSkills.forEach(id => S().skills[id].m = 2);
-  BTApp.renderMap();
+  BTApp.enterIsland(0);
   let readyAtProficient = false;
-  walk(h.ids["mapRoot"], e => { const c = String(e.className); if (c.includes("boss-node") && c.includes("ready")) readyAtProficient = true; });
+  walk(h.ids["islandRoot"], e => { const c = String(e.className); if (c.includes("iz-guardian") && c.includes("ready")) readyAtProficient = true; });
+  BTApp.exitIsland();
   t("boss opens once every skill is Proficient", readyAtProficient);
 
   // ── v14: illustration geometry ──

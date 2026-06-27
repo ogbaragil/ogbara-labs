@@ -1,5 +1,5 @@
 /* Islands unlock in order: a later island stays locked until the one
- * before it is fully Proficient. */
+ * before it is fully Proficient. Lock state now lives on the World Map cards. */
 const { makeHarness, boot, sleep, walk } = require("./harness");
 module.exports = async function (t) {
   const h = makeHarness();
@@ -10,36 +10,34 @@ module.exports = async function (t) {
 
   const islands = BT.ISLANDS;
   const firstSkills = islands[0].units.flatMap(u => u.skills);
-  const secondSkills = islands[1].units.flatMap(u => u.skills);
 
-  const lockedCount = (ids) => {
-    let n = 0;
+  const islandLocked = (islId) => {
+    let locked = false;
     walk(h.ids["mapRoot"], e => {
-      if (e.dataset && e.dataset.skill && ids.includes(e.dataset.skill)
-        && String(e.className).includes("locked")) n++;
+      if (e.dataset && e.dataset.isl === islId && String(e.className).split(" ").includes("locked-island")) locked = true;
     });
-    return n;
+    return locked;
   };
 
-  // fresh profile → second island fully locked
+  // fresh profile → second island locked
   BTApp.renderMap();
-  t("second island starts fully locked", lockedCount(secondSkills) === secondSkills.length);
+  t("second island starts locked", islandLocked(islands[1].id));
 
   // a locked island shows the unlock hint banner
   let banner = false;
-  walk(h.ids["mapRoot"], e => { if (String(e.className).includes("isl-lock")) banner = true; });
+  walk(h.ids["mapRoot"], e => { if (String(e._inner || "").includes("isl-lock") || String(e._inner || "").includes("to unlock")) banner = true; });
   t("locked island shows an unlock hint", banner);
 
   // make the first island all Proficient → second island opens
   firstSkills.forEach(id => S().skills[id] = { ...PROF });
   BTApp.renderMap();
-  t("second island unlocks once the first is all Proficient", lockedCount(secondSkills) < secondSkills.length);
+  t("second island unlocks once the first is all Proficient", !islandLocked(islands[1].id));
 
-  // first island's nodes are never locked (it's the entry island)
-  t("first island is always open", lockedCount(firstSkills) === 0);
+  // first island is never locked (it's the entry island)
+  t("first island is always open", !islandLocked(islands[0].id));
 
   // re-lock by dropping one first-island skill below Proficient
   S().skills[firstSkills[0]].m = 1;
   BTApp.renderMap();
-  t("dropping one skill re-locks the next island", lockedCount(secondSkills) === secondSkills.length);
+  t("dropping one skill re-locks the next island", islandLocked(islands[1].id));
 };

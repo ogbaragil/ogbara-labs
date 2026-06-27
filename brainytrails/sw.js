@@ -1,10 +1,10 @@
 /* Brainy Trails · service worker — cache-first, redirect-safe from day one */
-const CACHE = "brainytrails-v37";
+const CACHE = "brainytrails-v38";
 const ASSETS = [
   "./",
-  "./app.js?v=37",
-  "./curriculum.js?v=37",
-  "./cloud.js?v=37",
+  "./app.js?v=38",
+  "./curriculum.js?v=38",
+  "./cloud.js?v=38",
   "./supabase-config.js",
   "./kids-happy-music.mp3",
   "./thunder.mp3",
@@ -14,6 +14,12 @@ const ASSETS = [
   "./icons/apple-touch-icon.png",
   "./icons/favicon-32.png",
   "./icons/maskable-512.png",
+  "./assets/island-1.jpg",
+  "./assets/island-2.jpg",
+  "./assets/island-3.jpg",
+  "./assets/island-4.jpg",
+  "./assets/island-5.jpg",
+  "./assets/island-6.jpg",
 ];
 
 self.addEventListener("install",(e)=>{

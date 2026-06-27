@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "30";
+const APP_V = "31";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -636,107 +636,64 @@ function frontierSkill() {
   return null;
 }
 
+/* ---------------- per-island themes (art direction from the asset library) ---------------- */
+const ISLAND_THEMES = [
+  { key: "plaza",  bg: "assets/island-1.jpg", accent: "#7c4dff", glow: "rgba(124,77,255,.55)", tag: "Build strong number foundations!", mentor: { e: "🐉", n: "Cinder the Dragon", line: "Great work! Strong number foundations carry you everywhere." } },
+  { key: "springs",bg: "assets/island-2.jpg", accent: "#2f8fe0", glow: "rgba(47,143,224,.55)", tag: "Add, subtract and solve with strategy!", mentor: { e: "🦫", n: "Flo the Platypus", line: "Strategy is choosing the smartest path — you've got this!" } },
+  { key: "grove",  bg: "assets/island-3.jpg", accent: "#3fae5a", glow: "rgba(63,174,90,.55)", tag: "Multiply, divide and explore patterns!", mentor: { e: "🦔", n: "Chrono the Echidna", line: "Patterns are everywhere — look closely and think smart!" } },
+  { key: "shore",  bg: "assets/island-4.jpg", accent: "#1f8fd6", glow: "rgba(31,143,214,.55)", tag: "Explore shapes and solve with precision!", mentor: { e: "🐦", n: "Mario the Heron", line: "Observation is the key — look carefully and shapes make sense." } },
+  { key: "lagoon", bg: "assets/island-5.jpg", accent: "#8b5cf6", glow: "rgba(139,92,246,.55)", tag: "Think logically and solve clever puzzles!", mentor: { e: "🦅", n: "Mario the Heron", line: "Logic helps you solve big problems — keep using your brainpower!" } },
+  { key: "summit", bg: "assets/island-6.jpg", accent: "#a855f7", glow: "rgba(168,85,247,.55)", tag: "Master every skill and become a problem solver!", mentor: { e: "🐲", n: "Drako the Dragon", line: "Mastery is never giving up and always thinking your best." } },
+];
+const themeFor = (idx) => ISLAND_THEMES[((idx % ISLAND_THEMES.length) + ISLAND_THEMES.length) % ISLAND_THEMES.length];
+const islandIndexOf = (id) => BT.ISLANDS.findIndex(isl => isl.units.some(u => u.skills.includes(id)));
+const progWord = (done, total) => !done ? "Just getting started" : done >= total ? "Perfect!" : done / total >= 0.66 ? "Brilliant work!" : done / total >= 0.33 ? "On the right track!" : "Keep it up!";
+
+/* a soft ambient loop per island (drops in assets/ambient-N.mp3 when present; silent otherwise) */
+const IslandFx = (() => {
+  let amb = null, curSrc = null;
+  function play(idx) {
+    const src = idx == null ? null : `assets/ambient-${idx + 1}.mp3`;
+    if (src === curSrc) return;
+    curSrc = src;
+    try { if (amb) { amb.pause(); amb = null; } } catch { }
+    if (!src || typeof Audio === "undefined") return;
+    try { amb = new Audio(src); amb.loop = true; amb.volume = 0.22 * masterVol(); const p = amb.play && amb.play(); if (p && p.catch) p.catch(() => { }); } catch { }
+  }
+  return { play, stop: () => play(null) };
+})();
+
+let curIsland = null;   // index of the open island, or null on the World Map
+
 function renderMap(scrollToHere) {
   applyYear();
   paintHeader();
   paintDaily();
   paintTestChip();
-  const root = $("mapRoot");
-  root.innerHTML = "";
-  /* treasure trail: the next reward and how close it is — chests every 5 skills */
-  const tre = treasureState(P());
-  const tbar = el("button", "treasure-banner");
-  const tpct = Math.round(100 * tre.inStep / TREASURE_STEP);
-  tbar.innerHTML = `<span class="tb-ico">${tre.next.e}</span>
-    <span class="tb-mid"><b>Next treasure: ${esc(tre.next.n)}</b>
-      <span class="tb-bar"><span style="width:${tpct}%"></span></span>
-      <small>${tre.toNext} more skill${tre.toNext > 1 ? "s" : ""} to unlock it</small></span>
-    <span class="tb-haul">${tre.earned.length ? tre.earned.slice(-3).map(t => t.e).join("") : "🗺️"}</span>`;
-  tbar.setAttribute("aria-label", `Next treasure ${tre.next.n}, ${tre.toNext} skills away. Tap to see your treasures.`);
-  tbar.onclick = () => openTreasures();
-  root.appendChild(tbar);
-  const frontier = frontierSkill();
-  let frontierEl = null;
-  const rail = $("islRail");
-  if (rail) rail.innerHTML = "";
-  let zig = 0;   // alternates left/right down the whole trail
-  for (const isl of BT.ISLANDS) {
-    const skillsHere = isl.units.flatMap(u => u.skills);
-    const done = skillsHere.filter(id => skv(id).m >= 2).length;
-    const beatenIsl = !!(bosses()[isl.id] && bosses()[isl.id].won);
-    const card = el("section", "island" + (beatenIsl ? " conquered" : ""));
-    card.dataset.isl = isl.id;
-    card.setAttribute("data-emoji", isl.emoji);
-    card.appendChild(el("h2", "isl-name", `${isl.emoji} ${esc(isl.name)} <span class="isl-progress">${done}/${skillsHere.length}</span>`));
-    const islOpen = islandOpen(isl.id);
-    const blocker = islOpen ? null : islandBlocker(isl.id);
-    if (!islOpen) {
-      card.classList.add("locked-island");
-      card.appendChild(el("p", "isl-lock", `🔒 Unlock by reaching Proficient on every skill in ${esc(blocker ? blocker.name : "the island before")}.`));
-    }
-    for (const u of isl.units) {
-      card.appendChild(el("p", "unit-name", esc(u.name)));
-      const row = el("div", "trail");
-      const ud = u.skills.filter(id => skv(id).m >= 2).length;        // light the path as skills are completed
-      const lit = u.skills.length ? Math.round(100 * ud / u.skills.length) : 0;
-      if (row.style && row.style.setProperty) row.style.setProperty("--lit", lit + "%");
-      for (const id of u.skills) {
-        const s = BT.SKILLS[id], st = skv(id);
-        const open = unlocked(id);
-        const node = el("button", "node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : "") + (zig++ % 2 ? " r" : " l"));
-        node.dataset.skill = id;
-        node.setAttribute("aria-label", `${s.name}: ${open ? M_LABEL[st.m] : "locked"}`);
-        const due = st.m >= 2 && st.nextReview && st.nextReview <= today();
-        node.innerHTML = `${id === frontier ? '<span class="here">📍</span>' : ""}
-          <span class="node-face">${open ? s.icon : "🔒"}</span>
-          <span class="node-name">${esc(s.name)}</span>
-          <span class="node-badge">${due ? "🛡" : (st.stars ? "⭐".repeat(st.stars) : "")}</span>`;
-        node.onclick = () => {
-          if (open) return openSkill(id);
-          if (!islOpen) return toast("🔒", "Island locked", `Reach Proficient on every skill in ${blocker ? blocker.name : "the previous island"} first.`);
-          toast("🔒", "Not yet!", "Finish the skills before it first.");
-        };
-        if (id === frontier) frontierEl = node;
-        row.appendChild(node);
-      }
-      card.appendChild(row);
-    }
-    /* island boss gate: opens once every skill here is Proficient — the same
-       bar the n/n island counter shows, so "boss beaten" means "island full" */
-    const bossReady = inTest() || skillsHere.every(id => skv(id).m >= 2);
-    const beaten = !!bosses()[isl.id];
-    const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
-    bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
-      <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}<span class="guardian-tag">${beaten ? "Guardian defeated" : "Guardian Challenge"}</span></b>
-      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to face the Guardian and complete the island!` : `“${esc(isl.boss.line)}” <i>(reach Proficient on every skill to summon the Guardian)</i>`}</small></span>`;
-    bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
-      : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Proficient.`);
-    card.appendChild(bossBtn);
-    root.appendChild(card);
-    if (rail) {
-      const dot = el("button", "rail-dot" + (skillsHere.includes(frontier) ? " here" : ""), isl.emoji);
-      dot.title = isl.name;
-      dot.setAttribute("aria-label", "Jump to " + isl.name);
-      dot.onclick = () => { try { card.scrollIntoView({ block: "start", behavior: "smooth" }); } catch { } };
-      rail.appendChild(dot);
-    }
-  }
-  /* defend-your-islands banner when reviews are due */
+  renderWorld();
+  if (curIsland != null && BT.ISLANDS[curIsland]) renderIsland(curIsland);
+
+  /* review + continue + lightning live on the World Map */
   const due = dueSkills();
   const banner = $("reviewBanner");
-  if (!banner) return;
-  if (due.length) {
-    banner.hidden = false;
-    banner.innerHTML = due.length > 8
-      ? `🛡 Defend <b>8</b> of your islands! (${due.length} waiting — one bite at a time)`
-      : `🛡 Defend your islands! <b>${due.length}</b> skill${due.length > 1 ? "s" : ""} need${due.length > 1 ? "" : "s"} you`;
-    banner.onclick = () => startReview();
-  } else banner.hidden = true;
+  if (banner) {
+    if (due.length) {
+      banner.hidden = false;
+      banner.innerHTML = due.length > 8
+        ? `🛡 Defend <b>8</b> of your islands! (${due.length} waiting — one bite at a time)`
+        : `🛡 Defend your islands! <b>${due.length}</b> skill${due.length > 1 ? "s" : ""} need${due.length > 1 ? "" : "s"} you`;
+      banner.onclick = () => startReview();
+    } else banner.hidden = true;
+  }
+  const frontier = frontierSkill();
   const cont = $("continueBtn");
-  if (!cont) return;
-  if (frontier) { cont.hidden = false; cont.innerHTML = `▶ Continue: ${esc(BT.SKILLS[frontier].name)} ${BT.SKILLS[frontier].icon}`; cont.onclick = () => openSkill(frontier); }
-  else { cont.hidden = true; }
-  if (scrollToHere && frontierEl) { try { frontierEl.scrollIntoView({ block: "center", behavior: "smooth" }); } catch { } }
+  if (cont) {
+    if (frontier) {
+      cont.hidden = false;
+      cont.innerHTML = `<span class="cont-main">▶ Continue Adventure</span><span class="cont-sub">Next: ${esc(BT.SKILLS[frontier].name)}</span>`;
+      cont.onclick = () => { const ix = islandIndexOf(frontier); if (ix >= 0) enterIsland(ix); openSkill(frontier); };
+    } else cont.hidden = true;
+  }
   const lb = $("lightningBtn");
   if (lb) {
     if (lightningPool().length >= 5) {
@@ -750,6 +707,155 @@ function renderMap(scrollToHere) {
   maybeSyncNudge();
   paintMusicBtn();
   Music.sync();
+}
+
+/* ---------------- World Map: the six islands only ---------------- */
+function renderWorld() {
+  const root = $("mapRoot");
+  if (!root) return;
+  root.innerHTML = "";
+
+  /* treasure trail keeps its place at the top of the world */
+  const tre = treasureState(P());
+  const tbar = el("button", "treasure-banner");
+  const tpct = Math.round(100 * tre.inStep / TREASURE_STEP);
+  tbar.innerHTML = `<span class="tb-ico">${tre.next.e}</span>
+    <span class="tb-mid"><b>Next treasure: ${esc(tre.next.n)}</b>
+      <span class="tb-bar"><span style="width:${tpct}%"></span></span>
+      <small>${tre.toNext} more skill${tre.toNext > 1 ? "s" : ""} to unlock it</small></span>
+    <span class="tb-haul">${tre.earned.length ? tre.earned.slice(-3).map(t => t.e).join("") : "🗺️"}</span>`;
+  tbar.onclick = () => openTreasures();
+  root.appendChild(tbar);
+
+  root.appendChild(el("p", "world-title", "🗺️ Choose your island"));
+  const frontier = frontierSkill();
+  BT.ISLANDS.forEach((isl, i) => {
+    const th = themeFor(i);
+    const skills = isl.units.flatMap(u => u.skills);
+    const done = skills.filter(id => skv(id).m >= 2).length;
+    const open = islandOpen(isl.id);
+    const beaten = !!(bosses()[isl.id] && bosses()[isl.id].won);
+    const hasFrontier = skills.includes(frontier);
+    const blk = open ? null : islandBlocker(isl.id);
+    const card = el("button", "world-isle" + (open ? "" : " locked-island") + (beaten ? " conquered" : "") + (hasFrontier ? " current" : ""));
+    card.dataset.isl = isl.id;
+    if (card.style) { card.style.setProperty && card.style.setProperty("--isle-accent", th.accent); card.style.setProperty && card.style.setProperty("--isle-glow", th.glow); }
+    const pct = skills.length ? Math.round(100 * done / skills.length) : 0;
+    card.innerHTML = `<span class="wi-bg" style="background-image:url('${th.bg}')"></span>
+      <span class="wi-shade"></span>
+      <span class="wi-row">
+        <span class="wi-num">Island ${i + 1}</span>
+        ${beaten ? '<span class="wi-flag">👑 Cleared</span>' : hasFrontier ? '<span class="wi-flag now">You are here</span>' : ""}
+      </span>
+      <span class="wi-name">${esc(isl.name)}</span>
+      <span class="wi-tag">${esc(th.tag)}</span>
+      <span class="wi-foot">${open
+        ? `<span class="wi-prog"><span class="wi-bar"><span style="width:${pct}%"></span></span>${done}/${skills.length}</span><span class="wi-go">${hasFrontier ? "▶ Play" : beaten ? "Replay" : "Enter"}</span>`
+        : `<span class="isl-lock">🔒 Finish ${esc(blk ? blk.name : "the island before")} to unlock</span>`}</span>`;
+    card.onclick = () => open ? enterIsland(i)
+      : toast("🔒", "Locked", `Reach Proficient on every skill in ${blk ? blk.name : "the previous island"} first.`);
+    root.appendChild(card);
+  });
+}
+
+/* ---------------- Island scene: one immersive themed island ---------------- */
+function renderIsland(idx) {
+  const isl = BT.ISLANDS[idx];
+  const root = $("islandRoot");
+  if (!isl || !root) return;
+  const th = themeFor(idx);
+  const scr = $("scrIsland");
+  if (scr && scr.style && scr.style.setProperty) { scr.style.setProperty("--iz-accent", th.accent); scr.style.setProperty("--iz-glow", th.glow); }
+  const bg = $("islandBg");
+  if (bg && bg.style) bg.style.backgroundImage = `url('${th.bg}')`;
+  root.innerHTML = "";
+
+  const skills = isl.units.flatMap(u => u.skills);
+  const done = skills.filter(id => skv(id).m >= 2).length;
+  const frontier = frontierSkill();
+  const islOpen = islandOpen(isl.id);
+
+  const head = el("div", "iz-head");
+  const backB = el("button", "iz-back", "‹ World Map");
+  backB.onclick = exitIsland;
+  head.appendChild(backB);
+  head.appendChild(el("div", "iz-banner", `Island ${idx + 1}`));
+  head.appendChild(el("h2", "iz-name", esc(isl.name)));
+  head.appendChild(el("p", "iz-tag", esc(th.tag)));
+  head.appendChild(el("div", "iz-prog", `<span class="izp-star">⭐</span> ${done}/${skills.length} <span class="izp-word">${progWord(done, skills.length)}</span>`));
+  root.appendChild(head);
+
+  const trail = el("div", "iz-trail");
+  let n = 0, zig = 0;
+  for (const u of isl.units) {
+    for (const id of u.skills) {
+      n++;
+      const s = BT.SKILLS[id], st = skv(id), open = unlocked(id);
+      const node = el("button", "iz-node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : "") + (zig++ % 2 ? " r" : " l"));
+      node.dataset.skill = id;
+      node.setAttribute("aria-label", `${s.name}: ${open ? M_LABEL[st.m] : "locked"}`);
+      const stars = st.stars || 0;
+      node.innerHTML = `<span class="izn-stars">${"⭐".repeat(stars)}${"☆".repeat(Math.max(0, 3 - stars))}</span>
+        <span class="izn-disc">${open ? n : "🔒"}${st.m >= 2 ? '<span class="izn-tick">✓</span>' : ""}</span>
+        <span class="izn-name">${esc(s.name)}</span>
+        ${id === frontier ? '<span class="izn-here">📍</span>' : ""}`;
+      node.onclick = () => open ? openSkill(id)
+        : !islOpen ? toast("🔒", "Island locked", "Finish the island before this one first.")
+          : toast("🔒", "Not yet!", "Finish the skills before it first.");
+      trail.appendChild(node);
+    }
+  }
+  root.appendChild(trail);
+
+  const bossReady = inTest() || skills.every(id => skv(id).m >= 2);
+  const beaten = !!bosses()[isl.id];
+  const guard = el("button", "iz-guardian" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
+  guard.innerHTML = `<span class="izg-face">${isl.boss.emoji}</span>
+    <span class="izg-banner">${beaten ? "👑 Guardian defeated" : "Boss Challenge"}</span>
+    <small>${beaten ? `Best ${bosses()[isl.id].best || "?"}/10 — tap to rematch.` : bossReady ? "Beat the boss to unlock the next island!" : "Reach Proficient on every skill to summon the Guardian."}</small>
+    ${beaten || bossReady ? "" : '<span class="izg-lock">🔒</span>'}`;
+  guard.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
+    : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill is Proficient.`);
+  root.appendChild(guard);
+
+  const best = (bosses()[isl.id] && bosses()[isl.id].best) || 0;
+  const mentor = el("div", "iz-mentor");
+  mentor.innerHTML = `<div class="izm-face">${th.mentor.e}</div>
+    <div class="izm-body"><b>${esc(th.mentor.n)}</b><p>${esc(th.mentor.line)}</p>${best ? `<small class="izm-best">Best: ${best}/10 — keep going!</small>` : ""}</div>
+    <div class="izm-rewards"><span class="izr">👑<b>10</b></span><span class="izr">💎<b>50</b></span><span class="izr xp">XP<b>100</b></span></div>`;
+  root.appendChild(mentor);
+
+  const fHere = skills.includes(frontier) ? frontier : null;
+  const cont = el("button", "iz-continue");
+  cont.innerHTML = `<span class="izc-main">▶ Continue Adventure</span><span class="izc-sub">${fHere ? "Next: " + esc(BT.SKILLS[fHere].name) : beaten ? "Island complete! 🎉" : bossReady ? "Face the Guardian!" : "Keep going!"}</span>`;
+  cont.onclick = () => fHere ? openSkill(fHere) : (bossReady && !beaten ? bossIntro(isl, false) : exitIsland());
+  root.appendChild(cont);
+}
+
+function enterIsland(idx) {
+  if (!BT.ISLANDS[idx]) return;
+  curIsland = idx;
+  renderIsland(idx);
+  const scr = $("scrIsland");
+  if (scr) { scr.hidden = false; if (scr.classList) { scr.classList.remove("zoom-in"); void (scr.offsetWidth); scr.classList.add("zoom-in"); } }
+  if (document.body && document.body.classList) document.body.classList.add("in-island");
+  const m = $("scrMap"); if (m) m.hidden = true;
+  try { const ir = $("islandRoot"); if (ir) ir.scrollTop = 0; } catch { }
+  IslandFx.play(idx);
+}
+function exitIsland() {
+  curIsland = null;
+  const scr = $("scrIsland"); if (scr) scr.hidden = true;
+  if (document.body && document.body.classList) document.body.classList.remove("in-island");
+  const m = $("scrMap"); if (m) m.hidden = false;
+  IslandFx.stop();
+  renderMap();
+}
+function leaveIsland() {   // silently drop island state (profile switch / test mode)
+  curIsland = null;
+  const scr = $("scrIsland"); if (scr) scr.hidden = true;
+  if (document.body && document.body.classList) document.body.classList.remove("in-island");
+  IslandFx.stop();
 }
 function maybeSyncNudge() {
   if (state.syncNudged || inTest()) return;
@@ -971,6 +1077,7 @@ function beginSession(cfg) {
     lvFrom: levelOf(P().xp), t0: Date.now(),
   }, cfg);
   $("scrMap").hidden = true; $("scrPlay").hidden = false;
+  { const si = $("scrIsland"); if (si) si.hidden = true; }
   document.body.classList.add("in-play");
   Music.sync();
   $("playTitle").textContent = cfg.title;
@@ -1027,8 +1134,14 @@ function exitPlay() {
   if (Sess && Sess.timerId) clearInterval(Sess.timerId);
   addPlayTime();
   Sess = null;
-  $("scrPlay").hidden = true; $("scrMap").hidden = false;
+  $("scrPlay").hidden = true;
   document.body.classList.remove("in-play");
+  if (curIsland != null && BT.ISLANDS[curIsland]) {            // back into the island you were exploring
+    const si = $("scrIsland"); if (si) si.hidden = false;
+    if (document.body && document.body.classList) document.body.classList.add("in-island");
+  } else {
+    $("scrMap").hidden = false;
+  }
   renderMap(true); save();
 }
 $("exitBtn") && ($("exitBtn").onclick = () => {
@@ -1511,7 +1624,7 @@ function exitTestMode() {
     : (state.profiles.default ? "default" : childIds()[0]);
   if (!back || !state.profiles[back]) { state.profiles.default = migrateProfile(FRESH_PROFILE()); back = "default"; }
   state.profile = back; prevProfile = null;
-  save(); paintTestChip(); renderMap(true);
+  leaveIsland(); save(); paintTestChip(); renderMap(true);
 }
 (function wireTestChip() {
   const c = $("testChip"); if (!c) return;
@@ -1524,6 +1637,7 @@ function switchProfile(id) {
   if (!state.profiles[id]) return;
   if (Sess) { if (Sess.timerId) clearInterval(Sess.timerId); Sess = null; $("scrPlay").hidden = true; $("scrMap").hidden = false; document.body.classList.remove("in-play"); }
   state.profile = id;
+  leaveIsland();
   save(); renderMap(true);
 }
 function deleteChild(id) {
@@ -2216,7 +2330,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openTreasures, treasureState, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, setVoice, listVoices: () => englishVoices().map(v => ({ name: v.name, lang: v.lang, id: voiceId(v) })), voice: () => ({ name: (pickWebVoice() || {}).name || null, count: englishVoices().length, chosen: (P().settings && P().settings.voiceURI) || null }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, enterIsland, exitIsland, renderIsland, openHelp, openBackpack, openParents, openTreasures, treasureState, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, setVoice, listVoices: () => englishVoices().map(v => ({ name: v.name, lang: v.lang, id: voiceId(v) })), voice: () => ({ name: (pickWebVoice() || {}).name || null, count: englishVoices().length, chosen: (P().settings && P().settings.voiceURI) || null }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds, openYearPicker, applyYear };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
