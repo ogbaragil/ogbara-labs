@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "36";
+const APP_V = "37";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -733,19 +733,17 @@ function renderWorld() {
   if (!root) return;
   root.innerHTML = "";
 
-  /* treasure trail keeps its place at the top of the world */
+  /* slim treasure strip */
   const tre = treasureState(P());
   const tbar = el("button", "treasure-banner");
   const tpct = Math.round(100 * tre.inStep / TREASURE_STEP);
-  tbar.innerHTML = `<span class="tb-ico">${tre.next.e}</span>
-    <span class="tb-mid"><b>Next treasure: ${esc(tre.next.n)}</b>
-      <span class="tb-bar"><span style="width:${tpct}%"></span></span>
-      <small>${tre.toNext} more skill${tre.toNext > 1 ? "s" : ""} to unlock it</small></span>
-    <span class="tb-haul">${tre.earned.length ? tre.earned.slice(-3).map(t => t.e).join("") : "🗺️"}</span>`;
+  tbar.innerHTML = `<span class="tz-ic">${tre.next.e}</span>
+    <span class="tz-mid"><span class="tz-lbl">Next treasure · ${esc(tre.next.n)}</span>
+      <span class="tz-bar"><span style="width:${tpct}%"></span></span></span>
+    <span class="tz-to">${tre.toNext} to go</span>`;
   tbar.onclick = () => openTreasures();
   root.appendChild(tbar);
 
-  root.appendChild(el("p", "world-title", "🗺️ Choose your island"));
   const frontier = frontierSkill();
   BT.ISLANDS.forEach((isl, i) => {
     const th = themeFor(i);
@@ -754,22 +752,28 @@ function renderWorld() {
     const open = islandOpen(isl.id);
     const beaten = !!(bosses()[isl.id] && bosses()[isl.id].won);
     const hasFrontier = skills.includes(frontier);
+    const cleared = open && skills.length > 0 && done >= skills.length;
+    const current = open && hasFrontier;
     const blk = open ? null : islandBlocker(isl.id);
-    const card = el("button", "world-isle" + (open ? "" : " locked-island") + (beaten ? " conquered" : "") + (hasFrontier ? " current" : ""));
+    const stateCls = !open ? "locked-island locked" : current ? "current" : cleared ? "cleared" : "open";
+    const card = el("button", "world-isle " + stateCls + (beaten ? " conquered" : ""));
     card.dataset.isl = isl.id;
     if (card.style) { card.style.setProperty && card.style.setProperty("--isle-accent", th.accent); card.style.setProperty && card.style.setProperty("--isle-glow", th.glow); }
     const pct = skills.length ? Math.round(100 * done / skills.length) : 0;
+    const status = !open ? '<span class="wi-state locked">🔒</span>'
+      : current ? '<span class="wi-state here">You are here</span>'
+        : cleared ? '<span class="wi-state cleared">👑 Cleared</span>' : "";
+    const foot = !open
+      ? `<span class="wi-lockmsg">Finish ${esc(blk ? blk.name : "the island before")} to unlock</span>`
+      : cleared
+        ? `<span class="wi-foot"><span class="wi-bar"><span style="width:100%"></span></span><span class="wi-frac">${skills.length}/${skills.length}</span><span class="wi-replay">↻ Replay</span></span>`
+        : `<span class="wi-foot"><span class="wi-bar"><span style="width:${pct}%"></span></span><span class="wi-frac">${done}/${skills.length}</span><span class="wi-go">${current ? "▶ Play" : "Enter"}</span></span>`;
     card.innerHTML = `<span class="wi-bg" style="background-image:url('${th.bg}')"></span>
       <span class="wi-shade"></span>
-      <span class="wi-row">
-        <span class="wi-num">Island ${i + 1}</span>
-        ${beaten ? '<span class="wi-flag">👑 Cleared</span>' : hasFrontier ? '<span class="wi-flag now">You are here</span>' : ""}
-      </span>
+      <span class="wi-top"><span class="wi-num">Island ${i + 1}</span>${status}</span>
       <span class="wi-name">${esc(isl.name)}</span>
       <span class="wi-tag">${esc(th.tag)}</span>
-      <span class="wi-foot">${open
-        ? `<span class="wi-prog"><span class="wi-bar"><span style="width:${pct}%"></span></span>${done}/${skills.length}</span><span class="wi-go">${hasFrontier ? "▶ Play" : beaten ? "Replay" : "Enter"}</span>`
-        : `<span class="isl-lock">🔒 Finish ${esc(blk ? blk.name : "the island before")} to unlock</span>`}</span>`;
+      ${foot}`;
     card.onclick = () => open ? enterIsland(i)
       : toast("🔒", "Locked", `Reach Proficient on every skill in ${blk ? blk.name : "the previous island"} first.`);
     root.appendChild(card);
