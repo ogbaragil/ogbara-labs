@@ -337,6 +337,33 @@
     padding:14px 16px calc(30px + env(safe-area-inset-bottom));}
   .play-dock-inner{max-width:680px; margin:0 auto;}
 
+  /* ===== themed play: the island carries into the lesson ===== */
+  #playBg{position:absolute; inset:0; z-index:0; background-size:cover; background-position:center; transform:scale(1.06); animation:izDrift 28s ease-in-out infinite alternate;}
+  .play-veil{position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(247,244,239,.92) 0%, rgba(247,244,239,.7) 30%, rgba(20,16,40,.34) 100%);}
+  #scrPlay.themed .play-veil{background:linear-gradient(180deg,
+    color-mix(in srgb, var(--pl-accent) 8%, rgba(247,244,239,.9)) 0%,
+    color-mix(in srgb, var(--pl-accent) 15%, rgba(247,244,239,.62)) 34%,
+    color-mix(in srgb, var(--pl-accent) 44%, rgba(16,12,34,.5)) 100%);}
+  #scrPlay:not(.themed) #playBg, #scrPlay:not(.themed) .play-veil{display:none;}
+  #scrPlay .play-inner{position:relative; z-index:2;}
+
+  .play-mentor{display:none; align-items:center; gap:10px; width:max-content; max-width:100%; margin:0 0 8px; padding:7px 14px 7px 8px;
+    border-radius:999px; background:rgba(255,255,255,.93); border:1.5px solid var(--line); box-shadow:0 5px 16px rgba(46,36,86,.12); text-align:left;}
+  #scrPlay.themed .play-mentor{display:inline-flex; border-color:color-mix(in srgb, var(--pl-accent) 45%, var(--line)); box-shadow:0 6px 18px var(--pl-glow);}
+  .play-mentor:active{transform:scale(.98);}
+  .pm-face{width:42px; height:42px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:23px;
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 60%), var(--pl-accent,var(--violet)); border:2px solid #fff;}
+  .pm-meta{display:flex; flex-direction:column; line-height:1.15;}
+  .pm-meta b{font-size:13.5px; color:var(--pl-accent,var(--ink));}
+  .pm-meta small{font-size:11px; font-weight:800; color:var(--muted);}
+
+  #scrPlay.themed #playTitle{color:#22305a;}
+  #scrPlay.themed #exitBtn{background:rgba(255,255,255,.92); border-color:color-mix(in srgb, var(--pl-accent) 40%, var(--line));}
+  #scrPlay.themed #promptCard{border:2px solid color-mix(in srgb, var(--pl-accent) 38%, #fff); box-shadow:0 14px 36px var(--pl-glow);}
+  #scrPlay.themed .say-btn{color:#fff; background:var(--pl-accent); border-color:transparent; box-shadow:0 4px 12px var(--pl-glow);}
+  #scrPlay.themed .play-dock{background:rgba(255,255,255,.94); border-top:3px solid var(--pl-accent);}
+  #scrPlay.themed .choice-btn{border-color:color-mix(in srgb, var(--pl-accent) 28%, var(--line));}
+
   .choice-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:11px;}
   .choice-btn{position:relative; min-height:68px; border-radius:22px; border:2.5px solid;
     font-size:clamp(19px,5.4vw,28px); font-weight:900; padding:10px; transition:transform .12s;
@@ -783,12 +810,18 @@
   </div>
 
   <div id="scrPlay" hidden>
+    <div id="playBg"></div>
+    <div class="play-veil"></div>
     <div class="play-inner">
       <div class="play-bar">
         <button id="exitBtn" aria-label="Back to map">🗺</button>
         <p id="playTitle"></p>
         <div id="pips"></div>
       </div>
+      <button class="play-mentor" id="playMentor" aria-label="Tap your guide to hear the question">
+        <span class="pm-face" id="playMentorFace">🐉</span>
+        <span class="pm-meta"><b id="playMentorName">Your guide</b><small>🔊 Tap to hear it</small></span>
+      </button>
       <div class="prompt-zone">
         <div id="promptCard"></div>
         <div id="hintSlot"></div>
@@ -813,10 +846,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=38"></script>
+<script src="curriculum.js?v=39"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=38"></script>
-<script src="app.js?v=38"></script>
+<script src="cloud.js?v=39"></script>
+<script src="app.js?v=39"></script>
 </body>
 </html>

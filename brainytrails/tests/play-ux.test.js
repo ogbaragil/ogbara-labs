@@ -49,4 +49,11 @@ module.exports = async function (t) {
   t("undo removes the pick", BTApp.sess().orderPicked.length === 1);
   t("undone chip is selectable again", chips[0].disabled === false);
   BTApp.exitTestMode();
+
+  // ── the island theme carries into the lesson ──
+  BTApp.startSet("count.to10", "practice");   // count.to10 lives on island 1
+  const scr = h.ids["scrPlay"];
+  t("play screen picks up the island theme", scr.classList.contains("themed"));
+  t("the island mentor reads the question", String(h.ids["playMentorFace"].textContent) === "🐉");
+  BTApp.exitPlay();
 };

@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "31";
+const APP_V = "32";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -1178,11 +1178,27 @@ function nextQ() {
   if (Sess.q.format === "keypad" && !Sess.q.decimal && isYoung(BT.SKILLS[Sess.curSkill].island)) Sess.q = youngify(Sess.q);
   Sess.lock = false; Sess.orderPicked = [];
   Sess.qTries = 0; Sess.resetEntry = null;
+  applyPlayTheme(curIsland != null ? curIsland : islandIndexOf(Sess.curSkill));
   if (Sess.kind === "review" || Sess.kind === "boss") $("playTitle").textContent =
     (Sess.kind === "review" ? "🛡 " : "") + BT.SKILLS[Sess.curSkill].name;
   paintPips();
   renderQuestion(Sess.q);
   say(spokenQ(Sess.q));
+}
+
+function applyPlayTheme(idx) {
+  const scr = $("scrPlay"); if (!scr) return;
+  const th = (idx != null && idx >= 0 && BT.ISLANDS[idx]) ? themeFor(idx) : null;
+  if (th) {
+    if (scr.style && scr.style.setProperty) { scr.style.setProperty("--pl-accent", th.accent); scr.style.setProperty("--pl-glow", th.glow); }
+    if (scr.classList) scr.classList.add("themed");
+    const bg = $("playBg"); if (bg && bg.style) bg.style.backgroundImage = `url('${th.bg}')`;
+    const mf = $("playMentorFace"); if (mf) mf.textContent = th.mentor.e;
+    const mn = $("playMentorName"); if (mn) mn.textContent = th.mentor.n;
+  } else {
+    if (scr.classList) scr.classList.remove("themed");
+    const bg = $("playBg"); if (bg && bg.style) bg.style.backgroundImage = "";
+  }
 }
 
 function renderQuestion(q) {
@@ -2299,6 +2315,7 @@ function openHelp() {
 $("helpBtn").onclick = openHelp;
 $("musicBtn") && ($("musicBtn").onclick = () => Music.toggle());
 $("promptCard").onclick = () => { if (Sess && Sess.q) say(spokenQ(Sess.q)); };
+$("playMentor") && ($("playMentor").onclick = () => { if (Sess && Sess.q) say(spokenQ(Sess.q)); });
 
 /* ---------------- cloud (basic wiring; per-skill best-wins merge) ---------------- */
 if (window.Cloud && Cloud.init) {
