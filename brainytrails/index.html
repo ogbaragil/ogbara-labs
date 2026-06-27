@@ -774,6 +774,47 @@
   .cont-sub{display:block; font-size:12px; font-weight:700; opacity:.9; margin-top:1px;}
   body.in-island #parentsBtn, body.in-island #sideStack, body.in-island .help-fab, body.in-island #mapDock, body.in-island #islRail{display:none;}
 
+  /* ===== mega boss card (replaces the coach) ===== */
+  .iz-boss{position:relative; display:flex; flex-direction:column; align-items:center; gap:5px; width:100%; max-width:560px;
+    margin:62px auto 0; padding:14px 16px; text-align:center; color:var(--ink);
+    border-radius:24px; background:rgba(255,247,234,.97); border:1.5px solid #f0d9a8; box-shadow:0 14px 34px rgba(0,0,0,.34);}
+  .iz-boss.ready{box-shadow:0 14px 34px var(--iz-glow), 0 0 0 2px var(--iz-accent);}
+  .izb-stage{position:relative; width:150px; height:120px; display:grid; place-items:center; margin-top:-72px;}  /* the boss rears up over the card */
+  .izb-aura{position:absolute; width:128px; height:128px; border-radius:50%;
+    background:radial-gradient(circle, var(--iz-glow), transparent 66%); filter:blur(3px); animation:izbAura 3s ease-in-out infinite;}
+  .iz-boss.waiting .izb-aura{opacity:.4;}
+  @keyframes izbAura{0%,100%{transform:scale(.9); opacity:.7;} 50%{transform:scale(1.1); opacity:1;}}
+  .izb-face{position:relative; font-size:104px; line-height:1; filter:drop-shadow(0 12px 16px rgba(0,0,0,.45)); animation:izbFloat 3.4s ease-in-out infinite;}
+  @keyframes izbFloat{0%,100%{transform:translateY(0) rotate(-1.5deg);} 50%{transform:translateY(-10px) rotate(1.5deg);}}
+  .iz-boss.ready .izb-face{animation:izbMenace 1.5s ease-in-out infinite;}
+  @keyframes izbMenace{0%,100%{transform:translateY(0) scale(1) rotate(0);} 30%{transform:translateY(-5px) scale(1.05) rotate(-4deg);} 70%{transform:translateY(-5px) scale(1.05) rotate(4deg);}}
+  .iz-boss.waiting .izb-face{filter:grayscale(.7) brightness(.78) drop-shadow(0 8px 14px rgba(0,0,0,.4)); animation:none;}
+  .izb-crown{position:absolute; top:-6px; font-size:34px; filter:drop-shadow(0 3px 5px rgba(0,0,0,.4)); animation:izbFloat 3s ease-in-out infinite;}
+  .izb-lock{position:absolute; bottom:2px; right:30px; font-size:26px;}
+  .izb-banner{font-size:12.5px; font-weight:900; letter-spacing:.4px; color:#fff; background:var(--iz-accent); border-radius:999px; padding:6px 16px; box-shadow:0 5px 14px var(--iz-glow);}
+  .iz-boss.waiting .izb-banner{background:#9a93b5; box-shadow:none;}
+  .iz-boss.beaten .izb-banner{background:linear-gradient(160deg,#f59e0b,#fbbf24); color:#5b3104;}
+  .izb-name{font-size:20px; font-weight:900; color:var(--iz-accent);}
+  .izb-line{font-size:13px; font-style:italic; color:#5b4a2e; line-height:1.4;}
+  .izb-sub{font-size:11.5px; font-weight:800; color:var(--muted);}
+  .izb-rewards{display:flex; gap:18px; margin-top:7px;}
+  .iz-boss .izr{font-size:10.5px; font-weight:900; color:var(--muted);}
+  .iz-boss .izr b{display:block; font-size:14px; color:var(--ink);}
+  .iz-boss .izr.xp{color:var(--mint);}
+
+  /* the boss is slain on the victory screen */
+  .sheet-icon.boss-slain{display:inline-block; animation:bossSlain 1.6s ease both;}
+  @keyframes bossSlain{
+    0%{transform:scale(1) rotate(0); filter:none;}
+    10%{transform:scale(1.12) rotate(-9deg);}
+    22%{transform:scale(1.12) rotate(9deg);}
+    34%{transform:scale(1.15) rotate(-9deg);}
+    46%{transform:scale(1.15) rotate(9deg);}
+    60%{transform:scale(1.2) rotate(0); filter:brightness(1.7) saturate(1.3);}
+    72%{transform:scale(1.05) rotate(6deg); filter:none;}
+    100%{transform:scale(.55) rotate(72deg) translateY(34px); filter:grayscale(1) opacity(.2);}}
+  @media (prefers-reduced-motion:reduce){.sheet-icon.boss-slain{animation:none;} .izb-face,.izb-aura,.izb-crown{animation:none;}}
+
   .teach h2,.teach .sheet-icon{text-align:center; display:block;}
   .teach-steps .step{background:#efe9ff; border:1.5px solid #ddd0fb; border-radius:15px; padding:12px 14px;
     margin-top:9px; font-size:15px; line-height:1.55; animation:popUp .25s ease;}
@@ -873,10 +914,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=41"></script>
+<script src="curriculum.js?v=43"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=41"></script>
-<script src="app.js?v=41"></script>
+<script src="cloud.js?v=43"></script>
+<script src="app.js?v=43"></script>
 </body>
 </html>

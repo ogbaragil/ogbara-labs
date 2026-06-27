@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "34";
+const APP_V = "36";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -827,21 +827,23 @@ function renderIsland(idx) {
 
   const bossReady = inTest() || skills.every(id => skv(id).m >= 2);
   const beaten = !!bosses()[isl.id];
-  const guard = el("button", "iz-guardian" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
-  guard.innerHTML = `<span class="izg-face">${isl.boss.emoji}</span>
-    <span class="izg-banner">${beaten ? "👑 Guardian defeated" : "Boss Challenge"}</span>
-    <small>${beaten ? `Best ${bosses()[isl.id].best || "?"}/10 — tap to rematch.` : bossReady ? "Beat the boss to unlock the next island!" : "Reach Proficient on every skill to summon the Guardian."}</small>
-    ${beaten || bossReady ? "" : '<span class="izg-lock">🔒</span>'}`;
-  guard.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
-    : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill is Proficient.`);
-  root.appendChild(guard);
-
   const best = (bosses()[isl.id] && bosses()[isl.id].best) || 0;
-  const mentor = el("div", "iz-mentor");
-  mentor.innerHTML = `<div class="izm-face">${th.mentor.e}</div>
-    <div class="izm-body"><b>${esc(th.mentor.n)}</b><p>${esc(th.mentor.line)}</p>${best ? `<small class="izm-best">Best: ${best}/10 — keep going!</small>` : ""}</div>
-    <div class="izm-rewards"><span class="izr">👑<b>10</b></span><span class="izr">💎<b>50</b></span><span class="izr xp">XP<b>100</b></span></div>`;
-  root.appendChild(mentor);
+  const bstate = beaten ? "beaten" : bossReady ? "ready" : "waiting";
+  const boss = el("button", "iz-boss " + bstate);
+  boss.innerHTML = `
+    <span class="izb-stage">
+      <span class="izb-aura"></span>
+      <span class="izb-face">${isl.boss.emoji}</span>
+      ${beaten ? '<span class="izb-crown">👑</span>' : (bossReady ? "" : '<span class="izb-lock">🔒</span>')}
+    </span>
+    <span class="izb-banner">${beaten ? "👑 Guardian defeated" : bossReady ? "⚔️ Boss Challenge — ready!" : "🔒 Boss Challenge"}</span>
+    <b class="izb-name">${esc(isl.boss.name)}</b>
+    <p class="izb-line">${beaten ? "\u201CYou have bested me, champion!\u201D" : "\u201C" + esc(isl.boss.line) + "\u201D"}</p>
+    <p class="izb-sub">${beaten ? `Best ${best}/10 — tap to rematch` : bossReady ? "Beat the boss to unlock the next island!" : "Reach Proficient on every skill to summon the Guardian."}</p>
+    <span class="izb-rewards"><span class="izr">👑<b>10</b></span><span class="izr">💎<b>50</b></span><span class="izr xp">XP<b>100</b></span></span>`;
+  boss.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
+    : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill is Proficient.`);
+  root.appendChild(boss);
 
   const fHere = skills.includes(frontier) ? frontier : null;
   const cont = el("button", "iz-continue");
@@ -1215,8 +1217,9 @@ function applyPlayTheme(idx) {
     if (scr.classList) scr.classList.add("themed");
     if (scr.dataset) scr.dataset.isle = th.key;
     const bg = $("playBg"); if (bg && bg.style) bg.style.backgroundImage = `url('${th.bg}')`;
-    const mf = $("playMentorFace"); if (mf) mf.textContent = th.mentor.e;
-    const mn = $("playMentorName"); if (mn) mn.textContent = th.mentor.n;
+    const isl = BT.ISLANDS[idx];                 // the boss is the island's one character
+    const mf = $("playMentorFace"); if (mf && isl) mf.textContent = isl.boss.emoji;
+    const mn = $("playMentorName"); if (mn && isl) mn.textContent = isl.boss.name;
   } else {
     if (scr.classList) scr.classList.remove("themed");
     const bg = $("playBg"); if (bg && bg.style) bg.style.backgroundImage = "";
@@ -1523,7 +1526,7 @@ function finishSet() {
     } else {
       headline = stars ? "⭐".repeat(stars) : "Good try!";
       sub = `${correct} of ${total} right` + (levelled ? " — you're now FAMILIAR with this skill!" : "")
-        + (st.m === 1 && (st.perfects || 0) === 1 ? " One more perfect run levels you up!" : "");
+        + (st.m === 1 && (st.perfects || 0) >= 1 ? ` Now ace ${levelupNeed(id)} of 5 to become Proficient!` : "");
     }
   } else {
     const pass = need || 5;
@@ -1557,9 +1560,16 @@ function finishSet() {
   map.onclick = () => { back.remove(); exitPlay(); };
   box.appendChild(map);
   if (!becameProficient) {                 // once Proficient, the skill moves to spaced review — no more free practice
-    const again = el("button", "soft-btn", "Practice again");
-    again.onclick = () => { back.remove(); $("scrPlay").hidden = true; startSet(id, "practice"); };
-    box.appendChild(again);
+    const readyToLevel = st.m >= 1 && st.m < 2 && (st.perfects || 0) >= 1;
+    if (readyToLevel) {                    // aced it once → the next card targets 5 of 5 → Proficient
+      const lvl = el("button", "gold-btn", `⚡ Level Up · ${levelupNeed(id)} of 5 → Proficient`);
+      lvl.onclick = () => { back.remove(); $("scrPlay").hidden = true; startSet(id, "levelup"); };
+      box.appendChild(lvl);
+    } else {
+      const again = el("button", "soft-btn", "Practice again");
+      again.onclick = () => { back.remove(); $("scrPlay").hidden = true; startSet(id, "practice"); };
+      box.appendChild(again);
+    }
   }
   back.appendChild(box);
   $("overlay").appendChild(back);
@@ -1608,17 +1618,18 @@ function finishBoss() {
   save();
   const ex = setExtras(lvFrom);
   const back = el("div", "modal-back"), box = el("div", "modal result");
-  box.innerHTML = `<p class="sheet-icon">${isl.boss.emoji}</p>
+  box.innerHTML = `<p class="sheet-icon${won ? " boss-slain" : ""}">${isl.boss.emoji}</p>
     <h2>${won ? `${esc(isl.name)} conquered! 👑` : "So close, explorer!"}</h2>
-    <p class="sheet-acc">${won ? `${esc(isl.boss.name)}: “You truly are a master of my island!”` : `${esc(isl.boss.name)}: “${correct} of ${total}! Train a little more and face me again.”`}</p>
+    <p class="sheet-acc">${won ? `${esc(isl.boss.name)}: “You have bested me, champion!”` : `${esc(isl.boss.name)}: “${correct} of ${total}! Train a little more and face me again.”`}</p>
     <p class="result-xp">+${xpGain}${bonus ? " + " + bonus + " bonus" : ""} XP ⭐</p>
     <p class="sheet-acc">Best score: ${bosses()[islandId].best}/10</p>${ex.html}`;
   if ((won || ex.pop) && !matchMediaSafe()) confetti();
+  if (won) SFX.fanfare();
   const map = el("button", "primary-btn", "Back to the map 🗺");
   map.onclick = () => { back.remove(); exitPlay(); };
   box.appendChild(map); back.appendChild(box);
   $("overlay").appendChild(back);
-  say(won ? "Island conquered! Incredible!" : "So close! Try again soon.");
+  say(won ? `You have bested me, champion! ${isl.name} conquered!` : "So close! Try again soon.");
 }
 
 function matchMediaSafe() { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } }

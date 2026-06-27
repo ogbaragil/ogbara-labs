@@ -10,12 +10,12 @@ module.exports = async function (t) {
   const modalHas = (m, text) => { let f = false; walk(m, e => { if ((String(e._inner || "") + String(e.textContent || "")).includes(text)) f = true; }); return f; };
   const playSet = async () => { const n = BTApp.sess().total; for (let i = 0; i < n; i++) { BTApp.submit(true, ""); await sleep(60); } await sleep(70); };
 
-  /* --- Fix 2: first perfect practice still offers "Practice again" --- */
+  /* --- after a first perfect run, the card targets 5 of 5 -> Proficient --- */
   S().skills["count.to10"] = { m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 };
   BTApp.startSet("count.to10", "practice");
   await playSet();
   t("first perfect run reaches Familiar (not Proficient)", S().skills["count.to10"].m === 1);
-  t("Familiar result still offers Practice again", modalHas(resultModal(), "Practice again") && modalHas(resultModal(), "Back to the map"));
+  t("Familiar result offers the 5-of-5 Level Up (not plain practice)", modalHas(resultModal(), "Level Up") && !modalHas(resultModal(), "Practice again") && modalHas(resultModal(), "Back to the map"));
   h.ids["overlay"].children.length = 0; BTApp.exitPlay();
 
   /* --- Fix 2: the run that reaches Proficient hides "Practice again" --- */
@@ -55,6 +55,6 @@ module.exports = async function (t) {
   const scr = h.ids["scrPlay"];
   t("play screen picks up the island theme", scr.classList.contains("themed"));
   t("play screen carries the island skin", String(scr.dataset.isle) === "plaza");
-  t("the island mentor reads the question", String(h.ids["playMentorFace"].textContent) === "🐉");
+  t("the island boss reads the question on the quest screen", String(h.ids["playMentorFace"].textContent) === BT.ISLANDS[0].boss.emoji);
   BTApp.exitPlay();
 };

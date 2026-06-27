@@ -11,6 +11,13 @@ module.exports = async function (t) {
   let nodes = 0;
   walk(h.ids["islandRoot"], e => { if (e.dataset && e.dataset.skill) nodes++; });
   t("entering island 1 renders its lesson nodes", nodes === BT.ISLANDS[0].units.flatMap(u => u.skills).length);
+  let bossCard = false, bossFace = false, coach = false;
+  walk(h.ids["islandRoot"], e => {
+    const c = String(e.className).split(" ");
+    if (c.includes("iz-boss")) { bossCard = true; if (String(e._inner || "").includes(BT.ISLANDS[0].boss.emoji)) bossFace = true; }
+    if (c.includes("iz-mentor")) coach = true;
+  });
+  t("island shows a mega boss card (no coach)", bossCard && bossFace && !coach);
   BTApp.exitIsland();
   t("HUD ring paints", String(h.ids["hudLv"].textContent) === "1" && String(h.ids["hud"].style.background).includes("conic"));
 
