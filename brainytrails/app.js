@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "32";
+const APP_V = "34";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -530,19 +530,34 @@ const Music = (() => {
   const visible = () => { try { return document.visibilityState !== "hidden"; } catch { return true; } };
   const ensure = () => {
     if (el || typeof Audio === "undefined") return el;
-    try { el = new Audio("kids-happy-music.mp3"); el.loop = true; el.preload = "auto"; el.volume = 0.3; }
+    try { el = new Audio("kids-happy-music.mp3"); el.loop = true; el.preload = "auto"; el.volume = 0.3; el._track = "kids-happy-music.mp3"; }
     catch { el = null; }
     return el;
   };
   function sync() {
     const e = ensure(); if (!e) return;
-    try { e.volume = 0.3 * masterVol(); } catch { }
-    if (wanted() && onMap() && visible()) { const p = e.play && e.play(); if (p && p.catch) p.catch(() => { }); }
+    const ducked = !onMap();                 // quieter during a question so the spoken prompt stays clear
+    try { e.volume = (ducked ? 0.12 : 0.3) * masterVol(); } catch { }
+    if (wanted() && visible()) { const p = e.play && e.play(); if (p && p.catch) p.catch(() => { }); }
     else { try { e.pause(); } catch { } }
   }
   return {
     start() { sync(); },
     sync,
+    setTrack(src) {
+      const target = src || "kids-happy-music.mp3";
+      const e = ensure(); if (!e) return;
+      if (e._track === target) { sync(); return; }
+      e._track = target;
+      try {                                   // quick fade across the swap
+        const from = e.volume;
+        e.volume = 0;
+        e.src = target; if (e.load) e.load();
+        sync();
+        let v = 0; const tgt = (onMap() ? 0.3 : 0.12) * masterVol();
+        const id = setInterval(() => { v += tgt / 6; if (v >= tgt) { v = tgt; clearInterval(id); } try { e.volume = v; } catch { } }, 45);
+      } catch { sync(); }
+    },
     on: () => wanted(),
     toggle() { const pf = P(); if (pf) pf.settings.music = !wanted(); save(); sync(); paintMusicBtn(); },
   };
@@ -646,6 +661,9 @@ const ISLAND_THEMES = [
   { key: "summit", bg: "assets/island-6.jpg", accent: "#a855f7", glow: "rgba(168,85,247,.55)", tag: "Master every skill and become a problem solver!", mentor: { e: "🐲", n: "Drako the Dragon", line: "Mastery is never giving up and always thinking your best." } },
 ];
 const themeFor = (idx) => ISLAND_THEMES[((idx % ISLAND_THEMES.length) + ISLAND_THEMES.length) % ISLAND_THEMES.length];
+const DEFAULT_MUSIC = "kids-happy-music.mp3";
+const ISLAND_MUSIC = [null, "assets/island-music-2.mp3", "assets/island-music-3.mp3", "assets/island-music-4.mp3", "assets/island-music-5.mp3", "assets/island-music-6.mp3"];
+const musicForIsland = (idx) => (idx != null && idx >= 0 && ISLAND_MUSIC[idx]) ? ISLAND_MUSIC[idx] : DEFAULT_MUSIC;
 const islandIndexOf = (id) => BT.ISLANDS.findIndex(isl => isl.units.some(u => u.skills.includes(id)));
 const progWord = (done, total) => !done ? "Just getting started" : done >= total ? "Perfect!" : done / total >= 0.66 ? "Brilliant work!" : done / total >= 0.33 ? "On the right track!" : "Keep it up!";
 
@@ -842,6 +860,7 @@ function enterIsland(idx) {
   const m = $("scrMap"); if (m) m.hidden = true;
   try { const ir = $("islandRoot"); if (ir) ir.scrollTop = 0; } catch { }
   IslandFx.play(idx);
+  Music.setTrack(musicForIsland(idx));
 }
 function exitIsland() {
   curIsland = null;
@@ -849,6 +868,7 @@ function exitIsland() {
   if (document.body && document.body.classList) document.body.classList.remove("in-island");
   const m = $("scrMap"); if (m) m.hidden = false;
   IslandFx.stop();
+  Music.setTrack(DEFAULT_MUSIC);
   renderMap();
 }
 function leaveIsland() {   // silently drop island state (profile switch / test mode)
@@ -856,6 +876,7 @@ function leaveIsland() {   // silently drop island state (profile switch / test 
   const scr = $("scrIsland"); if (scr) scr.hidden = true;
   if (document.body && document.body.classList) document.body.classList.remove("in-island");
   IslandFx.stop();
+  Music.setTrack(DEFAULT_MUSIC);
 }
 function maybeSyncNudge() {
   if (state.syncNudged || inTest()) return;
@@ -1192,6 +1213,7 @@ function applyPlayTheme(idx) {
   if (th) {
     if (scr.style && scr.style.setProperty) { scr.style.setProperty("--pl-accent", th.accent); scr.style.setProperty("--pl-glow", th.glow); }
     if (scr.classList) scr.classList.add("themed");
+    if (scr.dataset) scr.dataset.isle = th.key;
     const bg = $("playBg"); if (bg && bg.style) bg.style.backgroundImage = `url('${th.bg}')`;
     const mf = $("playMentorFace"); if (mf) mf.textContent = th.mentor.e;
     const mn = $("playMentorName"); if (mn) mn.textContent = th.mentor.n;

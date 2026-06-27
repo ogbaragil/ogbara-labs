@@ -364,6 +364,33 @@
   #scrPlay.themed .play-dock{background:rgba(255,255,255,.94); border-top:3px solid var(--pl-accent);}
   #scrPlay.themed .choice-btn{border-color:color-mix(in srgb, var(--pl-accent) 28%, var(--line));}
 
+  /* ===== per-island skins: each island gets its own card + keypad material ===== */
+  /* base themed key: a carved tile that takes the island accent on its edge */
+  #scrPlay.themed .key{background:linear-gradient(180deg,#fffaf0,#f1e7d4); border:1.5px solid color-mix(in srgb,var(--pl-accent) 30%,#cdb583);
+    color:#3a2c12; box-shadow:0 3px 0 color-mix(in srgb,var(--pl-accent) 35%,#b89b62);}
+  #scrPlay.themed .key:active{transform:translateY(3px); box-shadow:none;}
+  #scrPlay.themed .key.back{color:#7a6a52;}
+  #scrPlay.themed .key.ok{background:linear-gradient(180deg,#3fc46a,#23a352); color:#fff; border:none; box-shadow:0 3px 0 #157a3a;}
+
+  /* Place Value Plaza — washi paper + lacquered violet */
+  #scrPlay[data-isle="plaza"] #promptCard{background:linear-gradient(180deg,#fdf4f7,#f3e3ea); border:2px solid #c9a7d6;}
+  #scrPlay[data-isle="plaza"] .key{background:linear-gradient(180deg,#fbf4fb,#ece0f1); border-color:#cba9e0; box-shadow:0 3px 0 #b69ad6;}
+  /* Strategy Springs — river stone + cool blue */
+  #scrPlay[data-isle="springs"] #promptCard{background:linear-gradient(180deg,#f1f6fb,#dfeaf4); border:2px solid #8fb9dd;}
+  #scrPlay[data-isle="springs"] .key{background:linear-gradient(180deg,#f6fbff,#e2eef8); border-color:#9cc2e2; box-shadow:0 3px 0 #6fa2cf;}
+  /* Times & Groups Grove — warm wood + leaf green */
+  #scrPlay[data-isle="grove"] #promptCard{background:linear-gradient(180deg,#f7f1df,#e9dcbf); border:2px solid #b08a4e;}
+  #scrPlay[data-isle="grove"] .key{background:linear-gradient(180deg,#fbf2dc,#ecdcb8); border-color:#7fb98e; color:#43321a; box-shadow:0 3px 0 #b78f4f;}
+  /* Shape Shore — sandstone + sea teal */
+  #scrPlay[data-isle="shore"] #promptCard{background:linear-gradient(180deg,#fdf6e7,#f1e3c6); border:2px solid #d8b878;}
+  #scrPlay[data-isle="shore"] .key{background:linear-gradient(180deg,#fff7e6,#f3e6c6); border-color:#7fc6d8; box-shadow:0 3px 0 #d6b878;}
+  /* Logic Lagoon — frosted crystal + magic purple */
+  #scrPlay[data-isle="lagoon"] #promptCard{background:linear-gradient(180deg,#f6f2fe,#e6dcfb); border:2px solid #b29ae8; box-shadow:0 14px 36px var(--pl-glow),0 0 0 1px rgba(255,255,255,.5) inset;}
+  #scrPlay[data-isle="lagoon"] .key{background:linear-gradient(180deg,#fbf8ff,#ece2fb); border-color:#b9a3ec; color:#3a2c54; box-shadow:0 3px 0 #a78fe0;}
+  /* Mastery Mountain — frost stone + icy slate */
+  #scrPlay[data-isle="summit"] #promptCard{background:linear-gradient(180deg,#f3f4fb,#e2e5f1); border:2px solid #a9a8d4;}
+  #scrPlay[data-isle="summit"] .key{background:linear-gradient(180deg,#f8f9fe,#e6e8f3); border-color:#aaa8d6; color:#2c2a4a; box-shadow:0 3px 0 #9a98c8;}
+
   .choice-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:11px;}
   .choice-btn{position:relative; min-height:68px; border-radius:22px; border:2.5px solid;
     font-size:clamp(19px,5.4vw,28px); font-weight:900; padding:10px; transition:transform .12s;
@@ -846,10 +873,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=39"></script>
+<script src="curriculum.js?v=41"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=39"></script>
-<script src="app.js?v=39"></script>
+<script src="cloud.js?v=41"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>

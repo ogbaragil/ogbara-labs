@@ -54,6 +54,7 @@ module.exports = async function (t) {
   BTApp.startSet("count.to10", "practice");   // count.to10 lives on island 1
   const scr = h.ids["scrPlay"];
   t("play screen picks up the island theme", scr.classList.contains("themed"));
+  t("play screen carries the island skin", String(scr.dataset.isle) === "plaza");
   t("the island mentor reads the question", String(h.ids["playMentorFace"].textContent) === "🐉");
   BTApp.exitPlay();
 };
