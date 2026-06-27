@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "37";
+const APP_V = "38";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -637,6 +637,8 @@ function paintHeader() {
     } else {
       who.hidden = true;
     }
+    const pill = $("playerPill");
+    if (pill && pill.classList) { who.hidden ? pill.classList.add("solo") : pill.classList.remove("solo"); }
   }
 }
 
@@ -797,38 +799,63 @@ function renderIsland(idx) {
   const frontier = frontierSkill();
   const islOpen = islandOpen(isl.id);
 
+  /* compact header */
   const head = el("div", "iz-head");
   const backB = el("button", "iz-back", "‹ World Map");
   backB.onclick = exitIsland;
   head.appendChild(backB);
-  head.appendChild(el("div", "iz-banner", `Island ${idx + 1}`));
-  head.appendChild(el("h2", "iz-name", esc(isl.name)));
-  head.appendChild(el("p", "iz-tag", esc(th.tag)));
-  head.appendChild(el("div", "iz-prog", `<span class="izp-star">⭐</span> ${done}/${skills.length} <span class="izp-word">${progWord(done, skills.length)}</span>`));
+  head.appendChild(el("div", "iz-prog", `⭐ ${done}/${skills.length} · ${progWord(done, skills.length)}`));
+  head.appendChild(el("h2", "iz-name", `<span class="izh-num">Island ${idx + 1}</span>${esc(isl.name)}`));
   root.appendChild(head);
 
-  const trail = el("div", "iz-trail");
-  let n = 0, zig = 0;
-  for (const u of isl.units) {
-    for (const id of u.skills) {
-      n++;
-      const s = BT.SKILLS[id], st = skv(id), open = unlocked(id);
-      const node = el("button", "iz-node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : "") + (zig++ % 2 ? " r" : " l"));
-      node.dataset.skill = id;
-      node.setAttribute("aria-label", `${s.name}: ${open ? M_LABEL[st.m] : "locked"}`);
-      const stars = st.stars || 0;
-      node.innerHTML = `<span class="izn-stars">${"⭐".repeat(stars)}${"☆".repeat(Math.max(0, 3 - stars))}</span>
-        <span class="izn-disc">${open ? n : "🔒"}${st.m >= 2 ? '<span class="izn-tick">✓</span>' : ""}</span>
-        <span class="izn-name">${esc(s.name)}</span>
-        ${id === frontier ? '<span class="izn-here">📍</span>' : ""}`;
-      node.onclick = () => open ? openSkill(id)
-        : !islOpen ? toast("🔒", "Island locked", "Finish the island before this one first.")
-          : toast("🔒", "Not yet!", "Finish the skills before it first.");
-      trail.appendChild(node);
+  /* serpentine board — nodes weave across the width so it all fits one screen */
+  const board = el("div", "iz-board");
+  const N = skills.length;
+  const rows = Math.max(1, Math.ceil(N / 2));
+  const pos = skills.map((id, n) => {
+    const row = Math.floor(n / 2), col = n % 2;
+    const ltr = row % 2 === 0;
+    const xs = ltr ? [27, 73] : [73, 27];
+    const y = ((row + (col === 0 ? 0.30 : 0.74)) / rows) * 100;
+    return { x: xs[col], y: Math.round(y * 10) / 10 };
+  });
+  let litIdx = skills.indexOf(frontier);
+  if (litIdx < 0) litIdx = done >= N ? N - 1 : Math.max(0, done - 1);
+  const pts = pos.concat([{ x: 50, y: 99 }]);                 // trail flows down into the boss
+  const smooth = (arr) => {
+    if (arr.length < 2) return arr.length ? `M ${arr[0].x} ${arr[0].y}` : "";
+    let d = `M ${arr[0].x} ${arr[0].y}`;
+    for (let i = 1; i < arr.length - 1; i++) {
+      const xc = (arr[i].x + arr[i + 1].x) / 2, yc = (arr[i].y + arr[i + 1].y) / 2;
+      d += ` Q ${arr[i].x} ${arr[i].y} ${xc} ${yc}`;
     }
-  }
-  root.appendChild(trail);
+    const last = arr[arr.length - 1];
+    return d + ` L ${last.x} ${last.y}`;
+  };
+  board.innerHTML = `<svg class="iz-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <path class="izp-base" d="${smooth(pts)}"></path>
+      <path class="izp-lit" d="${smooth(pts.slice(0, Math.max(1, litIdx + 1)))}"></path>
+    </svg>`;
+  skills.forEach((id, n) => {
+    const s = BT.SKILLS[id], st = skv(id), open = unlocked(id);
+    const node = el("button", "iz-node " + (open ? M_CLASS[st.m] : "locked") + (id === frontier ? " frontier" : ""));
+    node.dataset.skill = id;
+    node.setAttribute("aria-label", `${s.name}: ${open ? M_LABEL[st.m] : "locked"}`);
+    node.style.left = pos[n].x + "%";
+    node.style.top = pos[n].y + "%";
+    const stars = st.stars || 0;
+    node.innerHTML = `<span class="izn-stars">${"⭐".repeat(stars)}${"·".repeat(Math.max(0, 3 - stars))}</span>
+      <span class="izn-disc">${open ? (n + 1) : "🔒"}${st.m >= 2 ? '<span class="izn-tick">✓</span>' : ""}</span>
+      <span class="izn-name">${esc(s.name)}</span>
+      ${id === frontier ? '<span class="izn-here">📍</span>' : ""}`;
+    node.onclick = () => open ? openSkill(id)
+      : !islOpen ? toast("🔒", "Island locked", "Finish the island before this one first.")
+        : toast("🔒", "Not yet!", "Finish the skills before it first.");
+    board.appendChild(node);
+  });
+  root.appendChild(board);
 
+  /* compact mega boss (Boss B) */
   const bossReady = inTest() || skills.every(id => skv(id).m >= 2);
   const beaten = !!bosses()[isl.id];
   const best = (bosses()[isl.id] && bosses()[isl.id].best) || 0;
@@ -843,12 +870,12 @@ function renderIsland(idx) {
     <span class="izb-banner">${beaten ? "👑 Guardian defeated" : bossReady ? "⚔️ Boss Challenge — ready!" : "🔒 Boss Challenge"}</span>
     <b class="izb-name">${esc(isl.boss.name)}</b>
     <p class="izb-line">${beaten ? "\u201CYou have bested me, champion!\u201D" : "\u201C" + esc(isl.boss.line) + "\u201D"}</p>
-    <p class="izb-sub">${beaten ? `Best ${best}/10 — tap to rematch` : bossReady ? "Beat the boss to unlock the next island!" : "Reach Proficient on every skill to summon the Guardian."}</p>
     <span class="izb-rewards"><span class="izr">👑<b>10</b></span><span class="izr">💎<b>50</b></span><span class="izr xp">XP<b>100</b></span></span>`;
   boss.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
     : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill is Proficient.`);
   root.appendChild(boss);
 
+  /* slim continue */
   const fHere = skills.includes(frontier) ? frontier : null;
   const cont = el("button", "iz-continue");
   cont.innerHTML = `<span class="izc-main">▶ Continue Adventure</span><span class="izc-sub">${fHere ? "Next: " + esc(BT.SKILLS[fHere].name) : beaten ? "Island complete! 🎉" : bossReady ? "Face the Guardian!" : "Keep going!"}</span>`;
