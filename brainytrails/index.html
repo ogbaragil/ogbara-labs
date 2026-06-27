@@ -120,6 +120,16 @@
     background:conic-gradient(var(--violet) 0%, #ece7f7 0% 100%);
     box-shadow:0 6px 16px rgba(46,36,86,.22); transition:transform .15s;}
   #hud:active{transform:scale(.92);}
+  /* current player, to the left of the level ring */
+  #whoChip{position:fixed; top:calc(15px + env(safe-area-inset-top)); right:76px; z-index:45;
+    display:inline-flex; align-items:center; gap:7px; height:40px; max-width:42vw;
+    padding:0 13px 0 9px; border-radius:999px; background:var(--panel);
+    border:1.5px solid var(--line); box-shadow:0 4px 12px rgba(46,36,86,.14); transition:transform .15s;}
+  #whoChip:active{transform:scale(.95);}
+  #whoChip[hidden]{display:none;}
+  #whoAva{font-size:20px; line-height:1;}
+  #whoName{font-weight:900; font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  body.in-play #whoChip{display:none;}
   #hudLv{display:grid; place-items:center; width:100%; height:100%; border-radius:50%;
     background:var(--panel); font-weight:900; font-size:17px; color:var(--violet);}
   header{padding-right:62px;}
@@ -367,6 +377,11 @@
   .slot{width:54px; height:54px; border-radius:14px; border:2.5px dashed var(--line); display:grid; place-items:center;
     font-size:20px; font-weight:900; color:var(--muted); background:var(--bg);}
   .slot.filled{border-style:solid; border-color:var(--violet); color:var(--ink); background:#efe9ff;}
+  button.slot.filled{position:relative; overflow:visible;}
+  button.slot.filled::after{content:"×"; position:absolute; top:-7px; right:-7px; width:19px; height:19px; border-radius:50%;
+    background:var(--coral); color:#fff; font-size:14px; font-weight:900; line-height:1; display:grid; place-items:center;
+    box-shadow:0 2px 5px rgba(244,63,94,.4);}
+  button.slot.filled:active{transform:scale(.93);}
   .order-chips{display:flex; gap:9px; justify-content:center; flex-wrap:wrap;}
   .chip{width:58px; height:58px; border-radius:16px; background:var(--panel); border:2.5px solid var(--line);
     font-size:21px; font-weight:900; box-shadow:0 3px 0 var(--line);}
@@ -617,6 +632,7 @@
 </head>
 <body>
 <button id="hud" aria-label="My Backpack"><span id="hudLv">1</span></button>
+<button id="whoChip" hidden><span id="whoAva">🦊</span><span id="whoName"></span></button>
 <div id="sideStack">
   <button id="campfire" hidden></button>
   <button id="lightningBtn" hidden></button>
@@ -659,10 +675,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=34"></script>
+<script src="curriculum.js?v=36"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=34"></script>
-<script src="app.js?v=34"></script>
+<script src="cloud.js?v=36"></script>
+<script src="app.js?v=36"></script>
 </body>
 </html>

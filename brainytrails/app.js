@@ -76,7 +76,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "27";
+const APP_V = "29";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -578,6 +578,28 @@ function paintHeader() {
   hudLv.textContent = lv;
   hud.style.background = `conic-gradient(var(--violet) ${pct}%, #ece7f7 ${pct}% 100%)`;
   hud.title = `Level ${lv} · ${xp} XP · ${hi - xp} to next level`;
+
+  /* current player, beside the ring */
+  const who = $("whoChip"), wa = $("whoAva"), wn = $("whoName");
+  if (who && wa && wn) {
+    const inT = inTest();
+    const nm = inT ? "Tester" : P().name;
+    const multi = childIds().length > 1;
+    const named = nm && nm !== "Explorer";
+    if (inT || multi || named) {
+      wa.textContent = inT ? "🧪" : P().avatar;
+      wn.textContent = nm;
+      who.hidden = false;
+      const tappable = multi && !inT;
+      who.onclick = tappable ? openWho : null;
+      who.style.cursor = tappable ? "pointer" : "default";
+      const label = tappable ? `Playing as ${nm} — tap to switch player` : `Playing as ${nm}`;
+      who.setAttribute("aria-label", label);
+      who.title = label;
+    } else {
+      who.hidden = true;
+    }
+  }
 }
 
 /* ---------------- map ---------------- */
@@ -1079,7 +1101,29 @@ function renderQuestion(q) {
   } else if (q.format === "order") {
     const slots = el("div", "order-slots");
     const chips = el("div", "order-chips");
-    const paintSlots = () => { slots.innerHTML = ""; for (let k = 0; k < q.items.length; k++) slots.appendChild(el("span", "slot" + (Sess.orderPicked[k] !== undefined ? " filled" : ""), Sess.orderPicked[k] !== undefined ? String(Sess.orderPicked[k]) : "")); };
+    const placed = [];   // chip buttons in pick order, parallel to Sess.orderPicked
+    const undoAt = (k) => {
+      if (Sess.lock || k < 0 || k >= Sess.orderPicked.length) return;
+      const chip = placed.splice(k, 1)[0];
+      Sess.orderPicked.splice(k, 1);
+      if (chip) { chip.disabled = false; if (chip.classList) chip.classList.remove("used"); }
+      paintSlots();
+    };
+    const paintSlots = () => {
+      slots.innerHTML = "";
+      for (let k = 0; k < q.items.length; k++) {
+        const filled = Sess.orderPicked[k] !== undefined;
+        if (filled && !Sess.lock) {            // tap a placed tile to send it back
+          const s = el("button", "slot filled", String(Sess.orderPicked[k]));
+          s.title = "Tap to undo";
+          s.setAttribute("aria-label", `Remove ${Sess.orderPicked[k]} — tap to undo`);
+          s.onclick = () => undoAt(k);
+          slots.appendChild(s);
+        } else {
+          slots.appendChild(el("span", "slot" + (filled ? " filled" : ""), filled ? String(Sess.orderPicked[k]) : ""));
+        }
+      }
+    };
     paintSlots();
     const chipBtns = [];
     q.items.forEach(v => {
@@ -1087,7 +1131,7 @@ function renderQuestion(q) {
       b.onclick = () => {
         if (Sess.lock || b.disabled) return;
         b.disabled = true; b.classList.add("used");
-        Sess.orderPicked.push(v); paintSlots();
+        Sess.orderPicked.push(v); placed.push(b); paintSlots();
         if (Sess.orderPicked.length === q.items.length) {
           submit(JSON.stringify(Sess.orderPicked) === JSON.stringify(q.correct), q.correct.join(" → "), slots);
         }
@@ -1095,7 +1139,7 @@ function renderQuestion(q) {
       chips.appendChild(b); chipBtns.push({ b, v });
     });
     Sess.resetEntry = () => {
-      Sess.orderPicked = [];
+      Sess.orderPicked = []; placed.length = 0;
       paintSlots();
       Array.from(chips.children).forEach(c => { c.disabled = false; if (c.classList) c.classList.remove("used"); });
     };
@@ -1271,7 +1315,7 @@ function finishSet() {
   if (kind === "lightning") return finishLightning();
   const id = Sess.queue[0];
   const st = sk(id);
-  let headline, sub, levelled = false;
+  let headline, sub, levelled = false, becameProficient = false;
   /* Two perfect runs fast-track a skill straight to Proficient (complete),
      skipping the separate Level Up step. */
   const perfect = correct === total;
@@ -1284,7 +1328,7 @@ function finishSet() {
     if (stars > st.stars) st.stars = stars;
     if (correct >= 5 && st.m < 1) { st.m = 1; levelled = true; }
     if (fastProf) {
-      st.m = 2; st.nextReview = isoPlusDays(REVIEW_DAYS[0]); levelled = true;
+      st.m = 2; st.nextReview = isoPlusDays(REVIEW_DAYS[0]); levelled = true; becameProficient = true;
       headline = "⚡ PROFICIENT! ⚡";
       sub = `Two perfect runs — this skill is complete! It comes back for review in ${REVIEW_DAYS[0]} days to be mastered.`;
     } else {
@@ -1295,7 +1339,7 @@ function finishSet() {
   } else {
     const pass = need || 5;
     if (correct >= pass || fastProf) {
-      if (st.m < 2) { st.m = 2; levelled = true; }
+      if (st.m < 2) { st.m = 2; levelled = true; becameProficient = true; }
       st.nextReview = isoPlusDays(REVIEW_DAYS[0]);
       headline = "⚡ PROFICIENT! ⚡";
       sub = `${correct === total ? "Perfect" : "Strong"} ${correct}/${total}! This skill comes back for review in ${REVIEW_DAYS[0]} days — keep it strong to master it.`;
@@ -1314,11 +1358,15 @@ function finishSet() {
   box.innerHTML = `<p class="result-head">${headline}</p><p class="sheet-acc">${esc(sub)}</p>
     <p class="result-xp">+${xpGain} XP ⭐</p>${ex.html}`;
   if ((levelled || ex.pop) && !matchMediaSafe()) confetti();
-  const again = el("button", "soft-btn", "Practice again");
-  again.onclick = () => { back.remove(); $("scrPlay").hidden = true; startSet(id, "practice"); };
   const map = el("button", "primary-btn", "Back to the map 🗺");
   map.onclick = () => { back.remove(); exitPlay(); };
-  box.append(map, again); back.appendChild(box);
+  box.appendChild(map);
+  if (!becameProficient) {                 // once Proficient, the skill moves to spaced review — no more free practice
+    const again = el("button", "soft-btn", "Practice again");
+    again.onclick = () => { back.remove(); $("scrPlay").hidden = true; startSet(id, "practice"); };
+    box.appendChild(again);
+  }
+  back.appendChild(box);
   $("overlay").appendChild(back);
   say(typeof headline === "string" && headline.includes("⭐") ? "Amazing work!" : headline.replace(/[^a-zA-Z !']/g, ""));
 }
