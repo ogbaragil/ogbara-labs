@@ -68,8 +68,8 @@
 
   /* ---------- snaking trail ---------- */
   .trail{position:relative; display:flex; flex-direction:column; align-items:center; padding:6px 0 2px;}
-  .trail::before{content:""; position:absolute; top:14px; bottom:14px; left:50%;
-    border-left:4px dotted var(--ia); opacity:.3; transform:translateX(-2px);}
+  .trail::before{content:""; position:absolute; top:14px; bottom:14px; left:50%; width:4px; transform:translateX(-2px);
+    border-radius:4px; background:linear-gradient(var(--ia) var(--lit,0%), color-mix(in srgb, var(--ia) 26%, var(--bg)) var(--lit,0%));}
   .node{position:relative; z-index:1; width:170px; margin:7px 0; display:flex; flex-direction:column; align-items:center; gap:4px;}
   .node.l{transform:translateX(-58px);} .node.r{transform:translateX(58px);}
   .node-face{width:62px; height:62px; border-radius:50%; display:grid; place-items:center; font-size:27px;
@@ -588,6 +588,49 @@
   .tips-list li{margin-bottom:6px;}
 
   .teach{text-align:left;}
+
+  /* ===== Adventure: treasures, journey, guardians ===== */
+  .treasure-banner{display:flex; align-items:center; gap:12px; width:100%; text-align:left; margin:0 auto 14px; max-width:560px;
+    padding:12px 14px; border-radius:18px; background:linear-gradient(135deg,#fff7e6,#fde7c9);
+    border:1.5px solid #f5d68a; box-shadow:0 6px 16px rgba(245,158,11,.18);}
+  .treasure-banner:active{transform:scale(.99);}
+  .tb-ico{width:44px; height:44px; flex:none; border-radius:13px; background:#fff; display:grid; place-items:center; font-size:24px; box-shadow:0 3px 8px rgba(180,120,10,.2);}
+  .tb-mid{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
+  .tb-mid b{font-size:14.5px; color:#7a4d04;}
+  .tb-mid small{font-size:11.5px; color:#9a6a16; font-weight:700;}
+  .tb-bar{height:7px; border-radius:999px; background:#f1dcae; overflow:hidden;}
+  .tb-bar span{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#f59e0b,#fbbf24);}
+  .tb-haul{font-size:20px; letter-spacing:1px; flex:none;}
+
+  .guardian-tag{display:inline-block; margin-left:7px; font-size:9.5px; font-weight:900; letter-spacing:.6px; text-transform:uppercase;
+    color:var(--violet); background:#efe9ff; border-radius:999px; padding:2px 8px; vertical-align:middle;}
+  .boss-node.beaten .guardian-tag{color:#7a4d04; background:#fde7c9;}
+  .boss-node.ready .guardian-tag{color:#fff; background:var(--coral);}
+
+  .result-treasure{margin-top:10px; font-weight:900; font-size:15px; color:#7a4d04; background:#fde7c9; border:1.5px solid #f5d68a;
+    border-radius:14px; padding:10px 12px;}
+  .result-treasure .rt-ico{font-size:20px;}
+
+  .treasure-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:14px;}
+  .treasure-cell{display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 6px; border-radius:15px;
+    background:var(--bg); border:1.5px solid var(--line);}
+  .treasure-cell.got{background:#fff7e6; border-color:#f5d68a;}
+  .treasure-cell.next{background:#f4f0ff; border-color:var(--violet);}
+  .treasure-cell.locked{opacity:.6;}
+  .tc-ico{font-size:28px;}
+  .tc-name{font-size:11.5px; font-weight:900; color:var(--ink); text-align:center; line-height:1.2;}
+  .tc-sub{font-size:10px; font-weight:800; color:var(--muted);}
+  .treasure-cell.next .tc-sub{color:var(--violet);}
+
+  /* parents' adventure strip */
+  .pc-journey{display:grid; grid-template-columns:repeat(3,1fr); background:var(--bg); border:1.5px solid var(--line); border-radius:18px; padding:14px 4px;}
+  .pj-cell{display:flex; flex-direction:column; align-items:center; text-align:center; gap:2px; padding:0 6px;}
+  .pj-cell + .pj-cell{border-left:1px solid var(--line);}
+  .pj-ico{font-size:22px;}
+  .pj-big{font-size:19px; font-weight:900; color:var(--ink);}
+  .pj-reward .pj-big{color:var(--sun);}
+  .pj-lbl{font-size:10.5px; font-weight:700; color:var(--muted); line-height:1.2;}
+  .kid-journey{margin-top:6px; font-size:12.5px; font-weight:700; color:var(--sun);}
   .teach h2,.teach .sheet-icon{text-align:center; display:block;}
   .teach-steps .step{background:#efe9ff; border:1.5px solid #ddd0fb; border-radius:15px; padding:12px 14px;
     margin-top:9px; font-size:15px; line-height:1.55; animation:popUp .25s ease;}
@@ -675,10 +718,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=36"></script>
+<script src="curriculum.js?v=37"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=36"></script>
-<script src="app.js?v=36"></script>
+<script src="cloud.js?v=37"></script>
+<script src="app.js?v=37"></script>
 </body>
 </html>

@@ -51,6 +51,7 @@ function migrateProfile(p) {
   delete p.settings.premiumVoice;
   if (p.settings.voiceURI === undefined) p.settings.voiceURI = null;
   if (p.settings.volume === undefined) p.settings.volume = 80;
+  if (p.treasuresSeen === undefined) p.treasuresSeen = Math.floor(Object.values(p.skills || {}).filter(x => x.m >= 2).length / 5);
   for (const [id, b] of Object.entries(p.bosses)) if (b === true) p.bosses[id] = { won: true, best: 0 };
   return p;
 }
@@ -76,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "29";
+const APP_V = "30";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -332,6 +333,28 @@ const SFX = (() => {
 /* ---------------- badges (earned things never disappear) ---------------- */
 const countM = (p, m) => Object.values(p.skills).filter(x => x.m >= m).length;
 const totalStars = (p) => Object.values(p.skills).reduce((a, x) => a + (x.stars || 0), 0);
+
+/* ---------------- treasures: a reward every few skills (powers the kid's
+   chests on the map AND the parent's "next reward" card) ---------------- */
+const TREASURE_STEP = 5;                       // one treasure per 5 skills made Proficient
+const TREASURES = [
+  { e: "🥚", n: "Dragon Egg" }, { e: "🗝️", n: "Golden Key" }, { e: "💎", n: "Crystal Gem" },
+  { e: "🪄", n: "Magic Wand" }, { e: "🧭", n: "Explorer's Compass" }, { e: "🏺", n: "Ancient Relic" },
+  { e: "🐉", n: "Baby Dragon" }, { e: "👑", n: "Jewelled Crown" }, { e: "🛡️", n: "Hero's Shield" },
+  { e: "⚔️", n: "Legendary Sword" }, { e: "🏆", n: "Champion's Trophy" }, { e: "🌟", n: "Star of Brilliance" },
+];
+const treasureFor = (i) => TREASURES[((i % TREASURES.length) + TREASURES.length) % TREASURES.length];
+function treasureState(p) {
+  const prof = countM(p, 2);
+  const earnedCount = Math.floor(prof / TREASURE_STEP);
+  const nextThreshold = (earnedCount + 1) * TREASURE_STEP;
+  return {
+    proficient: prof, earnedCount, nextThreshold, toNext: nextThreshold - prof,
+    inStep: prof % TREASURE_STEP,              // 0..STEP-1 progress toward the next chest
+    next: treasureFor(earnedCount),
+    earned: Array.from({ length: earnedCount }, (_, i) => ({ idx: i, threshold: (i + 1) * TREASURE_STEP, ...treasureFor(i) })),
+  };
+}
 const BADGES = [
   { id: "first_fam", name: "First Steps", emoji: "👣", test: p => countM(p, 1) >= 1 },
   { id: "first_prof", name: "Level Upper", emoji: "⚡", test: p => countM(p, 2) >= 1 },
@@ -620,6 +643,18 @@ function renderMap(scrollToHere) {
   paintTestChip();
   const root = $("mapRoot");
   root.innerHTML = "";
+  /* treasure trail: the next reward and how close it is — chests every 5 skills */
+  const tre = treasureState(P());
+  const tbar = el("button", "treasure-banner");
+  const tpct = Math.round(100 * tre.inStep / TREASURE_STEP);
+  tbar.innerHTML = `<span class="tb-ico">${tre.next.e}</span>
+    <span class="tb-mid"><b>Next treasure: ${esc(tre.next.n)}</b>
+      <span class="tb-bar"><span style="width:${tpct}%"></span></span>
+      <small>${tre.toNext} more skill${tre.toNext > 1 ? "s" : ""} to unlock it</small></span>
+    <span class="tb-haul">${tre.earned.length ? tre.earned.slice(-3).map(t => t.e).join("") : "🗺️"}</span>`;
+  tbar.setAttribute("aria-label", `Next treasure ${tre.next.n}, ${tre.toNext} skills away. Tap to see your treasures.`);
+  tbar.onclick = () => openTreasures();
+  root.appendChild(tbar);
   const frontier = frontierSkill();
   let frontierEl = null;
   const rail = $("islRail");
@@ -642,6 +677,9 @@ function renderMap(scrollToHere) {
     for (const u of isl.units) {
       card.appendChild(el("p", "unit-name", esc(u.name)));
       const row = el("div", "trail");
+      const ud = u.skills.filter(id => skv(id).m >= 2).length;        // light the path as skills are completed
+      const lit = u.skills.length ? Math.round(100 * ud / u.skills.length) : 0;
+      if (row.style && row.style.setProperty) row.style.setProperty("--lit", lit + "%");
       for (const id of u.skills) {
         const s = BT.SKILLS[id], st = skv(id);
         const open = unlocked(id);
@@ -669,8 +707,8 @@ function renderMap(scrollToHere) {
     const beaten = !!bosses()[isl.id];
     const bossBtn = el("button", "boss-node" + (beaten ? " beaten" : bossReady ? " ready" : " waiting"));
     bossBtn.innerHTML = `<span class="boss-face">${isl.boss.emoji}</span>
-      <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}</b>
-      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to challenge!` : `“${esc(isl.boss.line)}” <i>(level up every skill to Proficient first)</i>`}</small></span>`;
+      <span class="boss-meta"><b>${beaten ? "👑 " : ""}${esc(isl.boss.name)}<span class="guardian-tag">${beaten ? "Guardian defeated" : "Guardian Challenge"}</span></b>
+      <small>${beaten ? `“You truly are a master of my island!” Best: ${bosses()[isl.id].best || "?"}/10 — tap for a rematch.` : bossReady ? `“${esc(isl.boss.line)}” — ⚔️ tap to face the Guardian and complete the island!` : `“${esc(isl.boss.line)}” <i>(reach Proficient on every skill to summon the Guardian)</i>`}</small></span>`;
     bossBtn.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
       : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill on ${isl.name} is Proficient.`);
     card.appendChild(bossBtn);
@@ -1354,10 +1392,16 @@ function finishSet() {
   Sess = null;
   save();
   const ex = setExtras(lvFrom);
+  /* did this set cross a treasure milestone? */
+  let treasureWon = null;
+  const earnedNow = Math.floor(countM(P(), 2) / TREASURE_STEP);
+  if (earnedNow > (P().treasuresSeen || 0)) { treasureWon = treasureFor(earnedNow - 1); P().treasuresSeen = earnedNow; save(); }
   const back = el("div", "modal-back"), box = el("div", "modal result");
   box.innerHTML = `<p class="result-head">${headline}</p><p class="sheet-acc">${esc(sub)}</p>
-    <p class="result-xp">+${xpGain} XP ⭐</p>${ex.html}`;
-  if ((levelled || ex.pop) && !matchMediaSafe()) confetti();
+    <p class="result-xp">+${xpGain} XP ⭐</p>${ex.html}` +
+    (treasureWon ? `<p class="result-treasure">🎁 Treasure unlocked! <span class="rt-ico">${treasureWon.e}</span> <b>${esc(treasureWon.n)}</b></p>` : "");
+  if ((levelled || ex.pop || treasureWon) && !matchMediaSafe()) confetti();
+  if (treasureWon) SFX.fanfare();
   const map = el("button", "primary-btn", "Back to the map 🗺");
   map.onclick = () => { back.remove(); exitPlay(); };
   box.appendChild(map);
@@ -1547,6 +1591,26 @@ function openYearPicker(forId, onDone) {
   back.onclick = (e) => { if (e.target === back) back.remove(); };
   $("overlay").appendChild(back);
 }
+function openTreasures() {
+  const p = P(), ts = treasureState(p);
+  const back = el("div", "modal-back"), box = el("div", "modal");
+  box.innerHTML = `<p class="sheet-icon">\u{1F381}</p><h2>Treasure Trail</h2>
+    <p class="sheet-acc">Earn a treasure for every ${TREASURE_STEP} skills you make Proficient. You've found <b>${ts.earnedCount}</b> so far!</p>`;
+  const grid = el("div", "treasure-grid");
+  const show = ts.earnedCount + 4;            // everything earned, plus a few to chase
+  for (let i = 0; i < show; i++) {
+    const t = treasureFor(i), got = i < ts.earnedCount, isNext = i === ts.earnedCount;
+    const cell = el("div", "treasure-cell" + (got ? " got" : isNext ? " next" : " locked"));
+    cell.innerHTML = `<span class="tc-ico">${got || isNext ? t.e : "\u{1F512}"}</span>
+      <span class="tc-name">${got || isNext ? esc(t.n) : "Mystery"}</span>
+      <span class="tc-sub">${got ? "Unlocked" : isNext ? `${ts.toNext} to go` : `${(i + 1) * TREASURE_STEP} skills`}</span>`;
+    grid.appendChild(cell);
+  }
+  box.appendChild(grid);
+  const cl = el("button", "primary-btn", "Keep exploring \u{1F5FA}\uFE0F");
+  cl.onclick = () => back.remove();
+  box.appendChild(cl); back.appendChild(box); $("overlay").appendChild(back);
+}
 function openBackpack() {
   const p = P();
   const back = el("div", "modal-back"), box = el("div", "modal");
@@ -1676,6 +1740,11 @@ function openParents() {
   });
 
   /* tile builder for the stat strips */
+  const jcell = (icon, big, lbl, reward) => {
+    const c = el("div", "pj-cell" + (reward ? " pj-reward" : ""));
+    c.append(el("div", "pj-ico", icon), el("div", "pj-big", String(big)), el("div", "pj-lbl", esc(lbl)));
+    return c;
+  };
   const tile = (icon, label, val, o = {}) => {
     const t = el("div", "pc-stat" + (o.needs ? " tile-needs" : ""));
     t.append(el("div", "stat-ico", icon), el("div", "stat-lbl", esc(label)), el("div", "stat-val" + (o.needs ? " needs" : ""), esc(val)));
@@ -1719,6 +1788,18 @@ function openParents() {
       tile("❤️", "Needs Practice", needs ? shortTopic(cur, needs.id) : "—", { needs: true, see: needs ? (() => setTab("progress")) : null }),
     );
     pProg.appendChild(stats);
+
+    const ts = treasureState(cp);
+    const streak = (cp.streak && cp.streak.count) || 0;
+    const dailyDone = !!(cp.streak && cp.streak.last === today());
+    pProg.appendChild(secHead("🗺", "The adventure", null));
+    const journey = el("div", "pc-journey");
+    journey.append(
+      jcell("🔥", streak, streak === 1 ? "day streak" : "day streak"),
+      jcell(dailyDone ? "✅" : "🕒", dailyDone ? "Done" : "Open", "today's challenge"),
+      jcell(ts.next.e, ts.toNext, `to ${ts.next.n}`, true),
+    );
+    pProg.appendChild(journey);
 
     const unlockedN = cur.ISLANDS.filter(isl => childIslandOpen(cp, cur, isl.id)).length;
     pProg.appendChild(secHead("🏝", "Island Progress", `${unlockedN} of ${cur.ISLANDS.length} islands unlocked`));
@@ -1861,6 +1942,10 @@ function openParents() {
 
       card.appendChild(el("div", "kid-rank", `${rank.e} ${esc(rank.t)}`));
       card.appendChild(el("div", "kid-quest", fr ? `Current Quest: ${fr.idx} – ${esc(fr.name)}` : "All quests complete! 🎉"));
+      const kts = treasureState(cp);
+      const kstreak = (cp.streak && cp.streak.count) || 0;
+      card.appendChild(el("div", "kid-journey",
+        `🔥 ${kstreak} day streak · ${kts.next.e} ${esc(kts.next.n)} ${kts.toNext} away`));
 
       const stats = el("div", "pc-stats kid-stats");
       stats.append(
@@ -2131,7 +2216,7 @@ try {
 }
 
 /* small debug surface (used by the headless test harness) */
-window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, setVoice, listVoices: () => englishVoices().map(v => ({ name: v.name, lang: v.lang, id: voiceId(v) })), voice: () => ({ name: (pickWebVoice() || {}).name || null, count: englishVoices().length, chosen: (P().settings && P().settings.voiceURI) || null }),
+window.BTApp = { state: () => state, sess: () => Sess, startSet, startReview, startBoss, startDaily, submit, renderMap, openHelp, openBackpack, openParents, openTreasures, treasureState, openSkill, learnSkill, pic, exitPlay, dueSkills, checkBadges, BADGES, enterTestMode, exitTestMode, APP_V, speechMs, deleteChild, pickWebVoice, setVoice, listVoices: () => englishVoices().map(v => ({ name: v.name, lang: v.lang, id: voiceId(v) })), voice: () => ({ name: (pickWebVoice() || {}).name || null, count: englishVoices().length, chosen: (P().settings && P().settings.voiceURI) || null }),
   mergeRemote, addChild, switchProfile, openWho, openParentGate, startLightning, finishLightning, childIds, openYearPicker, applyYear };
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => { }));
