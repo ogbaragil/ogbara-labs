@@ -739,7 +739,7 @@ const BT = (() => {
         if (d < 0.45) {
           const F = [["a right angle", 90], ["a straight line", 180], ["a full turn", 360]];
           const [name, deg] = pick(F);
-          return { format: "keypad", prompt: `How many degrees in ${name}?`, say: `How many degrees are in ${name}?`, visual: null, answer: deg,
+          return { format: "keypad", prompt: `How many degrees in ${name}?`, say: `How many degrees are in ${name}?`, visual: null, pic: { kind: "turn", q: deg / 90 }, answer: deg,
             hint: "Right = quarter turn, straight = half turn.",
             steps: ["A full turn is 360°.", "Half of that is a straight line: 180°.", "Quarter of that is a right angle: 90°."] };
         }
@@ -1679,7 +1679,7 @@ const BT = (() => {
     "y2.turns": {
       name: "Turns", icon: "🔄", island: "y2.meastime", unit: "y2.t", prereqs: [],
       gen(d) { const opt = pick([["a HALF", 2], ["a THREE-QUARTER", 3], ["a FULL", 4]]);
-        return { format: "keypad", prompt: `${opt[0]} turn is how many QUARTER turns?`, say: `${opt[0]} turn is how many quarter turns?`, visual: null, answer: opt[1],
+        return { format: "keypad", prompt: `${opt[0]} turn is how many QUARTER turns?`, say: `${opt[0]} turn is how many quarter turns?`, visual: null, pic: { kind: "turn", q: opt[1] }, answer: opt[1],
           hint: "Four quarter turns make a full turn.", steps: ["A full turn = 4 quarters.", "Count the quarters.", `That's ${opt[1]}!`] }; }
     },
     "y2.calendar": {

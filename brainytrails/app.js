@@ -77,7 +77,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "38";
+const APP_V = "40";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -211,6 +211,28 @@ function pic(p) {
       body += `<line x1="${cx}" y1="${cy}" x2="${cx + 42 * Math.sin(minA)}" y2="${cy - 42 * Math.cos(minA)}" stroke="${VIO}" stroke-width="3.5" stroke-linecap="round"/>`;
       body += `<circle cx="${cx}" cy="${cy}" r="4" fill="${INK}"/>`;
       return wrap("0 0 140 140", body, 140);
+    }
+    if (p.kind === "turn") {
+      const cx = 70, cy = 72, r = 46, TAU = 2 * Math.PI;
+      const q = Math.max(1, Math.min(4, p.q || 4));
+      const on = (R, t) => [cx + R * Math.sin(t * TAU), cy - R * Math.cos(t * TAU)];
+      let body = "";
+      /* four quarters, the first q shaded clockwise from the top — kids can count them */
+      for (let i = 0; i < 4; i++) {
+        const a0 = (i / 4) * TAU - Math.PI / 2, a1 = ((i + 1) / 4) * TAU - Math.PI / 2;
+        const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+        const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+        body += `<path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z"
+          fill="${i < q ? VIO : "#fff"}" fill-opacity="${i < q ? 0.85 : 1}" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>`;
+      }
+      /* rotation arrow sweeping the turn */
+      const RA = r + 11, t0 = 0.06, t1 = q >= 4 ? 0.94 : q / 4;
+      const [ax, ay] = on(RA, t0), [bx, by] = on(RA, t1);
+      body += `<path d="M${ax.toFixed(1)},${ay.toFixed(1)} A${RA},${RA} 0 ${(t1 - t0) > 0.5 ? 1 : 0} 1 ${bx.toFixed(1)},${by.toFixed(1)}" fill="none" stroke="${VIO}" stroke-width="4" stroke-linecap="round"/>`;
+      const dx = Math.cos(t1 * TAU), dy = Math.sin(t1 * TAU), px = -dy, py = dx;
+      body += `<polygon points="${(bx + dx * 10).toFixed(1)},${(by + dy * 10).toFixed(1)} ${(bx - dx * 2 + px * 6).toFixed(1)},${(by - dy * 2 + py * 6).toFixed(1)} ${(bx - dx * 2 - px * 6).toFixed(1)},${(by - dy * 2 - py * 6).toFixed(1)}" fill="${VIO}"/>`;
+      body += `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="var(--mint)"/>`;
+      return wrap("0 0 140 150", body, 150);
     }
     if (p.kind === "blocks") {
       let body = "", x = 6;
@@ -537,7 +559,7 @@ const Music = (() => {
   function sync() {
     const e = ensure(); if (!e) return;
     const ducked = !onMap();                 // quieter during a question so the spoken prompt stays clear
-    try { e.volume = (ducked ? 0.12 : 0.3) * masterVol(); } catch { }
+    try { e.volume = (ducked ? 0.08 : 0.3) * masterVol(); } catch { }
     if (wanted() && visible()) { const p = e.play && e.play(); if (p && p.catch) p.catch(() => { }); }
     else { try { e.pause(); } catch { } }
   }
@@ -554,7 +576,7 @@ const Music = (() => {
         e.volume = 0;
         e.src = target; if (e.load) e.load();
         sync();
-        let v = 0; const tgt = (onMap() ? 0.3 : 0.12) * masterVol();
+        let v = 0; const tgt = (onMap() ? 0.3 : 0.08) * masterVol();
         const id = setInterval(() => { v += tgt / 6; if (v >= tgt) { v = tgt; clearInterval(id); } try { e.volume = v; } catch { } }, 45);
       } catch { sync(); }
     },
