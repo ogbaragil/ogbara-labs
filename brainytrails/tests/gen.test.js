@@ -24,7 +24,7 @@ module.exports = async function (t) {
       if (typeof q.answer !== "boolean") return fail("tf corrupt");
     } else return fail("unknown format");
     if (q.pic) {
-      const KINDS = { pie: ["n", "k"], clock: ["h"], blocks: ["tens", "ones"], rect: ["l", "w"], angle: ["deg"], suppl: ["a"], bars: ["items"], coins: ["values"], compare: ["a", "b"], numline: ["lo", "hi", "mark"], turn: ["q"] };
+      const KINDS = { pie: ["n", "k"], clock: ["h"], blocks: ["tens", "ones"], rect: ["l", "w"], angle: ["deg"], suppl: ["a"], bars: ["items"], coins: ["values"], compare: ["a", "b"], numline: ["lo", "hi", "mark"], turn: ["q"], measure: ["n"] };
       if (!KINDS[q.pic.kind]) return fail("unknown pic kind " + q.pic.kind);
       for (const key of KINDS[q.pic.kind]) if (q.pic[key] === undefined) return fail(`pic ${q.pic.kind} missing ${key}`);
       if (q.pic.kind === "pie" && (q.pic.k > q.pic.n || q.pic.n > 12)) return fail("pie corrupt");

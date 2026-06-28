@@ -315,17 +315,26 @@
   #scrPlay{position:fixed; inset:0; z-index:35; background:var(--bg); display:flex; flex-direction:column;
     justify-content:center; padding:calc(10px + env(safe-area-inset-top)) 16px 0;}
   .play-inner{width:100%; max-width:680px; max-height:780px; margin:0 auto; flex:1; display:flex; flex-direction:column; min-height:0;}
-  .play-bar{display:flex; align-items:center; gap:10px; padding:2px 0 8px;}
-  #exitBtn{width:48px; height:48px; border-radius:15px; background:var(--panel); border:1.5px solid var(--line); font-size:18px;}
-  #playTitle{font-weight:900; font-size:16px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  #pips{display:flex; gap:4px; font-size:15px;}
+  .play-bar{display:flex; align-items:center; gap:8px; padding:2px 0 8px;}
+  #exitBtn{width:44px; height:44px; flex:none; border-radius:14px; background:var(--panel); border:1.5px solid var(--line); font-size:18px;}
+  #playTitle{font-weight:900; font-size:16px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #pips{display:flex; gap:4px; font-size:15px; flex:none;}
   #pips .pip{opacity:.85;}
   #pips .pip.now{animation:bounce 1.1s ease-in-out infinite;}
   #pips .pip.miss{opacity:.45;}
+  /* in-quest audio quick-controls: music −/＋ and voice on/off */
+  .q-audio{display:flex; align-items:center; gap:4px; flex:none;}
+  .qa-btn{width:34px; height:34px; border-radius:11px; background:var(--panel); border:1.5px solid var(--line);
+    font-size:15px; display:grid; place-items:center; line-height:1; transition:transform .12s, opacity .12s;}
+  .qa-btn:active{transform:scale(.88);}
+  .qa-btn.dim{opacity:.3; pointer-events:none;}
+  .qa-btn.off{opacity:.6; background:#efe9f8; border-color:#d7cdee;}
+  #scrPlay.themed .qa-btn{border-color:color-mix(in srgb, var(--pl-accent) 30%, var(--line));}
+  #scrPlay.voice-off .say-btn{opacity:.4;}
 
   .prompt-zone{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0; padding:6px 0; overflow:auto;}
   #promptCard{position:relative; background:var(--panel); border:1.5px solid var(--line); border-radius:26px;
-    padding:24px 20px; text-align:center; cursor:pointer; box-shadow:0 10px 30px rgba(46,36,86,.08);}
+    padding:24px 20px; text-align:center; box-shadow:0 10px 30px rgba(46,36,86,.08);}
   .q-prompt{font-size:clamp(20px,5.6vw,28px); font-weight:900; line-height:1.35;}
   .q-visual{margin-top:16px; font-size:clamp(44px,18vw,96px); line-height:1.16; word-spacing:6px;}
   .q-pic{margin-top:16px; display:flex; justify-content:center;}
@@ -455,6 +464,16 @@
     font-size:21px; font-weight:900; box-shadow:0 3px 0 var(--line);}
   .chip:active{transform:translateY(2px); box-shadow:none;}
   .chip.used{opacity:.25;}
+  /* length-ordering tiles: a unit-bar makes "longer = more units" visible */
+  .order-slots.len, .order-chips.len{gap:10px; align-items:flex-end; flex-wrap:wrap;}
+  .chip-len, .slot-len{width:auto !important; height:auto !important; min-width:46px; min-height:54px;
+    display:inline-flex !important; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:9px 11px;}
+  .len-num{font-size:17px; font-weight:900; line-height:1; color:var(--ink);}
+  .len-bar{display:flex; gap:2px; align-items:center; min-height:18px;}
+  .len-bar i{display:block; width:6px; height:18px; border-radius:2px; background:var(--violet); box-shadow:inset 0 -2px 0 rgba(0,0,0,.12);}
+  .slot-len .len-bar i{background:#b9a7f0;}
+  .slot-len.filled .len-bar i{background:var(--violet);}
+  .slot.slot-len:not(.filled){min-width:46px;}
 
   .tap-grid{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
   .tap-tile{width:72px; height:72px; border-radius:18px; background:var(--panel); border:2.5px solid var(--line);
@@ -678,17 +697,41 @@
   .result-treasure{margin-top:10px; font-weight:900; font-size:15px; color:#7a4d04; background:#fde7c9; border:1.5px solid #f5d68a;
     border-radius:14px; padding:10px 12px;}
   .result-treasure .rt-ico{font-size:20px;}
+  .result-treasure small{display:block; margin-top:4px; font-size:11.5px; font-weight:700; color:#8a6326;}
 
-  .treasure-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:14px;}
-  .treasure-cell{display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 6px; border-radius:15px;
-    background:var(--bg); border:1.5px solid var(--line);}
-  .treasure-cell.got{background:#fff7e6; border-color:#f5d68a;}
-  .treasure-cell.next{background:#f4f0ff; border-color:var(--violet);}
-  .treasure-cell.locked{opacity:.6;}
-  .tc-ico{font-size:28px;}
-  .tc-name{font-size:11.5px; font-weight:900; color:var(--ink); text-align:center; line-height:1.2;}
-  .tc-sub{font-size:10px; font-weight:800; color:var(--muted);}
-  .treasure-cell.next .tc-sub{color:var(--violet);}
+  /* equippable cosmetic frames (rings around an avatar) */
+  .frame-gold{box-shadow:0 0 0 2px #fff, 0 0 0 4px #f6c945, 0 0 8px rgba(246,201,69,.7);}
+  .frame-sparkle{box-shadow:0 0 0 2px #fff, 0 0 0 4px #a774ff, 0 0 8px rgba(167,116,255,.7); animation:frmPulse 1.7s ease-in-out infinite;}
+  .frame-rainbow{box-shadow:0 0 0 2px #fff, 0 0 0 4px #ff5d8f, 0 0 0 6px #ffd166, 0 0 9px rgba(255,160,80,.55);}
+  .frame-star{box-shadow:0 0 0 2px #fff, 0 0 0 4px #fbbf24, 0 0 11px rgba(251,191,36,.9);}
+  @keyframes frmPulse{50%{box-shadow:0 0 0 2px #fff, 0 0 0 5px #c39bff, 0 0 13px rgba(167,116,255,.95);}}
+  .ava-framed{border-radius:50%; display:inline-grid; place-items:center; background:rgba(255,255,255,.72);}
+  #whoAva.ava-framed{width:26px; height:26px; font-size:15px;}
+  .bp-ava{display:inline-grid; place-items:center;}
+  .bp-ava.ava-framed{width:84px; height:84px; font-size:52px;}
+  .bp-mytitle{margin-top:2px; font-weight:900; font-size:13px; color:var(--violet);}
+
+  /* Treasure Vault */
+  .vault-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:14px;}
+  .vault-cell{display:flex; flex-direction:column; align-items:center; gap:5px; padding:13px 8px; border-radius:16px;
+    background:var(--bg); border:1.5px solid var(--line); text-align:center;}
+  .vault-cell.got{background:#fff7e6; border-color:#f5d68a; cursor:pointer;}
+  .vault-cell.got:active{transform:scale(.97);}
+  .vault-cell.next{background:#f4f0ff; border-color:var(--violet);}
+  .vault-cell.locked{opacity:.62;}
+  .vault-cell.on{background:#eafaf0; border-color:var(--mint); box-shadow:0 0 0 2px var(--mint) inset;}
+  .vc-tre{font-size:30px; line-height:1;}
+  .vc-name{font-size:12px; font-weight:900; color:var(--ink); line-height:1.15;}
+  .vc-reward{display:flex; align-items:center; gap:7px; margin-top:1px; min-height:22px;}
+  .vc-reward .rw-ava{font-size:22px;}
+  .vc-reward .rw-frame{width:30px; height:30px; border-radius:50%; display:inline-grid; place-items:center; background:#fff; font-size:16px;}
+  .vc-reward .rw-ttl{font-size:18px;}
+  .vc-rlabel{font-size:10px; font-weight:800; color:var(--muted); text-align:left; line-height:1.15;}
+  .vc-rlabel b{display:block; font-size:11px; color:var(--ink);}
+  .vc-foot{font-size:10.5px; font-weight:900; color:var(--muted);}
+  .vault-cell.next .vc-foot{color:var(--violet);}
+  .vault-cell.got .vc-foot{color:#b07d12;}
+  .vault-cell.on .vc-foot{color:var(--mint);}
 
   /* parents' adventure strip */
   .pc-journey{display:grid; grid-template-columns:repeat(3,1fr); background:var(--bg); border:1.5px solid var(--line); border-radius:18px; padding:14px 4px;}
@@ -763,6 +806,11 @@
   /* compact header */
   .iz-head{flex:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .iz-back{display:inline-flex; align-items:center; gap:4px; font-size:12.5px; font-weight:900; color:#fff; background:rgba(0,0,0,.36); border-radius:999px; padding:7px 13px; backdrop-filter:blur(4px);}
+  .iz-tools{display:flex; align-items:center; gap:6px; margin-left:8px;}
+  .iz-tool{display:inline-flex; align-items:center; gap:3px; height:32px; padding:0 10px; border-radius:999px; font-size:15px; font-weight:900; color:#fff; background:rgba(0,0,0,.36); backdrop-filter:blur(4px); transition:transform .12s;}
+  .iz-tool i{font-style:normal; font-size:11.5px; opacity:.95;}
+  .iz-tool:active{transform:scale(.9);}
+  .iz-tool.lit{background:rgba(245,158,11,.55);}
   .iz-prog{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:900; color:var(--ink); background:rgba(255,255,255,.95); border-radius:999px; padding:6px 13px; box-shadow:0 3px 10px rgba(0,0,0,.22);}
   .iz-name{flex-basis:100%; font-size:24px; font-weight:900; margin:5px 0 0; text-shadow:0 3px 14px rgba(0,0,0,.6); line-height:1.05;}
   .izh-num{display:block; font-size:10.5px; font-weight:900; letter-spacing:2px; text-transform:uppercase; color:#fff; opacity:.92; margin-bottom:1px; text-shadow:0 1px 5px rgba(0,0,0,.7);}
@@ -894,6 +942,11 @@
         <button id="exitBtn" aria-label="Back to map">🗺</button>
         <p id="playTitle"></p>
         <div id="pips"></div>
+        <div class="q-audio">
+          <button id="qVolDown" class="qa-btn" aria-label="Music quieter">🔉</button>
+          <button id="qVolUp" class="qa-btn" aria-label="Music louder">🔊</button>
+          <button id="qVoice" class="qa-btn" aria-label="Voice on/off">🗣️</button>
+        </div>
       </div>
       <button class="play-mentor" id="playMentor" aria-label="Tap your guide to hear the question">
         <span class="pm-face" id="playMentorFace">🐉</span>
@@ -925,10 +978,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=47"></script>
+<script src="curriculum.js?v=50"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=47"></script>
-<script src="app.js?v=47"></script>
+<script src="cloud.js?v=50"></script>
+<script src="app.js?v=50"></script>
 </body>
 </html>

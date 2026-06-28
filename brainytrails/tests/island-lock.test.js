@@ -28,10 +28,15 @@ module.exports = async function (t) {
   walk(h.ids["mapRoot"], e => { if (String(e._inner || "").includes("isl-lock") || String(e._inner || "").includes("to unlock")) banner = true; });
   t("locked island shows an unlock hint", banner);
 
-  // make the first island all Proficient → second island opens
+  // make the first island all Proficient → still locked until its Guardian falls
   firstSkills.forEach(id => S().skills[id] = { ...PROF });
   BTApp.renderMap();
-  t("second island unlocks once the first is all Proficient", !islandLocked(islands[1].id));
+  t("Proficient-but-boss-alive keeps the next island locked", islandLocked(islands[1].id));
+
+  // defeat the first island's Guardian → second island opens
+  S().bosses[islands[0].id] = { won: true, best: 10 };
+  BTApp.renderMap();
+  t("second island unlocks once the first is Proficient AND its boss is beaten", !islandLocked(islands[1].id));
 
   // first island is never locked (it's the entry island)
   t("first island is always open", !islandLocked(islands[0].id));

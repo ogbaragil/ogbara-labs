@@ -42,6 +42,8 @@ function migrateProfile(p) {
   if (!p.bosses) p.bosses = {};
   if (!p.name) p.name = "Explorer";
   if (!p.avatar) p.avatar = "🦊";
+  if (p.frame === undefined) p.frame = null;
+  if (p.title === undefined) p.title = null;
   if (!p.streak) p.streak = { count: 0, last: null };
   if (p.year === undefined) p.year = null;
   if (p.settings.sound === undefined) p.settings.sound = true;
@@ -63,6 +65,8 @@ const P = () => state.profiles[state.profile];
 const settingsOf = () => (P() && P().settings) || {};
 /* master volume (0–1) scales every sound: effects, music and speech */
 const masterVol = () => { const v = settingsOf().volume; return v == null ? 0.8 : Math.max(0, Math.min(1, v / 100)); };
+/* music-only level (0–1), independent of master so lowering it never quietens speech */
+const musicVolOf = () => { const v = settingsOf().musicVol; return v == null ? 1 : Math.max(0, Math.min(1, v)); };
 
 /* point the live curriculum (BT.ISLANDS / BT.SKILLS / BT.YOUNG) at the active
    child's chosen school year. Unauthored years fall back to the Explorer map. */
@@ -77,7 +81,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "40";
+const APP_V = "43";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -112,8 +116,9 @@ const dueSkills = () => Object.keys(P().skills).filter(id => {
   return st.m >= 2 && st.nextReview && st.nextReview <= today();
 });
 
-/* an island is "complete" when every skill on it is Proficient (m≥2) */
-const islandComplete = (isl) => isl.units.flatMap(u => u.skills).every(id => skv(id).m >= 2);
+/* an island is "complete" only when every skill is Proficient (m≥2) AND its Guardian is beaten */
+const islandSkillsDone = (isl) => isl.units.flatMap(u => u.skills).every(id => skv(id).m >= 2);
+const islandComplete = (isl) => islandSkillsDone(isl) && !!(bosses()[isl.id] && bosses()[isl.id].won);
 /* islands unlock in order: an island opens only once every island before it is complete */
 function islandOpen(islandId) {
   if (inTest()) return true;
@@ -233,6 +238,33 @@ function pic(p) {
       body += `<polygon points="${(bx + dx * 10).toFixed(1)},${(by + dy * 10).toFixed(1)} ${(bx - dx * 2 + px * 6).toFixed(1)},${(by - dy * 2 + py * 6).toFixed(1)} ${(bx - dx * 2 - px * 6).toFixed(1)},${(by - dy * 2 - py * 6).toFixed(1)}" fill="${VIO}"/>`;
       body += `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="var(--mint)"/>`;
       return wrap("0 0 140 150", body, 150);
+    }
+    if (p.kind === "measure") {
+      const n = Math.max(1, p.n | 0), uw = 30, pad = 12;
+      const objY = 16, objH = 18, uy = objY + objH + 14, uh = 22, H = uy + uh + 12, W = pad * 2 + n * uw;
+      const ox = pad, ow = n * uw;
+      let body = "";
+      if (p.obj === "stick") {
+        body += `<rect x="${ox}" y="${objY}" width="${ow}" height="${objH}" rx="8" fill="#b5793e" stroke="${INK}" stroke-width="2.5"/>`;
+        body += `<line x1="${ox + 7}" y1="${objY + objH / 2}" x2="${ox + ow - 7}" y2="${objY + objH / 2}" stroke="#8a5a2b" stroke-width="2" stroke-linecap="round" opacity=".55"/>`;
+      } else {
+        const bw = ow - 14;
+        body += `<rect x="${ox}" y="${objY}" width="${bw}" height="${objH}" rx="5" fill="#f6c945" stroke="${INK}" stroke-width="2.5"/>`;
+        body += `<rect x="${ox}" y="${objY}" width="11" height="${objH}" rx="5" fill="#f3a8c4" stroke="${INK}" stroke-width="2.5"/>`;
+        body += `<polygon points="${ox + bw},${objY} ${ox + ow},${objY + objH / 2} ${ox + bw},${objY + objH}" fill="#ecc9a0" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        body += `<polygon points="${ox + ow - 6},${objY + objH / 2 - 3.5} ${ox + ow},${objY + objH / 2} ${ox + ow - 6},${objY + objH / 2 + 3.5}" fill="${INK}"/>`;
+      }
+      for (let i = 0; i < n; i++) {
+        const x = pad + i * uw;
+        if (p.unit === "block") {
+          body += `<rect x="${(x + 1.5).toFixed(1)}" y="${uy}" width="${uw - 3}" height="${uh}" rx="3" fill="#caa15e" stroke="${INK}" stroke-width="2"/>`;
+          body += `<line x1="${x + uw / 2}" y1="${uy + 3}" x2="${x + uw / 2}" y2="${uy + uh - 3}" stroke="#a9813f" stroke-width="1.4" opacity=".5"/>`;
+        } else {
+          body += `<rect x="${(x + 3).toFixed(1)}" y="${uy + 3}" width="${uw - 6}" height="${uh - 6}" rx="${(uh - 6) / 2}" fill="#eef1f6" stroke="#8f9bb0" stroke-width="2.4"/>`;
+          body += `<rect x="${(x + 7).toFixed(1)}" y="${uy + 7}" width="${uw - 14}" height="${uh - 14}" rx="${(uh - 14) / 2}" fill="none" stroke="#8f9bb0" stroke-width="2.4"/>`;
+        }
+      }
+      return wrap(`0 0 ${W} ${H}`, body, 132);
     }
     if (p.kind === "blocks") {
       let body = "", x = 6;
@@ -366,6 +398,23 @@ const TREASURES = [
   { e: "⚔️", n: "Legendary Sword" }, { e: "🏆", n: "Champion's Trophy" }, { e: "🌟", n: "Star of Brilliance" },
 ];
 const treasureFor = (i) => TREASURES[((i % TREASURES.length) + TREASURES.length) % TREASURES.length];
+/* every treasure unlocks a *different* cosmetic the child can equip from the Treasure Vault */
+const REWARDS = [
+  { type: "avatar", value: "🐲", label: "Dragon" },          // 🥚 Dragon Egg
+  { type: "frame", value: "gold", label: "Golden Ring" },     // 🗝️ Golden Key
+  { type: "avatar", value: "🦋", label: "Butterfly" },        // 💎 Crystal Gem
+  { type: "frame", value: "sparkle", label: "Sparkle Ring" }, // 🪄 Magic Wand
+  { type: "title", value: "Explorer", label: "“Explorer”" },  // 🧭 Explorer's Compass
+  { type: "avatar", value: "🦅", label: "Eagle" },            // 🏺 Ancient Relic
+  { type: "frame", value: "rainbow", label: "Rainbow Ring" }, // 🐉 Baby Dragon
+  { type: "avatar", value: "🦁", label: "Lion" },             // 👑 Jewelled Crown
+  { type: "title", value: "Hero", label: "“Hero”" },          // 🛡️ Hero's Shield
+  { type: "avatar", value: "🐺", label: "Wolf" },             // ⚔️ Legendary Sword
+  { type: "title", value: "Champion", label: "“Champion”" },  // 🏆 Champion's Trophy
+  { type: "frame", value: "star", label: "Starlight Ring" },  // 🌟 Star of Brilliance
+];
+const rewardFor = (i) => REWARDS[((i % REWARDS.length) + REWARDS.length) % REWARDS.length];
+const REWARD_TYPE = { avatar: "Avatar", frame: "Frame", title: "Title" };
 function treasureState(p) {
   const prof = countM(p, 2);
   const earnedCount = Math.floor(prof / TREASURE_STEP);
@@ -559,7 +608,7 @@ const Music = (() => {
   function sync() {
     const e = ensure(); if (!e) return;
     const ducked = !onMap();                 // quieter during a question so the spoken prompt stays clear
-    try { e.volume = (ducked ? 0.08 : 0.3) * masterVol(); } catch { }
+    try { e.volume = (ducked ? 0.08 : 0.3) * masterVol() * musicVolOf(); } catch { }
     if (wanted() && visible()) { const p = e.play && e.play(); if (p && p.catch) p.catch(() => { }); }
     else { try { e.pause(); } catch { } }
   }
@@ -576,7 +625,7 @@ const Music = (() => {
         e.volume = 0;
         e.src = target; if (e.load) e.load();
         sync();
-        let v = 0; const tgt = (onMap() ? 0.3 : 0.08) * masterVol();
+        let v = 0; const tgt = (onMap() ? 0.3 : 0.08) * masterVol() * musicVolOf();
         const id = setInterval(() => { v += tgt / 6; if (v >= tgt) { v = tgt; clearInterval(id); } try { e.volume = v; } catch { } }, 45);
       } catch { sync(); }
     },
@@ -648,6 +697,8 @@ function paintHeader() {
     const named = nm && nm !== "Explorer";
     if (inT || multi || named) {
       wa.textContent = inT ? "🧪" : P().avatar;
+      const fr = inT ? null : (P().frame || null);
+      wa.className = fr ? "ava-framed frame-" + fr : "";
       wn.textContent = nm;
       who.hidden = false;
       const tappable = multi && !inT;
@@ -734,7 +785,16 @@ function renderMap(scrollToHere) {
       cont.hidden = false;
       cont.innerHTML = `<span class="cont-main">▶ Continue Adventure</span><span class="cont-sub">Next: ${esc(BT.SKILLS[frontier].name)}</span>`;
       cont.onclick = () => { const ix = islandIndexOf(frontier); if (ix >= 0) enterIsland(ix); openSkill(frontier); };
-    } else cont.hidden = true;
+    } else {
+      /* no skill left to learn — the only thing standing between the explorer and the next island is a Guardian */
+      const pendIx = BT.ISLANDS.findIndex(isl => islandOpen(isl.id) && !islandComplete(isl));
+      if (pendIx >= 0) {
+        const pIsl = BT.ISLANDS[pendIx];
+        cont.hidden = false;
+        cont.innerHTML = `<span class="cont-main">⚔️ Face the Guardian</span><span class="cont-sub">Defeat ${esc(pIsl.boss.name)} to unlock the next island</span>`;
+        cont.onclick = () => enterIsland(pendIx);
+      } else cont.hidden = true;
+    }
   }
   const lb = $("lightningBtn");
   if (lb) {
@@ -775,23 +835,25 @@ function renderWorld() {
     const done = skills.filter(id => skv(id).m >= 2).length;
     const open = islandOpen(isl.id);
     const beaten = !!(bosses()[isl.id] && bosses()[isl.id].won);
-    const hasFrontier = skills.includes(frontier);
-    const cleared = open && skills.length > 0 && done >= skills.length;
-    const current = open && hasFrontier;
+    const skillsDone = skills.length > 0 && done >= skills.length;
+    const cleared = open && skillsDone && beaten;          // fully done = every skill Proficient AND Guardian beaten
+    const bossPending = open && skillsDone && !beaten;     // skills done, but the boss still guards the way on
+    const current = open && !cleared;                      // the island you're working through
     const blk = open ? null : islandBlocker(isl.id);
-    const stateCls = !open ? "locked-island locked" : current ? "current" : cleared ? "cleared" : "open";
+    const stateCls = !open ? "locked-island locked" : cleared ? "cleared" : "current";
     const card = el("button", "world-isle " + stateCls + (beaten ? " conquered" : ""));
     card.dataset.isl = isl.id;
     if (card.style) { card.style.setProperty && card.style.setProperty("--isle-accent", th.accent); card.style.setProperty && card.style.setProperty("--isle-glow", th.glow); }
     const pct = skills.length ? Math.round(100 * done / skills.length) : 0;
     const status = !open ? '<span class="wi-state locked">🔒</span>'
-      : current ? '<span class="wi-state here">You are here</span>'
-        : cleared ? '<span class="wi-state cleared">👑 Cleared</span>' : "";
+      : cleared ? '<span class="wi-state cleared">👑 Cleared</span>'
+        : bossPending ? '<span class="wi-state here">⚔️ Boss awaits</span>'
+          : '<span class="wi-state here">You are here</span>';
     const foot = !open
       ? `<span class="wi-lockmsg">Finish ${esc(blk ? blk.name : "the island before")} to unlock</span>`
       : cleared
         ? `<span class="wi-foot"><span class="wi-bar"><span style="width:100%"></span></span><span class="wi-frac">${skills.length}/${skills.length}</span><span class="wi-replay">↻ Replay</span></span>`
-        : `<span class="wi-foot"><span class="wi-bar"><span style="width:${pct}%"></span></span><span class="wi-frac">${done}/${skills.length}</span><span class="wi-go">${current ? "▶ Play" : "Enter"}</span></span>`;
+        : `<span class="wi-foot"><span class="wi-bar"><span style="width:${pct}%"></span></span><span class="wi-frac">${done}/${skills.length}</span><span class="wi-go">${bossPending ? "⚔️ Boss" : "▶ Play"}</span></span>`;
     card.innerHTML = `<span class="wi-bg" style="background-image:url('${th.bg}')"></span>
       <span class="wi-shade"></span>
       <span class="wi-top"><span class="wi-num">Island ${i + 1}</span>${status}</span>
@@ -826,6 +888,27 @@ function renderIsland(idx) {
   const backB = el("button", "iz-back", "‹ World Map");
   backB.onclick = exitIsland;
   head.appendChild(backB);
+
+  /* daily campfire + lightning, available right here on the island too */
+  const tools = el("div", "iz-tools");
+  const stk = P().streak, doneToday = stk.last === today(), flame = stk.count >= 7 ? "🎆" : "🔥";
+  const fire = el("button", "iz-tool" + (doneToday ? " lit" : ""));
+  fire.innerHTML = `${flame}${stk.count ? `<i>${stk.count}</i>` : ""}`;
+  fire.setAttribute("aria-label", doneToday ? `Campfire — ${stk.count}-day streak` : "Daily Campfire");
+  fire.onclick = () => doneToday
+    ? toast(flame, "Glowing bright!", `${stk.count}-day streak — the fire is happy until tomorrow!`)
+    : startDaily();
+  tools.appendChild(fire);
+  if (lightningPool().length >= 5) {
+    const best = P().lightningBest || 0;
+    const bolt = el("button", "iz-tool");
+    bolt.innerHTML = `⚡${best ? `<i>${best}</i>` : ""}`;
+    bolt.setAttribute("aria-label", best ? `Lightning Round — best ${best}` : "Lightning Round");
+    bolt.onclick = () => strikeLightning(() => startLightning());
+    tools.appendChild(bolt);
+  }
+  head.appendChild(tools);
+
   head.appendChild(el("div", "iz-prog", `⭐ ${done}/${skills.length} · ${progWord(done, skills.length)}`));
   head.appendChild(el("h2", "iz-name", `<span class="izh-num">Island ${idx + 1}</span>${esc(isl.name)}`));
   root.appendChild(head);
@@ -1284,8 +1367,12 @@ function renderQuestion(q) {
   const card = $("promptCard");
   card.innerHTML = `<p class="q-prompt">${esc(q.prompt)}</p>` +
     (q.pic ? `<div class="q-pic">${pic(q.pic)}</div>` : "") +
-    (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "") +
-    `<button class="say-btn" aria-label="Hear it again">🔊 Hear it</button>`;
+    (q.visual ? `<p class="q-visual">${esc(q.visual).replace(/\n/g, "<br>")}</p>` : "");
+  const sayBtn = el("button", "say-btn", "🔊 Hear it");
+  sayBtn.setAttribute("aria-label", "Hear it again");
+  sayBtn.onclick = (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (Sess && Sess.q) say(spokenQ(Sess.q)); };
+  card.appendChild(sayBtn);
+  paintQuestAudio();
   const dock = $("answerArea");
   dock.innerHTML = "";
   Sess.onKey = null;   // each format installs its own keyboard shortcuts below
@@ -1344,8 +1431,12 @@ function renderQuestion(q) {
       if (label && keyBtns[label]) { e.preventDefault(); keyBtns[label].click(); }
     };
   } else if (q.format === "order") {
-    const slots = el("div", "order-slots");
-    const chips = el("div", "order-chips");
+    const lenMode = q.itemKind === "len";
+    const tile = (v) => lenMode
+      ? `<span class="len-bar">${'<i></i>'.repeat(Math.max(0, v | 0))}</span><span class="len-num">${v}</span>`
+      : String(v);
+    const slots = el("div", "order-slots" + (lenMode ? " len" : ""));
+    const chips = el("div", "order-chips" + (lenMode ? " len" : ""));
     const placed = [];   // chip buttons in pick order, parallel to Sess.orderPicked
     const undoAt = (k) => {
       if (Sess.lock || k < 0 || k >= Sess.orderPicked.length) return;
@@ -1359,20 +1450,20 @@ function renderQuestion(q) {
       for (let k = 0; k < q.items.length; k++) {
         const filled = Sess.orderPicked[k] !== undefined;
         if (filled && !Sess.lock) {            // tap a placed tile to send it back
-          const s = el("button", "slot filled", String(Sess.orderPicked[k]));
+          const s = el("button", "slot filled" + (lenMode ? " slot-len" : ""), tile(Sess.orderPicked[k]));
           s.title = "Tap to undo";
           s.setAttribute("aria-label", `Remove ${Sess.orderPicked[k]} — tap to undo`);
           s.onclick = () => undoAt(k);
           slots.appendChild(s);
         } else {
-          slots.appendChild(el("span", "slot" + (filled ? " filled" : ""), filled ? String(Sess.orderPicked[k]) : ""));
+          slots.appendChild(el("span", "slot" + (lenMode ? " slot-len" : "") + (filled ? " filled" : ""), filled ? tile(Sess.orderPicked[k]) : ""));
         }
       }
     };
     paintSlots();
     const chipBtns = [];
     q.items.forEach(v => {
-      const b = el("button", "chip", String(v));
+      const b = el("button", "chip" + (lenMode ? " chip-len" : ""), tile(v));
       b.onclick = () => {
         if (Sess.lock || b.disabled) return;
         b.disabled = true; b.classList.add("used");
@@ -1600,13 +1691,13 @@ function finishSet() {
   save();
   const ex = setExtras(lvFrom);
   /* did this set cross a treasure milestone? */
-  let treasureWon = null;
+  let treasureWon = null, treasureRwd = null;
   const earnedNow = Math.floor(countM(P(), 2) / TREASURE_STEP);
-  if (earnedNow > (P().treasuresSeen || 0)) { treasureWon = treasureFor(earnedNow - 1); P().treasuresSeen = earnedNow; save(); }
+  if (earnedNow > (P().treasuresSeen || 0)) { treasureWon = treasureFor(earnedNow - 1); treasureRwd = rewardFor(earnedNow - 1); P().treasuresSeen = earnedNow; save(); }
   const back = el("div", "modal-back"), box = el("div", "modal result");
   box.innerHTML = `<p class="result-head">${headline}</p><p class="sheet-acc">${esc(sub)}</p>
     <p class="result-xp">+${xpGain} XP ⭐</p>${ex.html}` +
-    (treasureWon ? `<p class="result-treasure">🎁 Treasure unlocked! <span class="rt-ico">${treasureWon.e}</span> <b>${esc(treasureWon.n)}</b></p>` : "");
+    (treasureWon ? `<p class="result-treasure">🎁 Treasure unlocked! <span class="rt-ico">${treasureWon.e}</span> <b>${esc(treasureWon.n)}</b><small>Unlocked a ${REWARD_TYPE[treasureRwd.type].toLowerCase()}: ${esc(treasureRwd.label)} — equip it in your Treasure Vault!</small></p>` : "");
   if ((levelled || ex.pop || treasureWon) && !matchMediaSafe()) confetti();
   if (treasureWon) SFX.fanfare();
   const map = el("button", "primary-btn", "Back to the map 🗺");
@@ -1808,21 +1899,39 @@ function openYearPicker(forId, onDone) {
   $("overlay").appendChild(back);
 }
 function openTreasures() {
-  const p = P(), ts = treasureState(p);
-  const back = el("div", "modal-back"), box = el("div", "modal");
-  box.innerHTML = `<p class="sheet-icon">\u{1F381}</p><h2>Treasure Trail</h2>
-    <p class="sheet-acc">Earn a treasure for every ${TREASURE_STEP} skills you make Proficient. You've found <b>${ts.earnedCount}</b> so far!</p>`;
-  const grid = el("div", "treasure-grid");
-  const show = ts.earnedCount + 4;            // everything earned, plus a few to chase
-  for (let i = 0; i < show; i++) {
-    const t = treasureFor(i), got = i < ts.earnedCount, isNext = i === ts.earnedCount;
-    const cell = el("div", "treasure-cell" + (got ? " got" : isNext ? " next" : " locked"));
-    cell.innerHTML = `<span class="tc-ico">${got || isNext ? t.e : "\u{1F512}"}</span>
-      <span class="tc-name">${got || isNext ? esc(t.n) : "Mystery"}</span>
-      <span class="tc-sub">${got ? "Unlocked" : isNext ? `${ts.toNext} to go` : `${(i + 1) * TREASURE_STEP} skills`}</span>`;
-    grid.appendChild(cell);
-  }
+  const p = P();
+  const back = el("div", "modal-back"), box = el("div", "modal vault");
+  box.innerHTML = `<p class="sheet-icon">\u{1F381}</p><h2>Treasure Vault</h2>
+    <p class="sheet-acc">Every ${TREASURE_STEP} skills you make Proficient unlocks a treasure — and each one gives you something to wear or show off. Tap an unlocked one to equip it!</p>`;
+  const grid = el("div", "vault-grid");
   box.appendChild(grid);
+
+  const rewardChip = (r) => r.type === "avatar" ? `<span class="rw-ava">${r.value}</span>`
+    : r.type === "frame" ? `<span class="rw-frame frame-${r.value}">🙂</span>`
+      : `<span class="rw-ttl">🏅</span>`;
+  const isEquipped = (r) => (r.type === "avatar" && p.avatar === r.value) || (r.type === "frame" && p.frame === r.value) || (r.type === "title" && p.title === r.value);
+  const equip = (r) => {
+    if (r.type === "avatar") p.avatar = r.value;
+    else if (r.type === "frame") p.frame = (p.frame === r.value ? null : r.value);
+    else if (r.type === "title") p.title = (p.title === r.value ? null : r.value);
+    save(); paintHeader(); paintVault();
+  };
+  function paintVault() {
+    const ts = treasureState(p);
+    grid.innerHTML = "";
+    const show = Math.max(ts.earnedCount + 3, 6);
+    for (let i = 0; i < show; i++) {
+      const t = treasureFor(i), r = rewardFor(i), got = i < ts.earnedCount, isNext = i === ts.earnedCount, reveal = got || isNext;
+      const cell = el("div", "vault-cell" + (got ? " got" : isNext ? " next" : " locked") + (got && isEquipped(r) ? " on" : ""));
+      cell.innerHTML = `<span class="vc-tre">${reveal ? t.e : "\u{1F512}"}</span>
+        <span class="vc-name">${reveal ? esc(t.n) : "Mystery treasure"}</span>
+        <span class="vc-reward">${reveal ? `${rewardChip(r)}<span class="vc-rlabel">${REWARD_TYPE[r.type]}<b>${esc(r.label)}</b></span>` : ""}</span>
+        <span class="vc-foot">${got ? (isEquipped(r) ? "\u2713 Equipped" : "Tap to equip") : isNext ? `${ts.toNext} skill${ts.toNext > 1 ? "s" : ""} to go` : `${(i + 1) * TREASURE_STEP} skills`}</span>`;
+      if (got) { cell.onclick = () => equip(r); cell.setAttribute("role", "button"); }
+      grid.appendChild(cell);
+    }
+  }
+  paintVault();
   const cl = el("button", "primary-btn", "Keep exploring \u{1F5FA}\uFE0F");
   cl.onclick = () => back.remove();
   box.appendChild(cl); back.appendChild(box); $("overlay").appendChild(back);
@@ -1834,7 +1943,8 @@ function openBackpack() {
     `<div class="crown ${p.bosses[i.id] ? "won" : ""}" title="${esc(i.boss.name)}">${p.bosses[i.id] ? i.boss.emoji : "❔"}<small>${esc(i.name.split(" ")[0])}</small></div>`).join("");
   const earned = BADGES.filter(b => p.badges[b.id]);
   const locked = BADGES.filter(b => !p.badges[b.id]);
-  box.innerHTML = `<p class="sheet-icon">${esc(p.avatar)}</p><h2>${esc(p.name)}'s Backpack</h2>
+  box.innerHTML = `<p class="sheet-icon"><span class="bp-ava${p.frame ? " ava-framed frame-" + p.frame : ""}">${esc(p.avatar)}</span></p><h2>${esc(p.name)}'s Backpack</h2>
+    ${p.title ? `<p class="bp-mytitle">🏅 ${esc(p.title)}</p>` : ""}
     <p class="sheet-acc">Level ${levelOf(p.xp)} · ${p.xp} XP · ⭐ ${totalStars(p)} stars · 🔥 ${p.streak.count || 0}-day streak</p>
     <p class="bp-title">👑 Boss Crowns</p><div class="crowns">${crowns}</div>
     <p class="bp-title">🏅 Badges · ${earned.length}/${BADGES.length}</p>
@@ -2400,7 +2510,28 @@ function openHelp() {
 }
 $("helpBtn").onclick = openHelp;
 $("musicBtn") && ($("musicBtn").onclick = () => Music.toggle());
-$("promptCard").onclick = () => { if (Sess && Sess.q) say(spokenQ(Sess.q)); };
+/* quest audio quick-controls: music level (music-only) + voice on/off, wired once */
+function paintQuestAudio() {
+  const on = settingsOf().speech !== false, mv = musicVolOf();
+  const v = $("qVoice"); if (v) { v.textContent = on ? "🗣️" : "🔇"; if (v.classList) { on ? v.classList.remove("off") : v.classList.add("off"); } v.setAttribute && v.setAttribute("aria-label", on ? "Voice on — tap to mute" : "Voice off — tap to turn on"); }
+  const d = $("qVolDown"); if (d && d.classList) { mv <= 0 ? d.classList.add("dim") : d.classList.remove("dim"); }
+  const u = $("qVolUp"); if (u && u.classList) { mv >= 1 ? u.classList.add("dim") : u.classList.remove("dim"); }
+  const scr = $("scrPlay"); if (scr && scr.classList) { on ? scr.classList.remove("voice-off") : scr.classList.add("voice-off"); }
+}
+function setMusicVol(v) {
+  const p = P(); if (!p) return; if (!p.settings) p.settings = {};
+  v = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+  p.settings.musicVol = v; if (v > 0) p.settings.music = true;   // raising it un-mutes music
+  save(); try { Music.sync(); } catch { } paintQuestAudio();
+}
+$("qVolDown") && ($("qVolDown").onclick = () => setMusicVol(musicVolOf() - 0.2));
+$("qVolUp") && ($("qVolUp").onclick = () => setMusicVol(musicVolOf() + 0.2));
+$("qVoice") && ($("qVoice").onclick = () => {
+  const p = P(); if (!p) return; if (!p.settings) p.settings = {};
+  p.settings.speech = !(p.settings.speech !== false);
+  save(); paintQuestAudio();
+  if (p.settings.speech && Sess && Sess.q) say(spokenQ(Sess.q));   // confirm by reading the question
+});
 $("playMentor") && ($("playMentor").onclick = () => { if (Sess && Sess.q) say(spokenQ(Sess.q)); });
 
 /* ---------------- cloud (basic wiring; per-skill best-wins merge) ---------------- */

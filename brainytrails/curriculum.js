@@ -1377,8 +1377,8 @@ const BT = (() => {
     "y1.measure.units": {
       name: "How Many Long", icon: "🧮", island: "y1.measure", unit: "y1.m", prereqs: [],
       gen(d) { const len = ri(2, lerp(5, 9, d));
-        return { format: "keypad", prompt: "How many blocks long is the stick?", say: "How many blocks long?", visual: "📏 " + rep("🟫", len),
-          answer: len, hint: "Count each block.", steps: ["Line up the blocks.", "Count them.", `It's ${len} long!`] }; }
+        return { format: "keypad", prompt: "How many blocks long is the stick?", say: "How many blocks long is the stick?", visual: null, pic: { kind: "measure", n: len, unit: "block", obj: "stick" },
+          answer: len, hint: "Count each block — no gaps.", steps: ["Line the blocks up under the stick.", "Count them, one by one.", `It's ${len} blocks long!`] }; }
     },
     "y1.measure.mass": {
       name: "Heavy or Light", icon: "🪨", island: "y1.measure", unit: "y1.m", prereqs: [],
@@ -1653,14 +1653,14 @@ const BT = (() => {
     "y2.meas.units": {
       name: "Measure It", icon: "📐", island: "y2.meastime", unit: "y2.me", prereqs: [],
       gen(d) { const len = ri(3, lerp(6, 12, d));
-        return { format: "keypad", prompt: "How many paperclips long?", say: "How many units long?", visual: "📏 " + rep("📎", len),
-          answer: len, hint: "Count each unit, no gaps.", steps: ["Line them up.", "Count them.", `It's ${len} long!`] }; }
+        return { format: "keypad", prompt: "How many paperclips long is the pencil?", say: "How many paperclips long is the pencil?", visual: null, pic: { kind: "measure", n: len, unit: "clip", obj: "pencil" },
+          answer: len, hint: "Count each paperclip — no gaps.", steps: ["Line the paperclips up under the pencil.", "Count them, one by one.", `It's ${len} paperclips long!`] }; }
     },
     "y2.meas.compare": {
       name: "Order Lengths", icon: "📊", island: "y2.meastime", unit: "y2.me", prereqs: ["y2.meas.units"],
       gen(d) { const set = new Set(); while (set.size < 3) set.add(ri(2, 12)); const correct = [...set].sort((a, b) => a - b);
-        return { format: "order", prompt: "Order the lengths shortest to longest (units)!", say: "Order shortest to longest.", visual: correct.map ? null : null,
-          items: shuffle(correct), correct, hint: "Fewer units = shorter.", steps: ["Compare the unit counts.", "Smallest first.", "Order them!"] }; }
+        return { format: "order", prompt: "Order the lengths shortest to longest!", say: "Order the lengths from shortest to longest.", visual: null, itemKind: "len",
+          items: shuffle(correct), correct, hint: "Fewer units = shorter, more units = longer.", steps: ["Look at how many units long each one is.", "Shortest goes first.", "Then order the rest!"] }; }
     },
     "y2.time.read": {
       name: "Clock Reader", icon: "🕒", island: "y2.meastime", unit: "y2.t", prereqs: [],
