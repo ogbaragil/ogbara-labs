@@ -81,7 +81,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "43";
+const APP_V = "44";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -265,6 +265,45 @@ function pic(p) {
         }
       }
       return wrap(`0 0 ${W} ${H}`, body, 132);
+    }
+    if (p.kind === "picto") {
+      const rows = p.rows || [];                    // [{e, n}, ...]
+      const maxN = Math.max(...rows.map(r => r.n), 1);
+      const CELL = 28, GAP = 4, LBL = 36, PAD = 10;
+      const rowH = CELL + GAP;
+      const cols = maxN;
+      const W = PAD + LBL + cols * (CELL + GAP) + PAD;
+      const H = PAD + rows.length * rowH + PAD;
+      let body = "";
+      // light column guides so counting is easier
+      for (let c = 0; c < cols; c++) {
+        const cx = PAD + LBL + c * (CELL + GAP) + CELL / 2;
+        body += `<line x1="${cx}" y1="${PAD - 2}" x2="${cx}" y2="${H - PAD + 2}" stroke="${LINE}" stroke-width="1" stroke-dasharray="3,3"/>`;
+      }
+      rows.forEach((row, ri2) => {
+        const y = PAD + ri2 * rowH;
+        const isAsk = p.ask === ri2;
+        const isCompare = p.compare && (p.compare[0] === ri2 || p.compare[1] === ri2);
+        // row highlight for the asked row
+        if (isAsk) body += `<rect x="${PAD - 2}" y="${y - 3}" width="${W - PAD * 2 + 4}" height="${CELL + 6}" rx="8" fill="${FILL}" stroke="${VIO}" stroke-width="1.5"/>`;
+        else if (isCompare) body += `<rect x="${PAD - 2}" y="${y - 3}" width="${W - PAD * 2 + 4}" height="${CELL + 6}" rx="8" fill="#f0fdf4" stroke="${LINE}" stroke-width="1"/>`;
+        // label emoji (one, left column)
+        body += `<text x="${PAD + LBL / 2}" y="${y + CELL / 2 + 9}" text-anchor="middle" font-size="22">${row.e}</text>`;
+        // icon grid
+        for (let c = 0; c < row.n; c++) {
+          const ix = PAD + LBL + c * (CELL + GAP) + CELL / 2;
+          const iy = y + CELL / 2 + 9;
+          body += `<text x="${ix}" y="${iy}" text-anchor="middle" font-size="20">${row.e}</text>`;
+        }
+        // ask arrow
+        if (isAsk) body += `<text x="${W - PAD + 4}" y="${y + CELL / 2 + 9}" text-anchor="middle" font-size="14" fill="${VIO}">←</text>`;
+      });
+      // column number guides at bottom
+      for (let c = 0; c < cols; c++) {
+        const cx = PAD + LBL + c * (CELL + GAP) + CELL / 2;
+        body += `<text x="${cx}" y="${H - 1}" text-anchor="middle" font-size="9" fill="${LINE}" font-weight="800">${c + 1}</text>`;
+      }
+      return wrap(`0 0 ${W} ${H}`, body, Math.min(280, H * 2.2));
     }
     if (p.kind === "blocks") {
       let body = "", x = 6;

@@ -1452,22 +1452,25 @@ const BT = (() => {
     "y1.data.count": {
       name: "Read the Graph", icon: "🔎", island: "y1.data", unit: "y1.d", prereqs: [],
       gen(d) { const es = shuffle(["🍎", "🍌", "🍓", "🍊"]).slice(0, 3), cs = distinctCounts(3, 1, 6), t = ri(0, 2);
-        return { format: "keypad", prompt: `How many chose ${es[t]}?`, say: `How many for ${es[t]}?`, visual: es.map((e, i) => `${e}  ${rep(e, cs[i])}`).join("\n"),
-          answer: cs[t], hint: "Count that row.", steps: [`Find the ${es[t]} row.`, "Count them.", `That's ${cs[t]}!`] }; }
+        return { format: "keypad", prompt: `How many chose ${es[t]}?`, say: `How many people chose ${es[t]}?`, visual: null,
+          pic: { kind: "picto", rows: es.map((e, i) => ({ e, n: cs[i] })), ask: t },
+          answer: cs[t], hint: `Find the ${es[t]} row and count each icon.`, steps: [`Find the ${es[t]} row.`, "Count the icons one by one.", `That's ${cs[t]}!`] }; }
     },
     "y1.data.compare": {
       name: "How Many More", icon: "➕", island: "y1.data", unit: "y1.d2", prereqs: ["y1.data.count"],
       gen(d) { const es = shuffle(["🍎", "🍌", "🍓"]).slice(0, 2), cs = distinctCounts(2, 1, 6);
         const hi = cs[0] > cs[1] ? 0 : 1, lo = 1 - hi;
         return { format: "keypad", prompt: `How many MORE ${es[hi]} than ${es[lo]}?`, say: `How many more ${es[hi]} than ${es[lo]}?`,
-          visual: es.map((e, i) => `${e}  ${rep(e, cs[i])}`).join("\n"), answer: cs[hi] - cs[lo], hint: "Find the difference.",
+          visual: null, pic: { kind: "picto", rows: es.map((e, i) => ({ e, n: cs[i] })), ask: null, compare: [hi, lo] },
+          answer: cs[hi] - cs[lo], hint: "Count each row, then subtract.",
           steps: [`${es[hi]}: ${cs[hi]}.`, `${es[lo]}: ${cs[lo]}.`, `${cs[hi]} − ${cs[lo]} = ${cs[hi] - cs[lo]}!`] }; }
     },
     "y1.data.total": {
       name: "Altogether", icon: "🧮", island: "y1.data", unit: "y1.d2", prereqs: ["y1.data.count"],
       gen(d) { const es = shuffle(["🍎", "🍌", "🍓"]).slice(0, 3), cs = distinctCounts(3, 1, 5), sum = cs.reduce((a, b) => a + b, 0);
-        return { format: "keypad", prompt: "How many votes ALTOGETHER?", say: "How many altogether?", visual: es.map((e, i) => `${e}  ${rep(e, cs[i])}`).join("\n"),
-          answer: sum, hint: "Add all the rows.", steps: ["Count each row.", "Add them up.", `Total ${sum}!`] }; }
+        return { format: "keypad", prompt: "How many votes ALTOGETHER?", say: "How many votes altogether?",
+          visual: null, pic: { kind: "picto", rows: es.map((e, i) => ({ e, n: cs[i] })), ask: null },
+          answer: sum, hint: "Count every row, then add them all up.", steps: ["Count each row.", "Add them all up.", `Total: ${sum}!`] }; }
     },
   };
 
