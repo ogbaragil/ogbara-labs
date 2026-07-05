@@ -81,7 +81,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "45";
+const APP_V = "46";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -1009,7 +1009,7 @@ function renderIsland(idx) {
     <span class="izb-stage">
       <span class="izb-aura"></span>
       <span class="izb-face">${isl.boss.emoji}</span>
-      ${beaten ? '<span class="izb-ko">💫</span>' : (bossReady ? "" : '<span class="izb-lock">🔒</span>')}
+      ${beaten ? '<span class="izb-ko">✕</span>' : (bossReady ? "" : '<span class="izb-lock">🔒</span>')}
     </span>
     <span class="izb-banner">${beaten ? "⚔️ Guardian defeated!" : bossReady ? "⚔️ Boss Challenge — ready!" : "🔒 Boss Challenge"}</span>
     <b class="izb-name">${esc(isl.boss.name)}</b>
