@@ -81,7 +81,7 @@ const sk = (id) => {
 };
 const bosses = () => P().bosses || (P().bosses = {});
 const SK0 = Object.freeze({ m: 0, attempts: 0, correct: 0, stars: 0, perfects: 0, nextReview: null, reviewStep: 0 });
-const APP_V = "44";
+const APP_V = "45";
 /* keep the last few errors (not just the latest) so a parent can copy a report */
 function logErr(rec) {
   try {
@@ -1009,12 +1009,12 @@ function renderIsland(idx) {
     <span class="izb-stage">
       <span class="izb-aura"></span>
       <span class="izb-face">${isl.boss.emoji}</span>
-      ${beaten ? '<span class="izb-crown">👑</span>' : (bossReady ? "" : '<span class="izb-lock">🔒</span>')}
+      ${beaten ? '<span class="izb-ko">💫</span>' : (bossReady ? "" : '<span class="izb-lock">🔒</span>')}
     </span>
-    <span class="izb-banner">${beaten ? "👑 Guardian defeated" : bossReady ? "⚔️ Boss Challenge — ready!" : "🔒 Boss Challenge"}</span>
+    <span class="izb-banner">${beaten ? "⚔️ Guardian defeated!" : bossReady ? "⚔️ Boss Challenge — ready!" : "🔒 Boss Challenge"}</span>
     <b class="izb-name">${esc(isl.boss.name)}</b>
     <p class="izb-line">${beaten ? "\u201CYou have bested me, champion!\u201D" : "\u201C" + esc(isl.boss.line) + "\u201D"}</p>
-    <span class="izb-rewards"><span class="izr">👑<b>10</b></span><span class="izr">💎<b>50</b></span><span class="izr xp">XP<b>100</b></span></span>`;
+    ${beaten ? "" : '<span class="izb-rewards"><span class="izr">👑<b>10</b></span><span class="izr">💎<b>50</b></span><span class="izr xp">XP<b>100</b></span></span>'}`;
   boss.onclick = () => beaten || bossReady ? bossIntro(isl, beaten)
     : toast("🔒", "Not yet!", `${isl.boss.name} waits until every skill is Proficient.`);
   root.appendChild(boss);

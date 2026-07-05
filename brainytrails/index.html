@@ -848,7 +848,11 @@
   .izb-lock{position:absolute; bottom:0; right:22px; font-size:24px;}
   .izb-banner{font-size:12px; font-weight:900; letter-spacing:.4px; color:#fff; background:var(--iz-accent); border-radius:999px; padding:5px 15px; box-shadow:0 5px 14px var(--iz-glow);}
   .iz-boss.waiting .izb-banner{background:#9a93b5; box-shadow:none;}
-  .iz-boss.beaten .izb-banner{background:linear-gradient(160deg,#f59e0b,#fbbf24); color:#5b3104;}
+  .iz-boss.beaten .izb-banner{background:linear-gradient(160deg,#10b981,#34d399); color:#fff; box-shadow:0 4px 12px rgba(16,185,129,.35);}
+  /* beaten: boss face tumbles sideways and fades — mirrors the bossSlain animation end-state */
+  .iz-boss.beaten .izb-face{transform:scale(.62) rotate(68deg) translateY(22px); filter:grayscale(1) opacity(.28); animation:none !important;}
+  .iz-boss.beaten .izb-aura{opacity:.12; animation:none !important;}
+  .izb-ko{position:absolute; bottom:2px; left:18px; font-size:22px; line-height:1;}
   .izb-name{font-size:17px; font-weight:900; color:var(--iz-accent); line-height:1.1;}
   .izb-line{font-size:11.5px; font-style:italic; color:#5b4a2e; line-height:1.3; max-width:320px;}
   .izb-rewards{display:flex; gap:16px; margin-top:4px;}
@@ -978,10 +982,10 @@
 </div>
 <div id="overlay"></div>
 
-<script src="curriculum.js?v=51"></script>
+<script src="curriculum.js?v=52"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="cloud.js?v=51"></script>
-<script src="app.js?v=51"></script>
+<script src="cloud.js?v=52"></script>
+<script src="app.js?v=52"></script>
 </body>
 </html>
