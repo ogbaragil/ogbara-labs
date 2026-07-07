@@ -1511,20 +1511,33 @@ async function extractWithAi() {
     const formData = new FormData();
     formData.append("pdf", state.currentPdfFile, state.currentPdfFile.name);
     const response = await fetch("/api/extract-bill", { method: "POST", body: formData });
-    if (!response.ok) throw new Error(await response.text());
-    const result = await response.json();
-    fillIfFound($("#billerInput"), result.biller);
-    fillIfFound($("#amountInput"), result.amountDue);
-    fillIfFound($("#dueDateInput"), result.dueDate);
-    fillIfFound($("#referenceInput"), result.reference || result.invoiceNumber);
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `AI service returned ${response.status}.`);
+    }
+    const result = payload || {};
+
+    // AI is the explicit second-pass extractor, so valid AI values replace weaker
+    // browser guesses instead of being ignored when a local field is already filled.
+    setExtractedField($("#billerInput"), result.biller, true);
+    setExtractedField($("#amountInput"), result.amountDue, true);
+    setExtractedField($("#dueDateInput"), result.dueDate, true);
+    setExtractedField($("#referenceInput"), result.reference || result.invoiceNumber, true);
+
     const aiCat = (result.category && isValidCategory(result.category)) ? result.category
       : findBillerSmart([], `${result.biller || ""} ${result.notes || ""}`, "").category || inferCategory(`${result.biller || ""} ${result.notes || ""}`);
     if (aiCat && $("#categoryInput")) fillCategorySelect($("#categoryInput"), aiCat);
     if (result.notes) $("#notesInput").value = result.notes;
-    $("#extractStatus").textContent = "AI found likely details. Check them before saving.";
-    $("#confidenceBadge").textContent = `${Math.round(Number(result.confidence || 0) * 100)}%`;
+
+    const confidence = Math.max(0, Math.min(1, Number(result.confidence || 0)));
+    $("#extractStatus").textContent = confidence >= 0.75
+      ? "AI extracted the bill details. Check them before saving."
+      : "AI found likely details, but some fields may need checking.";
+    $("#confidenceBadge").textContent = `${Math.round(confidence * 100)}%`;
   } catch (err) {
-    $("#extractStatus").textContent = "AI extract failed. You can still enter details manually.";
+    const message = String(err?.message || "Unknown extraction error").replace(/\s+/g, " ").trim();
+    $("#extractStatus").textContent = `AI extract failed: ${message.slice(0, 180)}`;
+    $("#confidenceBadge").textContent = "Error";
   } finally {
     $("#aiExtractButton").disabled = false;
     setExtracting(false);
@@ -1532,8 +1545,12 @@ async function extractWithAi() {
 }
 
 function fillIfFound(input, value) {
+  setExtractedField(input, value, false);
+}
+
+function setExtractedField(input, value, overwrite = false) {
   if (!input || value === undefined || value === null || value === "") return;
-  if (!input.value) input.value = value;
+  if (overwrite || !input.value) input.value = value;
 }
 
 /* ---------------- Bill detail sheet ---------------- */
@@ -2407,11 +2424,106 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-/* ============ preserved PDF text engine ============ */
+/* ============ PDF text extraction ============ */
+// Use PDF.js first because real-world bills often use object streams, custom font
+// encodings, and compressed content that a regex/stream parser cannot reliably read.
+// Keep the original lightweight parser as an offline/failure fallback.
+let _pdfJsPromise = null;
+
+function loadPdfJs() {
+  if (_pdfJsPromise) return _pdfJsPromise;
+
+  const sources = [
+    {
+      module: "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.149/build/pdf.min.mjs",
+      worker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.149/build/pdf.worker.min.mjs"
+    },
+    {
+      module: "https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.min.mjs",
+      worker: "https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.worker.min.mjs"
+    }
+  ];
+
+  _pdfJsPromise = (async () => {
+    let lastError;
+    for (const source of sources) {
+      try {
+        const pdfjs = await import(source.module);
+        pdfjs.GlobalWorkerOptions.workerSrc = source.worker;
+        return pdfjs;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("PDF.js could not be loaded");
+  })().catch((err) => {
+    _pdfJsPromise = null;
+    throw err;
+  });
+
+  return _pdfJsPromise;
+}
+
 async function decodePdfText(buffer) {
+  try {
+    const pdfJsText = await decodePdfTextWithPdfJs(buffer);
+    if (pdfJsText.replace(/\s/g, "").length > 20) return pdfJsText;
+  } catch (err) {
+    console.warn("PDF.js extraction unavailable; using fallback parser.", err);
+  }
+
   const rawText = new TextDecoder("latin1").decode(buffer);
   const streamText = await decodeCompressedPdfStreams(buffer, rawText);
   return streamText || decodePdfLikeText(rawText);
+}
+
+async function decodePdfTextWithPdfJs(buffer) {
+  const pdfjs = await loadPdfJs();
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    isEvalSupported: false
+  });
+  const pdf = await loadingTask.promise;
+  const pages = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pages.push(pdfTextItemsToLines(content.items || []));
+      page.cleanup();
+    }
+  } finally {
+    await pdf.destroy();
+  }
+
+  return normalizeExtractedText(pages.join("\n"));
+}
+
+function pdfTextItemsToLines(items) {
+  const lines = [];
+  const tolerance = 2.5;
+
+  for (const item of items) {
+    const text = String(item?.str || "").trim();
+    if (!text) continue;
+    const transform = item.transform || [];
+    const x = Number(transform[4] || 0);
+    const y = Number(transform[5] || 0);
+
+    let line = lines.find((candidate) => Math.abs(candidate.y - y) <= tolerance);
+    if (!line) {
+      line = { y, items: [] };
+      lines.push(line);
+    }
+    line.items.push({ x, text });
+  }
+
+  return lines
+    .sort((a, b) => b.y - a.y)
+    .map((line) => line.items.sort((a, b) => a.x - b.x).map((item) => item.text).join(" "))
+    .join("\n");
 }
 
 async function decodeCompressedPdfStreams(buffer, rawText) {

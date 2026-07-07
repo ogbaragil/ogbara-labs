@@ -19,7 +19,7 @@ http://127.0.0.1:4173/
 ## What it does
 
 - Installable PWA shell with offline caching.
-- PDF upload with browser-side decoding for text-readable compressed PDFs.
+- PDF upload with browser-side PDF.js text extraction and a lightweight offline fallback parser.
 - AI extraction fallback through a Cloudflare Pages Function.
 - Add/edit bills with biller, amount, due date, **category**, **recurrence**, reference, and notes.
 - Dashboard: a "cleared" status gauge (paid vs outstanding this month), due today/this week/this month/next 30 days cards, upcoming bills, cash-flow forecast, category breakdown, calendar, recent activity, and smart insights.
@@ -81,4 +81,6 @@ The Worker cron is set to `0 18 * * *`, which runs daily at 18:00 UTC. It checks
 
 ## Extraction note
 
-This first version decodes common text-readable PDF streams in the browser, then asks the user to confirm or correct the fields. Scanned bills still need OCR and should be entered manually until a backend extraction service is added.
+Cleared now uses PDF.js for browser-side text extraction, with the original lightweight PDF stream parser retained as a fallback when the library cannot be loaded. Photos use on-device OCR when available.
+
+The **AI extract** action sends PDFs to the OpenAI Responses API as proper `input_file` items and bill photos as `input_image` items. The response is constrained to a bill-details JSON schema. AI results intentionally replace weaker browser guesses when the user explicitly runs AI extract; the user should still check the populated fields before saving.
