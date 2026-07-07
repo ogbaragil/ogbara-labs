@@ -86,6 +86,8 @@ async function runReminders(env, runDate) {
 
   console.log(`[Reminders] ════════════════════════════`)
   console.log(`[Reminders] Results: sent=${sent}, skipped=${skipped}, errors=${errors.length}`);
+
+  return {
     ok: errors.length === 0,
     usersChecked: settings.length,
     sent,
