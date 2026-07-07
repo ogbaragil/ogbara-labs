@@ -1,4 +1,4 @@
-const DEFAULT_MODEL = "gpt-4.1-mini";
+const DEFAULT_MODEL = "gpt-4-turbo";
 const jsonHeaders = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store"
@@ -16,7 +16,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   if (file.size > 50 * 1024 * 1024) {
-    return jsonResponse({ error: "File is larger than the 50 MB OpenAI input limit." }, 400);
+    return jsonResponse({ error: "File is larger than the 50 MB limit." }, 400);
   }
 
   const bytes = await file.arrayBuffer();
@@ -24,11 +24,41 @@ export async function onRequestPost({ request, env }) {
   const model = env.OPENAI_MODEL || DEFAULT_MODEL;
   const mime = file.type || "application/pdf";
   const isImage = mime.startsWith("image/");
-  const fileContent = isImage
-    ? { type: "input_image", image_url: `data:${mime};base64,${base64}` }
-    : { type: "input_file", filename: file.name || "bill.pdf", file_data: `data:application/pdf;base64,${base64}` };
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  // Prepare the content for the API call
+  let imageContent;
+  if (isImage) {
+    imageContent = {
+      type: "image_url",
+      image_url: {
+        url: `data:${mime};base64,${base64}`,
+        detail: "high"
+      }
+    };
+  } else {
+    // For PDFs, use base64 directly with pdf_url format
+    imageContent = {
+      type: "image_url",
+      image_url: {
+        url: `data:${mime};base64,${base64}`,
+        detail: "high"
+      }
+    };
+  }
+
+  const prompt = `Extract bill payment details from this document or photo. Return ONLY a JSON object with these fields:
+{
+  "biller": "string (company/person name)",
+  "amount_due": number (numeric amount, 0 if not found),
+  "due_date": "YYYY-MM-DD format, empty string if not found",
+  "invoice_number": "string or empty",
+  "reference": "string or empty",
+  "notes": "string - any other relevant details found",
+  "confidence": 0 to 1 (how confident you are in the extraction)
+}
+Return ONLY valid JSON, no markdown or extra text.`;
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.OPENAI_API_KEY}`,
@@ -36,47 +66,14 @@ export async function onRequestPost({ request, env }) {
     },
     body: JSON.stringify({
       model,
-      input: [
+      messages: [
         {
           role: "user",
-          content: [
-            fileContent,
-            {
-              type: "input_text",
-              text: "Extract bill payment details from this document or photo. Return JSON only. Use an empty string for missing text fields, amount_due 0 if missing, due_date as YYYY-MM-DD if present, and confidence from 0 to 1."
-            }
-          ]
+          content: [imageContent, { type: "text", text: prompt }]
         }
       ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "bill_details",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "biller",
-              "amount_due",
-              "due_date",
-              "invoice_number",
-              "reference",
-              "notes",
-              "confidence"
-            ],
-            properties: {
-              biller: { type: "string" },
-              amount_due: { type: "number" },
-              due_date: { type: "string" },
-              invoice_number: { type: "string" },
-              reference: { type: "string" },
-              notes: { type: "string" },
-              confidence: { type: "number", minimum: 0, maximum: 1 }
-            }
-          }
-        }
-      }
+      max_tokens: 500,
+      temperature: 0
     })
   });
 
@@ -85,7 +82,10 @@ export async function onRequestPost({ request, env }) {
     return jsonResponse({ error: payload?.error?.message || "OpenAI extraction failed." }, response.status);
   }
 
-  const parsed = parseOutputJson(payload);
+  // Extract JSON from the response
+  const text = payload?.choices?.[0]?.message?.content || "";
+  const parsed = safeJson(text);
+  
   if (!parsed) {
     return jsonResponse({ error: "OpenAI did not return valid bill JSON." }, 502);
   }
@@ -99,18 +99,6 @@ export async function onRequestPost({ request, env }) {
     notes: parsed.notes || "",
     confidence: Number(parsed.confidence || 0)
   });
-}
-
-function parseOutputJson(payload) {
-  if (payload?.output_text) {
-    return safeJson(payload.output_text);
-  }
-
-  const text = payload?.output
-    ?.flatMap((item) => item.content || [])
-    ?.find((content) => content.type === "output_text")?.text;
-
-  return text ? safeJson(text) : null;
 }
 
 function safeJson(value) {

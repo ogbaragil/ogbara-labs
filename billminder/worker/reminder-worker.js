@@ -27,9 +27,13 @@ export default {
 async function runReminders(env, runDate) {
   validateConfig(env);
 
+  console.log(`[Reminders] Starting at ${runDate.toISOString()}`);
+
   const settings = await supabaseFetch(env, "/rest/v1/user_settings?email_reminders=eq.true&select=*", {
     headers: { Authorization: `Bearer ${getServiceRoleKey(env)}` }
   }).then(readJsonResponse);
+
+  console.log(`[Reminders] Found ${settings.length} users with email reminders enabled`);
 
   let sent = 0;
   let skipped = 0;
@@ -38,38 +42,50 @@ async function runReminders(env, runDate) {
   for (const setting of settings) {
     try {
       const leadDays = Number(setting.reminder_lead_days || 0);
-      const targetDate = addDaysToDateString(localDateString(runDate, setting.timezone), leadDays);
+      const userLocalDate = localDateString(runDate, setting.timezone);
+      const targetDate = addDaysToDateString(userLocalDate, leadDays);
+      console.log(`[Reminders] User ${setting.email} (${setting.user_id}): checking for bills due on ${targetDate} (timezone: ${setting.timezone}, lead: ${leadDays} days)`);
+      
       const bills = await fetchDueBills(env, setting.user_id, targetDate);
+      console.log(`[Reminders] User ${setting.email}: found ${bills.length} bills due on ${targetDate}`);
 
       for (const bill of bills) {
         // Per-recipient key so each partner in a shared household gets their own
         // reminder for the same bill rather than one suppressing the other.
         const reminderKey = `email:${(setting.email || "").toLowerCase()}:${bill.due_date}:${leadDays}`;
         if ((bill.reminded_for || []).includes(reminderKey)) {
+          console.log(`[Reminders]   • ${bill.biller}: already reminded`);
           skipped += 1;
           continue;
         }
 
+        console.log(`[Reminders]   • ${bill.biller} (${bill.amount}) due ${bill.due_date} → sending to ${setting.email}`);
+        
         // Mark first so a crash/retry between send and mark can never double-send.
         await markBillReminded(env, bill, reminderKey);
         try {
           await sendReminderEmail(env, setting.email, bill, leadDays);
+          console.log(`[Reminders]     ✓ Sent`);
           sent += 1;
         } catch (sendError) {
+          console.error(`[Reminders]     ✗ Failed: ${sendError.message}`);
           // Send failed: undo the mark so the next run retries this bill.
           await unmarkBillReminded(env, bill, reminderKey).catch(() => {});
           throw sendError;
         }
       }
     } catch (error) {
+      console.error(`[Reminders] Error for user ${setting.user_id} (${setting.email}): ${error.message}`);
       errors.push({
         userId: setting.user_id,
+        email: setting.email,
         message: error.message || "Reminder failed."
       });
     }
   }
 
-  return {
+  console.log(`[Reminders] ════════════════════════════`)
+  console.log(`[Reminders] Results: sent=${sent}, skipped=${skipped}, errors=${errors.length}`);
     ok: errors.length === 0,
     usersChecked: settings.length,
     sent,
@@ -81,16 +97,30 @@ async function runReminders(env, runDate) {
 async function fetchDueBills(env, userId, dueDate) {
   // If the user is in a shared household, remind on every household bill;
   // otherwise just their own.
+  
+  // Step 1: Find if user is in a household
   const memberResp = await supabaseFetch(env, `/rest/v1/household_members?user_id=eq.${encodeURIComponent(userId)}&select=household_id&limit=1`, {
     headers: { Authorization: `Bearer ${getServiceRoleKey(env)}` }
   });
   const memberRows = memberResp.ok ? await memberResp.json().catch(() => []) : [];
   const householdId = memberRows[0]?.household_id || null;
 
-  const scope = householdId
-    ? `household_id=eq.${encodeURIComponent(householdId)}`
-    : `user_id=eq.${encodeURIComponent(userId)}`;
-  const query = `/rest/v1/bills?${scope}&status=eq.unpaid&due_date=eq.${encodeURIComponent(dueDate)}&select=*`;
+  let userIds = [userId];
+  if (householdId) {
+    // Step 2: Get all members of the household
+    const allMembersResp = await supabaseFetch(env, `/rest/v1/household_members?household_id=eq.${encodeURIComponent(householdId)}&select=user_id`, {
+      headers: { Authorization: `Bearer ${getServiceRoleKey(env)}` }
+    });
+    const allMembers = allMembersResp.ok ? await allMembersResp.json().catch(() => []) : [];
+    userIds = allMembers.map((m) => m.user_id).filter(Boolean);
+  }
+
+  // Step 3: Query bills for all relevant user_ids due on the target date
+  if (!userIds.length) return [];
+  
+  // Build OR filter for multiple user_ids: user_id=eq.id1,user_id=eq.id2
+  const userFilter = userIds.map((id) => `user_id=eq.${encodeURIComponent(id)}`).join(",");
+  const query = `/rest/v1/bills?or=(${userFilter})&status=eq.unpaid&due_date=eq.${encodeURIComponent(dueDate)}&select=*`;
   return supabaseFetch(env, query, {
     headers: { Authorization: `Bearer ${getServiceRoleKey(env)}` }
   }).then(readJsonResponse);
