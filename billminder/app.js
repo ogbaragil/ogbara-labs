@@ -99,7 +99,8 @@ const state = {
   rescheduleBillId: null,
   detailBillId: null,
   recoveryToken: "",
-  deferredInstallPrompt: null
+  deferredInstallPrompt: null,
+  heroIndex: 0
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -162,6 +163,14 @@ async function bootSession() {
     if (hasSyncConnection()) runSync();
   });
   window.addEventListener("online", () => { if (hasSyncConnection()) runSync(); });
+  let heroResizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(heroResizeTimer);
+    heroResizeTimer = setTimeout(() => {
+      const track = $("#heroTrack");
+      if (track) track.scrollLeft = (state.heroIndex || 0) * track.clientWidth;
+    }, 150);
+  });
 }
 
 function migrateLegacyKeys() {
@@ -422,6 +431,30 @@ function forecastMonths(count = 6) {
   return out;
 }
 
+// Actual (not projected) spend for the `count` calendar months before the
+// current one, taken straight from real bills by their due date - the same
+// records the app already keeps once a recurring bill is marked paid and
+// rolls to its next occurrence. This is what makes past months in the
+// cash-flow chart "real" history rather than a guess.
+function historyMonths(count = 6) {
+  const today = startOfDay(new Date());
+  const out = [];
+  for (let i = count; i >= 1; i--) {
+    const ref = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    out.push({ key: monthBucketKey(ref), date: ref, total: 0, byCategory: {}, actual: true });
+  }
+  const byKey = Object.fromEntries(out.map((m) => [m.key, m]));
+  state.bills.forEach((bill) => {
+    const d = dateFromInput(bill.dueDate);
+    const k = monthBucketKey(new Date(d.getFullYear(), d.getMonth(), 1));
+    const m = byKey[k];
+    if (!m) return;
+    m.byCategory[bill.category] = (m.byCategory[bill.category] || 0) + bill.amount;
+    m.total += bill.amount;
+  });
+  return out;
+}
+
 function projectOccurrences(bill, from, to) {
   const dates = [];
   const rec = RECURRENCE[bill.recurrence] || RECURRENCE.once;
@@ -609,24 +642,30 @@ function renderForecast() {
   if (!el) return;
   el.className = "panel forecast-card";
   const now = new Date();
-  const months = forecastMonths(6);
+  const past = historyMonths(6);
+  const future = forecastMonths(6);
+  const months = [...past, ...future];
   const max = Math.max(1, ...months.map((m) => m.total));
-  const total = months.reduce((s, m) => s + m.total, 0);
+  const futureTotal = future.reduce((s, m) => s + m.total, 0);
+  const pastTotal = past.reduce((s, m) => s + m.total, 0);
   const shortMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
   const fullMonth = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
-  if (total <= 0) {
+  if (futureTotal <= 0 && pastTotal <= 0) {
     el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2></div>
       <div class="empty-inline">Add a few bills and Cleared will learn your spending per category and predict the next 6 months \u2014 even for months you haven't entered yet.</div>`;
     return;
   }
 
-  const bars = months.map((m) => {
-    const isNow = m.date.getFullYear() === now.getFullYear() && m.date.getMonth() === now.getMonth();
+  const nowIdx = months.findIndex((m) => m.date.getFullYear() === now.getFullYear() && m.date.getMonth() === now.getMonth());
+
+  const bars = months.map((m, idx) => {
+    const isNow = idx === nowIdx;
     const h = m.total ? Math.max(Math.round((m.total / max) * 100), 6) : 2;
-    return `<button class="fc-col" data-fc="${m.key}" type="button" aria-label="${escapeHtml(fullMonth.format(m.date))}: ${money(m.total)}">
+    const cls = isNow ? "now" : m.actual ? "past" : "";
+    return `<button class="fc-col" data-fc-idx="${idx}" type="button" aria-label="${escapeHtml(fullMonth.format(m.date))}: ${money(m.total)}">
       <span class="fc-amt">${m.total ? money0(m.total) : ""}</span>
-      <span class="fc-bar-wrap"><span class="fc-bar ${isNow ? "now" : ""}" style="height:${h}%"></span></span>
+      <span class="fc-bar-wrap"><span class="fc-bar ${cls}" style="height:${h}%"></span></span>
       <span class="fc-month">${escapeHtml(shortMonth.format(m.date))}</span>
     </button>`;
   }).join("");
@@ -636,57 +675,126 @@ function renderForecast() {
     `<span class="fc-leg"><i style="background:${catMeta(r.cat).color}"></i>${escapeHtml(catMeta(r.cat).label)} ${Math.round(r.pct * 100)}%</span>`
   ).join("");
 
-  el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2><span class="fc-total">${money0(total)} <small>predicted, 6 mo</small></span></div>
-    <div class="fc-chart">${bars}</div>
+  el.innerHTML = `<div class="panel-head"><h2>Cash-flow forecast</h2><span class="fc-total">${money0(futureTotal)} <small>predicted, 6 mo</small></span></div>
+    <div class="fc-scroll"><div class="fc-chart" id="fcChart">${bars}</div></div>
+    <p class="fc-hint">\u2190 Scroll to browse past and future months \u2192</p>
     ${legend ? `<div class="fc-legend">${legend}</div>` : ""}
     <div class="fc-detail" id="fcDetail"></div>`;
 
-  $$("[data-fc]", el).forEach((btn) => btn.addEventListener("click", () => {
-    const m = months.find((x) => x.key === btn.dataset.fc);
+  const chart = $("#fcChart", el);
+
+  $$("[data-fc-idx]", el).forEach((btn) => btn.addEventListener("click", () => {
+    const m = months[Number(btn.dataset.fcIdx)];
     const detail = $("#fcDetail", el);
     if (!m || !detail) return;
     const cats = Object.entries(m.byCategory).sort((a, b) => b[1] - a[1]);
+    const tag = m.actual ? "actual" : "predicted";
     detail.innerHTML = cats.length
-      ? `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 ${money(m.total)}</div>` +
+      ? `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 ${money(m.total)} <small class="fc-detail-tag">${tag}</small></div>` +
         cats.map(([c, v]) => `<div class="fc-detail-row"><span><i style="background:${catMeta(c).color}"></i>${escapeHtml(catMeta(c).label)}</span><strong>${money(v)}</strong></div>`).join("")
-      : `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 nothing projected</div>`;
+      : `<div class="fc-detail-head">${escapeHtml(fullMonth.format(m.date))} \u00b7 nothing ${m.actual ? "recorded" : "projected"}</div>`;
     $$(".fc-col", el).forEach((c) => c.classList.toggle("sel", c === btn));
   }));
+
+  // Land the scroll with "now" a couple of columns in from the left, so both
+  // the trailing history and the upcoming forecast are reachable by scrolling.
+  requestAnimationFrame(() => {
+    if (nowIdx < 0 || !chart.children.length) return;
+    const col = chart.children[0].getBoundingClientRect().width + 8;
+    chart.parentElement.scrollLeft = Math.max(0, (nowIdx - 1) * col);
+  });
 }
 
-function renderHero() {
-  const el = $("#ovHero");
-  const hero = unpaidSorted()[0];
-  if (!hero) {
-    el.innerHTML = `<div class="hero ok"><div class="hero-top">
-      <span class="hero-ring">\u2713</span>
-      <div class="hero-body"><p class="hero-eyebrow">ALL CLEAR</p>
-      <div class="hero-biller">You're all caught up</div>
-      <p class="hero-meta">No unpaid bills right now. Nicely cleared.</p></div></div></div>`;
-    return;
-  }
-  const st = billStatus(hero);
+// Bills that belong on the top dashboard card: anything overdue, due today,
+// or due soon (the things that actually need attention right now), soonest
+// first. "Upcoming"/far-out bills don't clutter the slider.
+function heroBills() {
+  return state.bills
+    .filter((b) => b.status === "unpaid")
+    .filter((b) => { const st = billStatus(b); return st === "overdue" || st === "due-today" || st === "due-soon"; })
+    .sort(byDue);
+}
+
+function heroCardHtml(bill) {
+  const st = billStatus(bill);
   const urgent = st === "overdue" || st === "due-today";
   const cls = urgent ? "danger" : "calm";
-  const eyebrow = st === "overdue" ? "OVERDUE" : st === "due-today" ? "DUE TODAY" : "NEXT DUE";
-  el.innerHTML = `<div class="hero ${cls}">
+  const eyebrow = st === "overdue" ? "OVERDUE" : st === "due-today" ? "DUE TODAY" : "DUE SOON";
+  return `<div class="hero ${cls}" data-hero-card>
     <div class="hero-top">
       <span class="hero-ring">${urgent ? "!" : "\u2022"}</span>
       <div class="hero-body">
         <p class="hero-eyebrow">${eyebrow}</p>
-        <div class="hero-biller">${escapeHtml(hero.biller)}</div>
-        <div class="hero-amount">${money(hero.amount)}</div>
-        <p class="hero-meta">${escapeHtml(RECURRENCE[hero.recurrence].label)} bill \u00b7 <b>${escapeHtml(relativeDue(hero))}</b></p>
+        <div class="hero-biller">${escapeHtml(bill.biller)}</div>
+        <div class="hero-amount">${money(bill.amount)}</div>
+        <p class="hero-meta">${escapeHtml(RECURRENCE[bill.recurrence].label)} bill \u00b7 <b>${escapeHtml(relativeDue(bill))}</b></p>
       </div>
-      <span class="hero-chip" style="background:${catOf(hero).color}">${escapeHtml(billInitial(hero))}</span>
+      <span class="hero-chip" style="background:${catOf(bill).color}">${escapeHtml(billInitial(bill))}</span>
     </div>
     <div class="hero-actions">
-      <button class="btn ${urgent ? "danger" : "primary"}" data-hero-pay="${hero.id}" type="button">Mark paid</button>
-      <button class="btn outline" data-hero-view="${hero.id}" type="button">View bill</button>
+      <button class="btn ${urgent ? "danger" : "primary"}" data-hero-pay="${bill.id}" type="button">Mark paid</button>
+      <button class="btn outline" data-hero-view="${bill.id}" type="button">View bill</button>
     </div>
   </div>`;
-  $("[data-hero-pay]", el)?.addEventListener("click", () => { const b = state.bills.find((x) => x.id === hero.id); if (b) openPaidModal(b); });
-  $("[data-hero-view]", el)?.addEventListener("click", () => openDetailSheet(hero.id));
+}
+
+function renderHero() {
+  const el = $("#ovHero");
+  const bills = heroBills();
+
+  if (!bills.length) {
+    el.className = "hero-wrap";
+    el.innerHTML = `<div class="hero ok"><div class="hero-top">
+      <span class="hero-ring">\u2713</span>
+      <div class="hero-body"><p class="hero-eyebrow">ALL CLEAR</p>
+      <div class="hero-biller">You're all caught up</div>
+      <p class="hero-meta">No overdue or due-soon bills right now. Nicely cleared.</p></div></div></div>`;
+    return;
+  }
+
+  if (!Number.isInteger(state.heroIndex) || state.heroIndex >= bills.length) state.heroIndex = 0;
+
+  el.className = "hero-wrap";
+  const multi = bills.length > 1;
+  const dots = bills.map((_, i) => `<button class="hero-dot" data-hero-dot="${i}" type="button" aria-label="Slide ${i + 1} of ${bills.length}"></button>`).join("");
+  el.innerHTML = `<div class="hero-carousel">
+      <div class="hero-track" id="heroTrack">${bills.map(heroCardHtml).join("")}</div>
+      ${multi ? `<button class="hero-nav prev" data-hero-nav="prev" type="button" aria-label="Previous bill">\u2039</button>
+      <button class="hero-nav next" data-hero-nav="next" type="button" aria-label="Next bill">\u203a</button>` : ""}
+    </div>
+    ${multi ? `<div class="hero-dots"><span class="hero-count">${bills.length} need attention</span><span class="hero-dot-row">${dots}</span></div>` : ""}`;
+
+  const track = $("#heroTrack", el);
+
+  $$("[data-hero-pay]", el).forEach((b) => b.addEventListener("click", () => {
+    const bl = state.bills.find((x) => x.id === b.dataset.heroPay);
+    if (bl) openPaidModal(bl);
+  }));
+  $$("[data-hero-view]", el).forEach((b) => b.addEventListener("click", () => openDetailSheet(b.dataset.heroView)));
+
+  if (!multi) return;
+
+  const updateDots = () => $$("[data-hero-dot]", el).forEach((d, i) => d.classList.toggle("active", i === state.heroIndex));
+  const goTo = (i) => {
+    state.heroIndex = Math.max(0, Math.min(bills.length - 1, i));
+    track.scrollTo({ left: state.heroIndex * track.clientWidth, behavior: "smooth" });
+    updateDots();
+  };
+
+  $$("[data-hero-dot]", el).forEach((d) => d.addEventListener("click", () => goTo(Number(d.dataset.heroDot))));
+  $("[data-hero-nav='prev']", el)?.addEventListener("click", () => goTo(state.heroIndex - 1));
+  $("[data-hero-nav='next']", el)?.addEventListener("click", () => goTo(state.heroIndex + 1));
+
+  let scrollTimer;
+  track.addEventListener("scroll", () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      state.heroIndex = Math.max(0, Math.min(bills.length - 1, Math.round(track.scrollLeft / track.clientWidth)));
+      updateDots();
+    }, 100);
+  });
+
+  requestAnimationFrame(() => { track.scrollLeft = state.heroIndex * track.clientWidth; updateDots(); });
 }
 
 function renderTiles() {
