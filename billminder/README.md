@@ -19,9 +19,9 @@ http://127.0.0.1:4173/
 ## What it does
 
 - Installable PWA shell with offline caching.
-- PDF upload with browser-side PDF.js text extraction and a lightweight offline fallback parser.
-- AI extraction fallback through a Cloudflare Pages Function.
+- PDF or photo upload with AI-powered extraction (the only extraction path — see note below).
 - Add/edit bills with biller, amount, due date, **category**, **recurrence**, reference, and notes.
+- Keeps the uploaded scan in Supabase Storage so you (and any household member) can view it while the bill is unpaid; it's deleted automatically the moment the bill is marked paid.
 - Dashboard: a "cleared" status gauge (paid vs outstanding this month), due today/this week/this month/next 30 days cards, upcoming bills, cash-flow forecast, category breakdown, calendar, recent activity, and smart insights.
 - Recurring bills (weekly to yearly) that roll the schedule forward when marked paid, powering the forecast.
 - Bills, calendar, and forecast views; a bill detail sheet with mark paid / reschedule / edit / delete and payment history.
@@ -81,6 +81,21 @@ The Worker cron is set to `0 18 * * *`, which runs daily at 18:00 UTC. It checks
 
 ## Extraction note
 
-Cleared now uses PDF.js for browser-side text extraction, with the original lightweight PDF stream parser retained as a fallback when the library cannot be loaded. Photos use on-device OCR when available.
+AI extraction is now the only extraction path — there is no browser-side PDF.js text extraction, offline regex parser, or on-device OCR anymore. Every uploaded PDF or photo is sent straight to the AI extractor, which runs through a Cloudflare Pages Function to the OpenAI Responses API as `input_file` (PDFs) or `input_image` (photos) items, constrained to a bill-details JSON schema. This runs automatically as soon as a file is selected, dropped, or scanned with the camera; the "Retry AI extract" button re-runs it on demand. Because this depends on the hosted Cloudflare Pages Function, AI extraction — and therefore all extraction — is unavailable when running purely locally without that backend; bills must be entered manually in that case.
 
-The **AI extract** action sends PDFs to the OpenAI Responses API as proper `input_file` items and bill photos as `input_image` items. The response is constrained to a bill-details JSON schema. AI results intentionally replace weaker browser guesses when the user explicitly runs AI extract; the user should still check the populated fields before saving.
+## Scanned document storage
+
+When you attach a PDF or photo to a bill, Cleared uploads it to a private `bill-documents` bucket in Supabase Storage via `functions/api/documents.js`. While the bill is unpaid, a "View scanned document" button on the bill's detail sheet fetches a short-lived signed URL and shows it. The moment the bill is marked paid — including via the recurring-bill auto-advance — the stored file is deleted. Deleting a bill (or clearing all bills) also removes its stored document. As a safety net, `functions/api/bills.js` also purges any document for a bill it receives marked as paid or deleted, in case the direct delete call never reached the server (e.g. the app was closed offline).
+
+Documents are scoped the same way bills are: by household, by signed-in user, or — for anonymous/local-only use — by the device's `appInstanceId` + `syncSecret` pair. The server never trusts a path the client sends; it always recomputes the storage path itself from the caller's identity, so a request can only ever reach its own scope's documents. The upload/view/delete endpoints use the `SUPABASE_SERVICE_ROLE_KEY` secret (already required for household sharing) — the browser never receives it. Since document storage runs through the hosted Cloudflare Function, it's unavailable when running purely locally without that backend.
+
+Create the storage bucket once, from the Supabase SQL editor:
+
+```sql
+insert into storage.buckets (id, name, public)
+values ('bill-documents', 'bill-documents', false)
+on conflict (id) do nothing;
+```
+
+No storage RLS policies are needed on this bucket — all access goes through the Pages Function using the service-role key, which bypasses RLS, with authorization enforced in the function itself.
+

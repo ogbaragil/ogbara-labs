@@ -249,10 +249,10 @@
           <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
           <div class="extract-row">
             <button class="btn ghost sm" id="scanButton" type="button">Scan with camera</button>
-            <button class="btn ghost sm" id="aiExtractButton" type="button" disabled>AI extract</button>
+            <button class="btn ghost sm" id="aiExtractButton" type="button" disabled>Retry AI extract</button>
             <span class="badge" id="confidenceBadge">Waiting</span>
           </div>
-          <p class="extract-status" id="extractStatus">Upload a statement or bill PDF and Cleared will pull out the amount, due date, biller and reference.</p>
+          <p class="extract-status" id="extractStatus">Upload a statement or bill PDF and Cleared's AI will pull out the amount, due date, biller and reference.</p>
           <pre class="extract-preview" id="extractPreview" aria-label="Extracted text preview"></pre>
 
           <div class="form-grid">
@@ -302,6 +302,14 @@
         <label>Payment notes<textarea id="paymentNotesInput" rows="2" placeholder="Receipt number or method"></textarea></label>
         <div class="sheet-actions"><button class="btn ghost" id="cancelPaidButton" type="button">Cancel</button><button class="btn primary" type="submit">Save as paid</button></div>
       </form>
+    </div>
+
+    <div class="modal-backdrop" id="docViewerModal" hidden>
+      <div class="modal-card doc-viewer-card">
+        <div class="modal-head"><h2 id="docViewerTitle">Scanned document</h2><button class="icon-btn" id="closeDocViewerButton" type="button" aria-label="Close">✕</button></div>
+        <p class="muted">Available until this bill is marked paid, then it's deleted from storage automatically.</p>
+        <div class="doc-viewer-body" id="docViewerBody"></div>
+      </div>
     </div>
 
     <div class="modal-backdrop" id="rescheduleModal" hidden>

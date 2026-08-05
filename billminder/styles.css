@@ -375,6 +375,11 @@ textarea { resize: vertical; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .modal-head h2 { font-size: 19px; font-weight: 800; }
 .modal-card .muted { font-size: 13px; margin: 0 0 14px; }
+.doc-viewer-card { max-width: 560px; }
+.doc-viewer-body { max-height: 68vh; overflow: auto; border-radius: 12px; background: var(--line-soft); }
+.doc-viewer-body p.muted { padding: 24px; text-align: center; margin: 0; }
+.doc-viewer-img { width: 100%; display: block; border-radius: 12px; }
+.doc-viewer-frame { width: 100%; height: 60vh; border: 0; border-radius: 12px; background: #fff; }
 
 /* ---------- settings (More) ---------- */
 .settings-panel h3 { font-size: 16px; margin-bottom: 10px; }

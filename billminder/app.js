@@ -98,6 +98,7 @@ const state = {
   deleteMode: "single",
   rescheduleBillId: null,
   detailBillId: null,
+  docViewerBillId: null,
   recoveryToken: "",
   deferredInstallPrompt: null,
   heroIndex: 0
@@ -293,6 +294,7 @@ function normalizeBill(bill) {
     reference: bill.reference || "",
     notes: bill.notes || "",
     fileName: bill.fileName || "",
+    hasDocument: Boolean(bill.hasDocument),
     status: bill.status === "paid" ? "paid" : "unpaid",
     paidAt: bill.paidAt || "",
     paymentNotes: bill.paymentNotes || "",
@@ -1303,7 +1305,7 @@ function setupBillSheet() {
   drop?.addEventListener("drop", (ev) => { const f = ev.dataTransfer?.files?.[0]; if (f) handleBillFile(f); });
   const cam = $("#cameraInput");
   $("#scanButton")?.addEventListener("click", () => cam?.click());
-  cam?.addEventListener("change", () => cam.files[0] && handleScan(cam.files[0]));
+  cam?.addEventListener("change", () => cam.files[0] && handleBillFile(cam.files[0]));
 
   const catSel = $("#categoryInput");
   if (catSel) {
@@ -1357,13 +1359,13 @@ function resetBillForm() {
   $("#billForm").reset();
   if ($("#categoryInput")) fillCategorySelect($("#categoryInput"), "other");
   $("#recurrenceInput").value = "once";
-  $("#extractStatus").textContent = "Upload a statement or bill PDF and Cleared will pull out the amount, due date, biller and reference.";
+  $("#extractStatus").textContent = "Upload a statement or bill PDF and Cleared's AI will pull out the amount, due date, biller and reference.";
   $("#extractPreview").textContent = "";
   $("#confidenceBadge").textContent = "Waiting";
   $("#aiExtractButton").disabled = true;
 }
 
-function saveBillFromForm(event) {
+async function saveBillFromForm(event) {
   event.preventDefault();
   const amount = Number($("#amountInput").value);
   const dueDate = $("#dueDateInput").value;
@@ -1396,108 +1398,38 @@ function saveBillFromForm(event) {
     });
     state.bills.push(changed);
   }
+
+  // Upload the scan to Supabase Storage (viewable until paid, then
+  // auto-deleted — see applyPaid). Awaited so hasDocument only ever reflects
+  // whether the file is actually stored.
+  if (state.currentPdfFile && changed) {
+    const file = state.currentPdfFile;
+    changed.fileName = file.name || changed.fileName;
+    changed.hasDocument = await saveBillDocument(changed.clientBillId, file);
+  }
+
   markBillDirty(changed);
   closeBillSheet();
   if (state.view !== "overview" && state.view !== "bills") showView("overview"); else render();
   scheduleSync();
 }
 
+// AI extract is the only extraction path — no on-device OCR or PDF text
+// parsing runs in the browser. Selecting, dropping, or scanning a file simply
+// stores it and immediately sends it to the AI extractor.
 function handleBillFile(file) {
   if (!file) return;
-  const isImage = (file.type || "").startsWith("image/");
-  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  if (isImage && !isPdf) return handleScan(file);
-  return handlePdf(file);
-}
-
-// Lazy-load the on-device OCR engine only when someone actually scans a photo,
-// so it never affects normal load. Cross-origin, so the service worker ignores it.
-let _ocrPromise = null;
-function loadOcr() {
-  if (window.Tesseract) return Promise.resolve(window.Tesseract);
-  if (_ocrPromise) return _ocrPromise;
-  _ocrPromise = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-    s.async = true;
-    s.onload = () => (window.Tesseract ? resolve(window.Tesseract) : reject(new Error("ocr")));
-    s.onerror = () => { _ocrPromise = null; reject(new Error("ocr")); };
-    document.head.appendChild(s);
-  });
-  return _ocrPromise;
-}
-
-async function ocrImageText(file) {
-  const T = await loadOcr();
-  const result = await T.recognize(file, "eng");
-  return (result && result.data && result.data.text) || "";
-}
-
-async function handleScan(file) {
   state.currentPdfFile = file;
   $("#aiExtractButton").disabled = false;
-  $("#confidenceBadge").textContent = "Scanning";
-  $("#extractStatus").textContent = "Reading your photo on-device\u2026 this can take a few seconds.";
-  $("#extractPreview").textContent = "";
-  setExtracting(true);
-  try {
-    const text = await ocrImageText(file);
-    if (text && text.replace(/\s/g, "").length > 20) {
-      const details = extractBillDetails(text, file.name || "photo");
-      fillIfFound($("#billerInput"), details.biller);
-      fillIfFound($("#amountInput"), details.amount);
-      fillIfFound($("#dueDateInput"), details.dueDate);
-      fillIfFound($("#referenceInput"), details.reference);
-      if (details.category && $("#categoryInput")) fillCategorySelect($("#categoryInput"), details.category);
-      const conf = details.confidence || 0;
-      $("#confidenceBadge").textContent = conf >= 0.75 ? "Strong" : conf >= 0.5 ? "Good" : conf >= 0.25 ? "Partial" : "Manual";
-      $("#extractStatus").textContent = conf >= 0.5
-        ? "Read your photo and filled in the details \u2014 double-check and save."
-        : "Read some text from the photo. Add anything missing, or try AI extract.";
-      $("#extractPreview").textContent = text.slice(0, 3000);
-    } else {
-      $("#confidenceBadge").textContent = "Manual";
-      $("#extractStatus").textContent = "Couldn't read much from that photo. Try a clearer, well-lit shot, tap AI extract, or enter details manually.";
-    }
-  } catch (err) {
-    $("#confidenceBadge").textContent = "Manual";
-    $("#extractStatus").textContent = navigator.onLine
-      ? "On-device scan isn't available right now. Tap AI extract to read this photo, or enter details manually."
-      : "Photo scanning needs a connection the first time it's used. Tap AI extract when you're online, or enter details manually.";
-  } finally {
-    setExtracting(false);
-  }
+  $("#extractPreview").textContent = `${file.name || "Selected file"} \u2022 ${humanFileSize(file.size)}`;
+  extractWithAi();
 }
 
-async function handlePdf(file) {
-  state.currentPdfFile = file;
-  $("#aiExtractButton").disabled = false;
-  $("#extractStatus").textContent = `Reading ${file.name}\u2026`;
-  $("#confidenceBadge").textContent = "Reading";
-  $("#extractPreview").textContent = "";
-  setExtracting(true);
-  try {
-    const buffer = await file.arrayBuffer();
-    const readable = await decodePdfText(buffer);
-    const details = extractBillDetails(readable, file.name);
-    fillIfFound($("#billerInput"), details.biller);
-    fillIfFound($("#amountInput"), details.amount);
-    fillIfFound($("#dueDateInput"), details.dueDate);
-    fillIfFound($("#referenceInput"), details.reference);
-    if (details.category && $("#categoryInput")) fillCategorySelect($("#categoryInput"), details.category);
-    const conf = details.confidence || 0;
-    $("#confidenceBadge").textContent = conf >= 0.75 ? "Strong" : conf >= 0.5 ? "Good" : conf >= 0.25 ? "Partial" : "Manual";
-    $("#extractStatus").textContent = conf >= 0.5
-      ? "Filled in the details below from your statement \u2014 double-check and save."
-      : conf > 0
-        ? "Found some details below. Add anything missing, or try AI extract."
-        : "This looks scanned or compressed. Try AI extract, or enter details manually.";
-    $("#extractPreview").textContent = readable.slice(0, 3000) || "No readable text found.";
-  } catch (err) {
-    $("#extractStatus").textContent = "Could not read this PDF. Enter the details manually or try AI extract.";
-  } finally {
-    setExtracting(false);
-  }
+function humanFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 async function extractWithAi() {
@@ -1517,15 +1449,13 @@ async function extractWithAi() {
     }
     const result = payload || {};
 
-    // AI is the explicit second-pass extractor, so valid AI values replace weaker
-    // browser guesses instead of being ignored when a local field is already filled.
     setExtractedField($("#billerInput"), result.biller, true);
     setExtractedField($("#amountInput"), result.amountDue, true);
     setExtractedField($("#dueDateInput"), result.dueDate, true);
     setExtractedField($("#referenceInput"), result.reference || result.invoiceNumber, true);
 
     const aiCat = (result.category && isValidCategory(result.category)) ? result.category
-      : findBillerSmart([], `${result.biller || ""} ${result.notes || ""}`, "").category || inferCategory(`${result.biller || ""} ${result.notes || ""}`);
+      : findBillerSmart(`${result.biller || ""} ${result.notes || ""}`).category || inferCategory(`${result.biller || ""} ${result.notes || ""}`);
     if (aiCat && $("#categoryInput")) fillCategorySelect($("#categoryInput"), aiCat);
     if (result.notes) $("#notesInput").value = result.notes;
 
@@ -1542,10 +1472,6 @@ async function extractWithAi() {
     $("#aiExtractButton").disabled = false;
     setExtracting(false);
   }
-}
-
-function fillIfFound(input, value) {
-  setExtractedField(input, value, false);
 }
 
 function setExtractedField(input, value, overwrite = false) {
@@ -1586,6 +1512,9 @@ function openDetailSheet(billId) {
       ${bill.notes ? `<div class="dt-wide"><span class="muted">Notes</span><strong>${escapeHtml(bill.notes)}</strong></div>` : ""}
     </div>
     <div class="dt-actions">
+      ${bill.status === "unpaid" && bill.hasDocument
+        ? `<button class="btn ghost" id="dtViewDocument" type="button">View scanned document</button>`
+        : ""}
       ${bill.status === "unpaid"
         ? `<button class="btn primary" id="dtMarkPaid" type="button">Mark as paid</button>
            <button class="btn ghost" id="dtReschedule" type="button">Reschedule</button>`
@@ -1594,6 +1523,7 @@ function openDetailSheet(billId) {
       <button class="btn danger-text" id="dtDelete" type="button">Delete</button>
     </div>
     ${historyRows.length ? `<div class="dt-history"><h4>History</h4>${historyRows.join("")}</div>` : ""}`;
+  $("#dtViewDocument")?.addEventListener("click", () => openDocumentViewer(bill));
   $("#dtMarkPaid")?.addEventListener("click", () => { closeDetailSheet(); openPaidModal(bill); });
   $("#dtReschedule")?.addEventListener("click", () => { closeDetailSheet(); openRescheduleModal(bill); });
   $("#dtMarkUnpaid")?.addEventListener("click", () => { bill.status = "unpaid"; bill.paidAt = ""; markBillDirty(bill); closeDetailSheet(); render(); scheduleSync(); });
@@ -1615,7 +1545,10 @@ function closeDetailSheet() {
 function deleteBill(id) {
   const bill = state.bills.find((b) => b.id === id);
   state.bills = state.bills.filter((b) => b.id !== id);
-  if (bill) { addTombstone(bill.clientBillId || bill.id); queueDelete(bill.clientBillId || bill.id); }
+  if (bill) {
+    addTombstone(bill.clientBillId || bill.id); queueDelete(bill.clientBillId || bill.id);
+    if (bill.hasDocument) deleteBillDocument(bill.clientBillId);
+  }
   saveBills();
   closeDetailSheet();
   render();
@@ -1649,6 +1582,10 @@ function skipOccurrence(id) {
   bill.paidAt = "";
   bill.remindedFor = [];
   bill.rescheduleNotes = "";
+  if (bill.hasDocument) {
+    deleteBillDocument(bill.clientBillId);
+    bill.hasDocument = false;
+  }
   markBillDirty(bill);
   closeDetailSheet();
   render();
@@ -1662,7 +1599,10 @@ function deleteOccurrences(id) {
   const doomed = seriesMembers(bill);
   if (!doomed.length) { deleteBill(id); return; }
   const ids = new Set(doomed.map((b) => b.id));
-  doomed.forEach((b) => { addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id); });
+  doomed.forEach((b) => {
+    addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id);
+    if (b.hasDocument) deleteBillDocument(b.clientBillId);
+  });
   state.bills = state.bills.filter((b) => !ids.has(b.id));
   saveBills();
   closeDetailSheet();
@@ -1767,6 +1707,7 @@ function saveFirstName(skip) {
 }
 
 function setupModals() {
+  $("#closeDocViewerButton")?.addEventListener("click", closeDocumentViewer);
   $("#paidForm")?.addEventListener("submit", (e) => { e.preventDefault(); savePaidBill(); });
   $("#closePaidButton")?.addEventListener("click", closePaidModal);
   $("#cancelPaidButton")?.addEventListener("click", closePaidModal);
@@ -1800,6 +1741,40 @@ function openPaidModal(bill) {
 }
 function closePaidModal() { $("#paidModal").hidden = true; state.paidBillId = null; }
 
+// Fetches a short-lived signed URL and shows the stored scan for a bill.
+// Documents live in Supabase Storage (see functions/api/documents.js), so
+// this works from any device or household member while the bill is unpaid.
+// It can legitimately come back empty — e.g. offline, or already removed.
+async function openDocumentViewer(bill) {
+  const modal = $("#docViewerModal");
+  const body = $("#docViewerBody");
+  if (!modal || !body) return;
+  $("#docViewerTitle").textContent = bill.fileName || "Scanned document";
+  body.innerHTML = `<p class="muted">Loading\u2026</p>`;
+  modal.hidden = false;
+  state.docViewerBillId = bill.id;
+
+  const url = await getBillDocumentUrl(bill.clientBillId);
+  if (state.docViewerBillId !== bill.id) return; // superseded by a newer open
+  if (!url) {
+    body.innerHTML = `<p class="muted">This document isn't available right now. It may have already been removed, or you may be offline.</p>`;
+    return;
+  }
+
+  const isPdf = /\.pdf$/i.test(bill.fileName || "");
+  body.innerHTML = isPdf
+    ? `<iframe src="${url}" class="doc-viewer-frame" title="Scanned bill"></iframe>`
+    : `<img src="${url}" alt="Scanned bill" class="doc-viewer-img">`;
+}
+
+function closeDocumentViewer() {
+  const modal = $("#docViewerModal");
+  if (modal) modal.hidden = true;
+  const body = $("#docViewerBody");
+  if (body) body.innerHTML = "";
+  state.docViewerBillId = null;
+}
+
 function savePaidBill() {
   const bill = state.bills.find((b) => b.id === state.paidBillId);
   if (!bill) return;
@@ -1811,6 +1786,12 @@ function applyPaid(bill, paidDate, notes) {
   bill.status = "paid";
   bill.paidAt = paidDate || formatDatePartsFromDate(new Date());
   bill.paymentNotes = notes || "";
+  // The scan is only needed while the bill is unpaid — remove it now so we
+  // don't keep hold of financial documents longer than necessary.
+  if (bill.hasDocument) {
+    deleteBillDocument(bill.clientBillId);
+    bill.hasDocument = false;
+  }
   markBillDirty(bill);
   // Recurring bills: spawn the next occurrence as unpaid so the schedule
   // continues, and demote this paid one to a one-off so it isn't projected twice.
@@ -1873,7 +1854,10 @@ function setupSettings() {
   $("#rowLogout")?.addEventListener("click", () => { closeAccountModal(); logout(); });
   $("#clearBillsButton")?.addEventListener("click", () => {
     if (!confirm("Clear all bills? This removes them from this device and, once synced, your account.")) return;
-    state.bills.forEach((b) => { addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id); });
+    state.bills.forEach((b) => {
+      addTombstone(b.clientBillId || b.id); queueDelete(b.clientBillId || b.id);
+      if (b.hasDocument) deleteBillDocument(b.clientBillId);
+    });
     state.bills = []; saveBills(); closeAccountModal(); render(); scheduleSync(200);
   });
   $("#accountNameInput")?.addEventListener("change", (e) => {
@@ -2182,6 +2166,66 @@ function readJson(key, fallback) {
 function saveBills() { localStorage.setItem(STORE_KEY, JSON.stringify(state.bills)); }
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
 
+/* ============ scanned document storage (Supabase Storage) ============ */
+// Keeps a copy of the uploaded bill scan in a private Supabase Storage
+// bucket via functions/api/documents.js, so it's viewable from any device or
+// household member while the bill is unpaid, and deleted the moment it's
+// marked paid. Requires the hosted Cloudflare backend (same as AI extract) —
+// there is no local/offline fallback for document storage.
+
+async function saveBillDocument(clientBillId, file) {
+  if (!clientBillId || !file || !useCloudflareSync()) return false;
+  try {
+    const formData = new FormData();
+    formData.append("file", file, file.name || "document");
+    formData.append("clientBillId", clientBillId);
+    formData.append("appInstanceId", state.settings.appInstanceId || "");
+    formData.append("syncSecret", state.settings.syncSecret || "");
+    const response = await cloudflareFileRequest("/api/documents", { method: "POST", body: formData });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Returns a short-lived signed URL for viewing the document, or null if it
+// isn't available (not stored, already deleted, or this device/session can't
+// reach it).
+async function getBillDocumentUrl(clientBillId) {
+  if (!clientBillId || !useCloudflareSync()) return null;
+  try {
+    const params = new URLSearchParams({
+      clientBillId,
+      appInstanceId: state.settings.appInstanceId || "",
+      syncSecret: state.settings.syncSecret || ""
+    });
+    const response = await cloudflareFileRequest(`/api/documents?${params.toString()}`);
+    if (!response.ok) return null;
+    const payload = await response.json().catch(() => null);
+    return payload?.url || null;
+  } catch {
+    return null;
+  }
+}
+
+async function deleteBillDocument(clientBillId) {
+  if (!clientBillId || !useCloudflareSync()) return;
+  try {
+    await cloudflareFileRequest("/api/documents", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientBillId,
+        appInstanceId: state.settings.appInstanceId || "",
+        syncSecret: state.settings.syncSecret || ""
+      })
+    });
+  } catch {
+    // Best-effort: if this fails (e.g. offline), the server also purges any
+    // document for a bill it receives marked as paid — see bills.js.
+  }
+}
+
 /* ---------------- sync ---------------- */
 function useCloudflareSync() {
   return location.protocol.startsWith("http") && !["localhost", "127.0.0.1", "::1"].includes(location.hostname);
@@ -2199,6 +2243,26 @@ async function cloudflareSyncRequest(path, options = {}) {
     headers: {
       "Content-Type": "application/json",
       "x-sync-secret": state.settings.syncSecret,
+      ...(state.auth?.accessToken ? { Authorization: `Bearer ${state.auth.accessToken}` } : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  let response = await send();
+  if (response.status === 401 && state.auth?.refreshToken) {
+    const refreshed = await ensureFreshSession(true);
+    if (refreshed) response = await send();
+  }
+  return response;
+}
+
+// Same auth/retry behaviour as cloudflareSyncRequest, but doesn't force a
+// Content-Type — needed for document uploads, which send FormData and must
+// let the browser set its own multipart boundary.
+async function cloudflareFileRequest(path, options = {}) {
+  const send = () => fetch(path, {
+    ...options,
+    headers: {
       ...(state.auth?.accessToken ? { Authorization: `Bearer ${state.auth.accessToken}` } : {}),
       ...(options.headers || {})
     }
@@ -2424,397 +2488,6 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-/* ============ PDF text extraction ============ */
-// Use PDF.js first because real-world bills often use object streams, custom font
-// encodings, and compressed content that a regex/stream parser cannot reliably read.
-// Keep the original lightweight parser as an offline/failure fallback.
-let _pdfJsPromise = null;
-
-function loadPdfJs() {
-  if (_pdfJsPromise) return _pdfJsPromise;
-
-  const sources = [
-    {
-      module: "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.149/build/pdf.min.mjs",
-      worker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.149/build/pdf.worker.min.mjs"
-    },
-    {
-      module: "https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.min.mjs",
-      worker: "https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.worker.min.mjs"
-    }
-  ];
-
-  _pdfJsPromise = (async () => {
-    let lastError;
-    for (const source of sources) {
-      try {
-        const pdfjs = await import(source.module);
-        pdfjs.GlobalWorkerOptions.workerSrc = source.worker;
-        return pdfjs;
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    throw lastError || new Error("PDF.js could not be loaded");
-  })().catch((err) => {
-    _pdfJsPromise = null;
-    throw err;
-  });
-
-  return _pdfJsPromise;
-}
-
-async function decodePdfText(buffer) {
-  try {
-    const pdfJsText = await decodePdfTextWithPdfJs(buffer);
-    if (pdfJsText.replace(/\s/g, "").length > 20) return pdfJsText;
-  } catch (err) {
-    console.warn("PDF.js extraction unavailable; using fallback parser.", err);
-  }
-
-  const rawText = new TextDecoder("latin1").decode(buffer);
-  const streamText = await decodeCompressedPdfStreams(buffer, rawText);
-  return streamText || decodePdfLikeText(rawText);
-}
-
-async function decodePdfTextWithPdfJs(buffer) {
-  const pdfjs = await loadPdfJs();
-  const loadingTask = pdfjs.getDocument({
-    data: new Uint8Array(buffer),
-    useWorkerFetch: false,
-    isEvalSupported: false
-  });
-  const pdf = await loadingTask.promise;
-  const pages = [];
-
-  try {
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-      const page = await pdf.getPage(pageNumber);
-      const content = await page.getTextContent();
-      pages.push(pdfTextItemsToLines(content.items || []));
-      page.cleanup();
-    }
-  } finally {
-    await pdf.destroy();
-  }
-
-  return normalizeExtractedText(pages.join("\n"));
-}
-
-function pdfTextItemsToLines(items) {
-  const lines = [];
-  const tolerance = 2.5;
-
-  for (const item of items) {
-    const text = String(item?.str || "").trim();
-    if (!text) continue;
-    const transform = item.transform || [];
-    const x = Number(transform[4] || 0);
-    const y = Number(transform[5] || 0);
-
-    let line = lines.find((candidate) => Math.abs(candidate.y - y) <= tolerance);
-    if (!line) {
-      line = { y, items: [] };
-      lines.push(line);
-    }
-    line.items.push({ x, text });
-  }
-
-  return lines
-    .sort((a, b) => b.y - a.y)
-    .map((line) => line.items.sort((a, b) => a.x - b.x).map((item) => item.text).join(" "))
-    .join("\n");
-}
-
-async function decodeCompressedPdfStreams(buffer, rawText) {
-  if (!("DecompressionStream" in window)) return "";
-
-  const fontMaps = await buildToUnicodeFontMaps(buffer, rawText);
-  const chunks = [];
-  let position = 0;
-
-  while ((position = rawText.indexOf("stream", position)) !== -1) {
-    const dictionary = rawText.slice(Math.max(0, rawText.lastIndexOf("<<", position)), position);
-    let start = position + "stream".length;
-    if (rawText[start] === "\r" && rawText[start + 1] === "\n") {
-      start += 2;
-    } else if (rawText[start] === "\n") {
-      start += 1;
-    }
-
-    const end = rawText.indexOf("endstream", start);
-    if (end === -1) break;
-
-    if (/FlateDecode/.test(dictionary)) {
-      let streamBytes = new Uint8Array(buffer.slice(start, end));
-      while (streamBytes.length && (streamBytes[streamBytes.length - 1] === 10 || streamBytes[streamBytes.length - 1] === 13)) {
-        streamBytes = streamBytes.slice(0, -1);
-      }
-
-      try {
-        const inflated = await inflateDeflateStream(streamBytes);
-        const text = new TextDecoder("latin1").decode(inflated);
-        if (/\bBT\b/.test(text)) {
-          chunks.push(extractPdfTextFromContentStream(text, fontMaps));
-        }
-      } catch {
-        // Some streams are images or use unsupported filters; ignore them.
-      }
-    }
-
-    position = end + "endstream".length;
-  }
-
-  return normalizeExtractedText(chunks.join("\n"));
-}
-
-async function buildToUnicodeFontMaps(buffer, rawText) {
-  const maps = new Map();
-  const resourceFontPattern = /\/(F[A-Za-z0-9]+)\s+(\d+)\s+0\s+R/g;
-  let resourceMatch = resourceFontPattern.exec(rawText);
-
-  while (resourceMatch) {
-    const fontName = resourceMatch[1];
-    const fontObject = readPdfObject(rawText, resourceMatch[2]);
-    const unicodeMatch = fontObject.match(/\/ToUnicode\s+(\d+)\s+0\s+R/);
-    if (unicodeMatch && !maps.has(fontName)) {
-      const cmap = await readPdfObjectStream(buffer, rawText, unicodeMatch[1]);
-      const parsed = parseToUnicodeCMap(cmap);
-      if (parsed.entries.size) {
-        maps.set(fontName, parsed);
-      }
-    }
-    resourceMatch = resourceFontPattern.exec(rawText);
-  }
-
-  const fontPattern = /\/Name\s*\/([A-Za-z0-9]+)[\s\S]{0,700}?\/ToUnicode\s+(\d+)\s+0\s+R/g;
-  let match = fontPattern.exec(rawText);
-
-  while (match) {
-    const fontName = match[1];
-    const objectNumber = match[2];
-    const cmap = await readPdfObjectStream(buffer, rawText, objectNumber);
-    const parsed = parseToUnicodeCMap(cmap);
-    if (parsed.entries.size) {
-      maps.set(fontName, parsed);
-    }
-    match = fontPattern.exec(rawText);
-  }
-
-  return maps;
-}
-
-function readPdfObject(rawText, objectNumber) {
-  const marker = `${objectNumber} 0 obj`;
-  const objectStart = rawText.indexOf(marker);
-  if (objectStart === -1) return "";
-
-  const objectEnd = rawText.indexOf("endobj", objectStart);
-  if (objectEnd === -1) return "";
-
-  return rawText.slice(objectStart, objectEnd);
-}
-
-async function readPdfObjectStream(buffer, rawText, objectNumber) {
-  const marker = `${objectNumber} 0 obj`;
-  const objectStart = rawText.indexOf(marker);
-  if (objectStart === -1) return "";
-
-  const streamStart = rawText.indexOf("stream", objectStart);
-  const objectEnd = rawText.indexOf("endobj", objectStart);
-  if (streamStart === -1 || streamStart > objectEnd) return "";
-
-  let dataStart = streamStart + "stream".length;
-  if (rawText[dataStart] === "\r" && rawText[dataStart + 1] === "\n") {
-    dataStart += 2;
-  } else if (rawText[dataStart] === "\n") {
-    dataStart += 1;
-  }
-
-  const streamEnd = rawText.indexOf("endstream", dataStart);
-  if (streamEnd === -1) return "";
-
-  const dictionary = rawText.slice(objectStart, streamStart);
-  let streamBytes = new Uint8Array(buffer.slice(dataStart, streamEnd));
-  while (streamBytes.length && (streamBytes[streamBytes.length - 1] === 10 || streamBytes[streamBytes.length - 1] === 13)) {
-    streamBytes = streamBytes.slice(0, -1);
-  }
-
-  if (/FlateDecode/.test(dictionary)) {
-    streamBytes = await inflateDeflateStream(streamBytes);
-  }
-
-  return new TextDecoder("latin1").decode(streamBytes);
-}
-
-function parseToUnicodeCMap(cmap) {
-  const entries = new Map();
-  const pairPattern = /<([0-9A-Fa-f]+)>\s+<([0-9A-Fa-f]+)>/g;
-  let match = pairPattern.exec(cmap);
-
-  while (match) {
-    entries.set(match[1].toUpperCase(), decodeUnicodeHex(match[2]));
-    match = pairPattern.exec(cmap);
-  }
-
-  const lengths = Array.from(new Set(Array.from(entries.keys()).map((key) => key.length))).sort((a, b) => b - a);
-  return { entries, lengths };
-}
-
-async function inflateDeflateStream(bytes) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-function extractPdfTextFromContentStream(contentStream, fontMaps) {
-  const strings = [];
-  let activeFont = "";
-  const tokenPattern = /\/([A-Za-z0-9]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f\s]+)>\s*Tj|(\((?:\\.|[^\\()])*\))\s*Tj|\[([\s\S]*?)\]\s*TJ/g;
-  let match = tokenPattern.exec(contentStream);
-
-  while (match) {
-    if (match[1]) {
-      activeFont = match[1];
-    } else if (match[2]) {
-      strings.push(decodePdfHexString(match[2], fontMaps.get(activeFont)));
-    } else if (match[3]) {
-      strings.push(decodePdfLiteralString(match[3].slice(1, -1)));
-    } else if (match[4]) {
-      strings.push(decodePdfTextArray(match[4], fontMaps.get(activeFont)));
-    }
-    match = tokenPattern.exec(contentStream);
-  }
-
-  return strings.join("\n");
-}
-
-function decodePdfTextArray(value, fontMap) {
-  const parts = [];
-  const arrayPattern = /<([0-9A-Fa-f\s]+)>|\((?:\\.|[^\\()])*\)/g;
-  let match = arrayPattern.exec(value);
-
-  while (match) {
-    if (match[1]) {
-      parts.push(decodePdfHexString(match[1], fontMap));
-    } else {
-      parts.push(decodePdfLiteralString(match[0].slice(1, -1)));
-    }
-    match = arrayPattern.exec(value);
-  }
-
-  return parts.join("");
-}
-
-function decodePdfHexString(value, fontMap) {
-  const hex = value.replace(/\s+/g, "").toUpperCase();
-  if (!hex) return "";
-
-  if (fontMap?.entries?.size) {
-    let output = "";
-    let index = 0;
-    while (index < hex.length) {
-      const length = fontMap.lengths.find((size) => fontMap.entries.has(hex.slice(index, index + size)));
-      if (length) {
-        output += fontMap.entries.get(hex.slice(index, index + length));
-        index += length;
-      } else {
-        index += 2;
-      }
-    }
-    return output;
-  }
-
-  if (/^(00[2-7][0-9A-F])/.test(hex) || hex.includes("00")) {
-    return decodeUnicodeHex(hex);
-  }
-
-  let output = "";
-  for (let index = 0; index < hex.length; index += 2) {
-    output += String.fromCharCode(parseInt(hex.slice(index, index + 2), 16));
-  }
-  return output;
-}
-
-function decodePdfLiteralString(value) {
-  const unescaped = unescapePdfString(value);
-  if (!unescaped.includes("\u0000")) return unescaped;
-
-  return unescaped
-    .split("")
-    .filter((char) => char !== "\u0000")
-    .join("");
-}
-
-function decodeUnicodeHex(hex) {
-  let output = "";
-  const clean = hex.replace(/\s+/g, "");
-  for (let index = 0; index < clean.length; index += 4) {
-    const code = parseInt(clean.slice(index, index + 4), 16);
-    if (Number.isFinite(code)) {
-      output += String.fromCharCode(code);
-    }
-  }
-  return output;
-}
-
-function unescapePdfString(value) {
-  return value
-    .replace(/\\([nrtbf()\\])/g, (_match, char) => {
-      const escapes = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", "(": "(", ")": ")", "\\": "\\" };
-      return escapes[char] || char;
-    })
-    .replace(/\\([0-7]{1,3})/g, (_match, octal) => String.fromCharCode(parseInt(octal, 8)));
-}
-
-function decodePdfLikeText(rawText) {
-  const literalStrings = [];
-  const stringPattern = /\(([^()]{2,})\)/g;
-  let match = stringPattern.exec(rawText);
-
-  while (match) {
-    literalStrings.push(
-      match[1]
-        .replace(/\\n/g, "\n")
-        .replace(/\\r/g, "\n")
-        .replace(/\\t/g, " ")
-        .replace(/\\([()\\])/g, "$1")
-    );
-    match = stringPattern.exec(rawText);
-  }
-
-  const fallback = rawText
-    .replace(/[^\x20-\x7E\n\r\t]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return normalizeExtractedText(literalStrings.join("\n") || fallback);
-}
-
-function normalizeExtractedText(text) {
-  return text
-    .split(/\n+/)
-    .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-}
-
-function extractBillDetails(text, fileName) {
-  const normalized = text.replace(/\s+/g, " ");
-  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-
-  const billerHit = findBillerSmart(lines, normalized, fileName);
-  const amount = findAmountSmart(lines);
-  const dueDate = findDueDateSmart(lines);
-  const reference = findReferenceSmart(lines);
-  const category = billerHit.category || inferCategory(normalized) || "";
-
-  const confidence =
-    (amount ? 0.4 : 0) + (dueDate ? 0.35 : 0) + (billerHit.known ? 0.15 : billerHit.biller ? 0.05 : 0) + (reference ? 0.1 : 0);
-
-  return { biller: billerHit.biller, amount, dueDate, reference, category, confidence };
-}
-
 // Known billers — recognising these gives an exact name AND the right category,
 // which is what lets most statements skip the AI step entirely.
 const BILLER_DICTIONARY = [
@@ -2888,195 +2561,9 @@ function inferCategory(normalized) {
   return hit ? hit.cat : "";
 }
 
-function findBillerSmart(lines, normalized, fileName) {
+function findBillerSmart(normalized) {
   const known = BILLER_DICTIONARY.find((b) => b.rx.test(normalized));
-  if (known) return { biller: known.name, category: known.cat, known: true };
-  const biller = findBiller(lines) || cleanupBiller(fileName.replace(/\.pdf$/i, ""));
-  return { biller, category: "", known: false };
-}
-
-const AMOUNT_LABELS = [
-  { rx: /total amount (?:due|payable)/i, w: 100 },
-  { rx: /amount due/i, w: 95 },
-  { rx: /balance due/i, w: 92 },
-  { rx: /please pay/i, w: 90 },
-  { rx: /amount payable|total payable/i, w: 88 },
-  { rx: /total due/i, w: 84 },
-  { rx: /total \(inc/i, w: 78 },
-  { rx: /new charges/i, w: 70 },
-  { rx: /\btotal\b/i, w: 50 }
-];
-
-// Pull every money-looking token out of a string, flagging cents and credits.
-function moneyTokens(str) {
-  if (!str) return [];
-  const out = [];
-  const rx = /(?:AUD|A\$|\$)?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2}|\d{2,7})(\s?(?:CR|cr))?/g;
-  let m;
-  while ((m = rx.exec(str))) {
-    const value = Number(m[1].replace(/,/g, ""));
-    if (!Number.isFinite(value)) continue;
-    out.push({ value, hasCents: /\.\d{2}/.test(m[1]), credit: !!m[2] });
-  }
-  return out;
-}
-
-function findAmountSmart(lines) {
-  let best = null;
-  lines.forEach((line, i) => {
-    for (const lbl of AMOUNT_LABELS) {
-      if (!lbl.rx.test(line)) continue;
-      const after = line.slice(line.search(lbl.rx));
-      const cands = [...moneyTokens(after), ...moneyTokens(lines[i + 1] || ""), ...moneyTokens(lines[i + 2] || "")];
-      const pick = cands.filter((c) => !c.credit && (c.hasCents || c.value >= 5))
-        .sort((a, b) => (b.hasCents - a.hasCents) || (b.value - a.value))[0];
-      if (pick) {
-        const score = lbl.w + (pick.hasCents ? 5 : 0);
-        if (!best || score > best.score) best = { value: pick.value, score };
-      }
-      break;
-    }
-  });
-  if (best) return best.value.toFixed(2);
-  // Fallback: the largest cents-bearing amount anywhere is usually the total.
-  const all = [];
-  lines.forEach((l) => moneyTokens(l).forEach((t) => { if (t.hasCents && !t.credit) all.push(t.value); }));
-  return all.length ? Math.max(...all).toFixed(2) : "";
-}
-
-const DUE_LABELS = [
-  /total amount due by/i, /payment due (?:date|by)/i, /due date/i, /please pay by/i,
-  /pay by/i, /due by/i, /due on/i, /\bdue\b/i
-];
-
-function findDueDateSmart(lines) {
-  for (const rx of DUE_LABELS) {
-    for (let i = 0; i < lines.length; i++) {
-      if (!rx.test(lines[i])) continue;
-      const scope = [lines[i].slice(lines[i].search(rx)), lines[i + 1] || "", lines[i + 2] || ""].join("  ");
-      const d = extractDate(scope);
-      if (d) return d;
-    }
-  }
-  return "";
-}
-
-function findReferenceSmart(lines) {
-  return valueNearLabel(lines, /account number/i)
-    || valueNearLabel(lines, /customer (?:number|reference|ref)/i)
-    || valueNearLabel(lines, /reference (?:number|no)/i)
-    || valueNearLabel(lines, /invoice (?:number|no)/i)
-    || valueNearLabel(lines, /\bbiller code\b/i);
-}
-
-function findBiller(lines) {
-  const companyLine = lines.find((line) => /\b(Pty\.?\s*Ltd|Limited|Ltd|Inc|LLC|Services)\b/i.test(line));
-  if (companyLine) return cleanupBiller(companyLine);
-
-  const skip = /^(page|tax invoice|invoice no|issue date|account number|total|amount|date)$/i;
-  const candidate = lines.find((line) => /[a-z]/i.test(line) && !skip.test(line) && !/\d{4,}/.test(line));
-  return cleanupBiller(candidate);
-}
-
-function findAmount(lines) {
-  const amountLineIndex = lines.findIndex((line) => /total amount due|amount due|balance due/i.test(line));
-  if (amountLineIndex !== -1) {
-    const nearby = [
-      lines[amountLineIndex - 2],
-      lines[amountLineIndex - 1],
-      lines[amountLineIndex + 1],
-      lines[amountLineIndex + 2]
-    ].filter(Boolean);
-    const amount = nearby.map(extractMoney).find(Boolean);
-    if (amount) return amount;
-  }
-
-  const totalLine = lines.find((line) => /total.*\$\d/i.test(line));
-  return extractMoney(totalLine || "");
-}
-
-function findDueDate(lines) {
-  const dueLineIndex = lines.findIndex((line) => /bill due date|due date|pay by|payment due/i.test(line));
-  if (dueLineIndex !== -1) {
-    const nearby = [
-      lines[dueLineIndex - 2],
-      lines[dueLineIndex - 1],
-      lines[dueLineIndex + 1],
-      lines[dueLineIndex + 2]
-    ].filter(Boolean);
-    const date = nearby.map(extractDate).find(Boolean);
-    if (date) return date;
-  }
-
-  const dueText = lines.find((line) => /due/i.test(line)) || "";
-  return extractDate(dueText);
-}
-
-function findReference(lines) {
-  return valueNearLabel(lines, /account number/i) || valueNearLabel(lines, /cust ref/i) || valueNearLabel(lines, /invoice number/i);
-}
-
-function valueNearLabel(lines, labelPattern) {
-  const index = lines.findIndex((line) => labelPattern.test(line));
-  if (index === -1) return "";
-
-  const inline = lines[index].replace(labelPattern, "").replace(/[:#]/g, "").trim();
-  if (/^[A-Z0-9][A-Z0-9 -]{4,24}$/i.test(inline)) return inline;
-
-  return (lines[index + 1] || "").trim();
-}
-
-function extractMoney(value) {
-  const match = value.match(/\$?\s?(\d{1,4}(?:,\d{3})*\.\d{2})/);
-  return match ? match[1].replace(/,/g, "") : "";
-}
-
-function extractDate(value) {
-  const match = value.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{2,4})/i);
-  return match ? toDateInputValue(match[1]) : "";
-}
-
-function cleanupBiller(value) {
-  if (!value) return "";
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\b(invoice|bill|statement|pdf)\b/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim()
-    .slice(0, 60);
-}
-
-function toDateInputValue(value) {
-  const clean = value.replace(/(\d)(st|nd|rd|th)\b/i, "$1");
-  const namedDateMatch = clean.match(/^(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{2,4})$/i);
-  if (namedDateMatch) {
-    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-    const month = months.indexOf(namedDateMatch[2].toLowerCase().slice(0, 3)) + 1;
-    return formatDateParts(normalizeYear(namedDateMatch[3]), month, Number(namedDateMatch[1]));
-  }
-
-  const slashMatch = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-  if (slashMatch) {
-    const first = Number(slashMatch[1]);
-    const second = Number(slashMatch[2]);
-    const year = normalizeYear(slashMatch[3]);
-    const auStyle = navigator.language.toLowerCase().includes("au") || /Australia|Pacific\/Auckland|Europe\/London/.test(state.settings?.timezone || "");
-    const dayFirst = first > 12 || (second <= 12 && auStyle);
-    const day = dayFirst ? first : second;
-    const month = dayFirst ? second : first;
-    return formatDateParts(year, month, day);
-  }
-
-  const parsed = new Date(clean);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
-  }
-  return "";
-}
-
-function normalizeYear(year) {
-  const number = Number(year);
-  return number < 100 ? 2000 + number : number;
+  return known ? { category: known.cat, known: true } : { category: "", known: false };
 }
 
 function formatDateParts(year, month, day) {

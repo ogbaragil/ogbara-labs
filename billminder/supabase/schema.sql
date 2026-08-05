@@ -61,6 +61,13 @@ alter table public.bills
 alter table public.bills
   add column if not exists series_id text;
 
+-- Tracks whether a local scan copy exists for this bill (the scan itself is
+-- device-local, stored in the browser's IndexedDB — this column only carries
+-- the flag across sync so other devices/household members know a document
+-- was attached). Cleared automatically once the bill is marked paid.
+alter table public.bills
+  add column if not exists has_document boolean not null default false;
+
 alter table public.user_settings
   add column if not exists first_name text;
 

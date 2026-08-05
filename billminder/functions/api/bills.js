@@ -60,6 +60,11 @@ export async function onRequestPost({ request, env }) {
   const householdId = user ? await getUserHouseholdId(env, user.id, authToken) : null;
   const rows = bills.map((bill) => toSupabaseRow(bill, appInstanceId, syncSecret, user?.id || null, householdId));
 
+  // Safety net: a paid bill should never keep a stored document, even if the
+  // client's own delete call (fired when the bill was marked paid) never
+  // reached the server — e.g. the app was closed offline before it synced.
+  await purgePaidDocuments(env, rows);
+
   if (user) {
     const result = await syncUserBills(env, rows, user.id, authToken, syncSecret || "", householdId);
     if (result.error) return result.error;
@@ -108,6 +113,9 @@ export async function onRequestDelete({ request, env }) {
   }
 
   const householdId = user ? await getUserHouseholdId(env, user.id, authToken) : null;
+  const scopeKey = householdId || user?.id || appInstanceId;
+  await purgeDocuments(env, scopeKey, clientBillIds);
+
   const inList = `(${clientBillIds.map((id) => `"${encodeURIComponent(id)}"`).join(",")})`;
   const scope = user
     ? (householdId
@@ -171,6 +179,52 @@ function getSupabaseUrl(env) {
 
 function getSupabaseAnonKey(env) {
   return env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || "";
+}
+
+function serviceKey(env) { return env.SUPABASE_SERVICE_ROLE_KEY || ""; }
+
+const DOCUMENT_BUCKET = "bill-documents";
+
+// Best-effort cleanup — never blocks or fails the bill sync itself. The
+// client already deletes a bill's document directly (functions/api/documents.js)
+// the moment it's marked paid or deleted; this just catches the cases where
+// that call never reached the server.
+async function purgePaidDocuments(env, rows) {
+  const targets = rows
+    .filter((r) => r.status === "paid")
+    .map((r) => scopedDocPath(r.household_id || r.user_id || r.app_instance_id, r.client_bill_id))
+    .filter(Boolean);
+  await purgeStoragePaths(env, targets);
+}
+
+async function purgeDocuments(env, scopeKey, clientBillIds) {
+  const targets = clientBillIds
+    .map((id) => scopedDocPath(scopeKey, id))
+    .filter(Boolean);
+  await purgeStoragePaths(env, targets);
+}
+
+function scopedDocPath(scopeKey, clientBillId) {
+  if (!scopeKey || !clientBillId) return null;
+  return `${scopeKey}/${clientBillId}`;
+}
+
+async function purgeStoragePaths(env, paths) {
+  if (!paths.length || !serviceKey(env)) return;
+  try {
+    await fetch(`${getSupabaseUrl(env).replace(/\/+$/, "")}/storage/v1/object/${DOCUMENT_BUCKET}`, {
+      method: "DELETE",
+      headers: {
+        apikey: serviceKey(env),
+        Authorization: `Bearer ${serviceKey(env)}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ prefixes: paths })
+    });
+  } catch {
+    // Ignore — worst case a document lingers until the client's own delete
+    // call succeeds, or it's cleaned up on the next sync.
+  }
 }
 
 async function getSupabaseUser(env, authToken) {
@@ -286,6 +340,9 @@ function toSupabaseRow(bill, appInstanceId, syncSecret, userId, householdId) {
     reference: bill.reference || null,
     notes: bill.notes || null,
     file_name: bill.fileName || null,
+    // Paid bills never keep a stored document — enforced here regardless of
+    // what the client sends, as a second safety net alongside purgePaidDocuments.
+    has_document: bill.status === "paid" ? false : Boolean(bill.hasDocument),
     status: bill.status || "unpaid",
     paid_at: bill.paidAt || null,
     payment_notes: bill.paymentNotes || null,
@@ -312,6 +369,7 @@ function fromSupabaseRow(row) {
     reference: row.reference || "",
     notes: row.notes || "",
     fileName: row.file_name || "",
+    hasDocument: Boolean(row.has_document),
     status: row.status || "unpaid",
     paidAt: row.paid_at || "",
     paymentNotes: row.payment_notes || "",
