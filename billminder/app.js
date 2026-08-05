@@ -358,32 +358,32 @@ function clearedRatio() {
 
 function monthBucketKey(d) { return `${d.getFullYear()}-${d.getMonth()}`; }
 
-// Per-category average monthly spend, learned from the trailing window of real
-// bills (paid + unpaid) by their due date. Averaged over the months in which the
-// category was actually active, so a category that bills every month predicts at
-// roughly its real monthly amount rather than being diluted by quiet months.
+// Per-category spend, smoothed evenly across the trailing window. Used only
+// as a fallback for categories with no currently-active recurring bill (see
+// forecastMonths) — for those we don't know the real future cadence, so
+// spreading the historical total across every month gives the best available
+// expected-value estimate without assuming it recurs monthly.
 function categoryMonthlyRates(windowMonths = 6) {
   const today = startOfDay(new Date());
   const start = new Date(today.getFullYear(), today.getMonth() - (windowMonths - 1), 1);
   const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const sums = {};
-  const activeMonths = {};
   state.bills.forEach((b) => {
     const d = dateFromInput(b.dueDate);
     if (d < start || d > end) return;
     sums[b.category] = (sums[b.category] || 0) + b.amount;
-    (activeMonths[b.category] = activeMonths[b.category] || new Set()).add(monthBucketKey(d));
   });
   const rates = {};
-  Object.keys(sums).forEach((c) => { rates[c] = sums[c] / Math.max(1, activeMonths[c].size); });
+  Object.keys(sums).forEach((c) => { rates[c] = sums[c] / windowMonths; });
   return rates;
 }
 
 // Predicted spend for the next `count` months, per category. Known commitments
 // (recurring projections + scheduled unpaid bills, plus what's already been paid
-// this month) are used where they exist; otherwise each category is predicted
-// from its learned monthly rate. This forecasts likely future spend even for
-// months you haven't entered bills for yet.
+// this month) are used where they exist. Categories with no currently-active
+// recurring bill fall back to a smoothed historical average; categories that
+// DO have one rely entirely on its real schedule — including the months it
+// isn't due — so a quarterly bill isn't predicted as if it recurred monthly.
 function forecastMonths(count = 6) {
   const today = startOfDay(new Date());
   const rates = categoryMonthlyRates(6);
@@ -394,6 +394,13 @@ function forecastMonths(count = 6) {
   }
   const horizon = new Date(today.getFullYear(), today.getMonth() + count, 1);
   const byKey = Object.fromEntries(out.map((m) => [m.key, m]));
+
+  // A category with a live recurring bill has a known future cadence — its
+  // real schedule (below) is authoritative, so the averaged fallback must
+  // never pad in the months it doesn't recur.
+  const recurringCategories = new Set(
+    state.bills.filter((b) => b.recurrence !== "once").map((b) => b.category)
+  );
 
   // Known/scheduled amounts from real bills.
   const scheduled = {};
@@ -422,7 +429,7 @@ function forecastMonths(count = 6) {
     const sched = scheduled[m.key] || {};
     cats.forEach((c) => {
       const known = sched[c] || 0;
-      const val = known > 0 ? known : (rates[c] || 0);
+      const val = known > 0 ? known : (recurringCategories.has(c) ? 0 : (rates[c] || 0));
       if (val > 0) {
         m.byCategory[c] = (m.byCategory[c] || 0) + val;
         m.predicted[c] = known <= 0; // true when this figure is modelled, not scheduled
