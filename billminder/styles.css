@@ -282,7 +282,8 @@ textarea { resize: vertical; }
 .group-head .gtoggle { color: var(--faint); transition: transform .2s; }
 .group.collapsed .gtoggle { transform: rotate(-90deg); }
 .group.collapsed .group-body { display: none; }
-.gh-red { color: var(--red); } .gh-orange { color: var(--orange-d); } .gh-blue { color: var(--blue); } .gh-gray { color: var(--muted); }
+.gh-red { color: var(--red); } .gh-orange { color: var(--orange-d); } .gh-blue { color: var(--blue); } .gh-gray { color: var(--muted); } .gh-green { color: var(--green); }
+.month-group-total { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 14px; }
 .group-body { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 14px; box-shadow: var(--shadow); }
 .group-more { text-align: center; padding: 12px 0 6px; border-top: 1px solid var(--line-soft); }
 

@@ -593,6 +593,46 @@ function billsLaterThanMonth() {
   return state.bills.filter((b) => b.status === "unpaid" && dateFromInput(b.dueDate) > end).sort(byDue);
 }
 function unpaidSorted() { return state.bills.filter((b) => b.status === "unpaid").sort(byDue); }
+
+/* -------- month grouping (Upcoming / Paid tabs) -------- */
+function monthKeyFromInput(value) {
+  const d = dateFromInput(value);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabelFromKey(key) {
+  const [y, m] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(new Date(y, m - 1, 1));
+}
+// Groups bills by the month of `dateField`, sorted by month (asc/desc),
+// with each group's bills also sorted and a per-month subtotal.
+function groupBillsByMonth(bills, dateField, order = "asc") {
+  const map = new Map();
+  bills.forEach((b) => {
+    const raw = b[dateField];
+    if (!raw) return;
+    const key = monthKeyFromInput(raw);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(b);
+  });
+  const keys = [...map.keys()].sort((a, b) => (order === "asc" ? a.localeCompare(b) : b.localeCompare(a)));
+  return keys.map((key) => {
+    const groupBills = map.get(key).slice().sort((a, b) => {
+      const cmp = String(a[dateField] || "").localeCompare(String(b[dateField] || ""));
+      return order === "asc" ? cmp : -cmp;
+    });
+    return { key, label: monthLabelFromKey(key), bills: groupBills, total: sumAmt(groupBills) };
+  });
+}
+function renderMonthGroups(groups, toneClass) {
+  if (!groups.length) return "";
+  return groups.map((g) => `<section class="group" data-group="month-${g.key}">
+    <div class="group-head">
+      <span class="gh-left ${toneClass}">${escapeHtml(g.label)} (${g.bills.length})</span>
+      <span class="gh-right"><span class="month-group-total ${toneClass}">${money(g.total)}</span></span>
+    </div>
+    <div class="group-body">${g.bills.map(billRow).join("")}</div>
+  </section>`).join("");
+}
 function updateReminderBadge() {
   const n = overdueBills().length + dueTodayBills().length;
   const b = $("#reminderBadge");
@@ -927,10 +967,21 @@ function renderBills() {
   if (tab === "due") {
     wrap.innerHTML = listOrEmpty([...overdue, ...due.slice().sort(byDue)], "Nothing overdue or due soon.");
   } else if (tab === "paid") {
-    const paid = state.bills.filter((b) => b.status === "paid").sort((a, b) => String(b.paidAt || "").localeCompare(String(a.paidAt || "")));
-    wrap.innerHTML = listOrEmpty(paid, "No paid bills yet.");
+    const paid = state.bills.filter((b) => b.status === "paid");
+    if (!paid.length) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing here</h3><p>No paid bills yet.</p></div>`;
+    } else {
+      // Most recently paid month first.
+      wrap.innerHTML = renderMonthGroups(groupBillsByMonth(paid, "paidAt", "desc"), "gh-green");
+    }
   } else if (tab === "upcoming") {
-    wrap.innerHTML = listOrEmpty(billsLaterThanMonth(), "Nothing further out.");
+    const upcoming = unpaidSorted();
+    if (!upcoming.length) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing here</h3><p>Nothing upcoming.</p></div>`;
+    } else {
+      // All upcoming (unpaid) bills, grouped by due-date month, earliest first.
+      wrap.innerHTML = renderMonthGroups(groupBillsByMonth(upcoming, "dueDate", "asc"), "gh-blue");
+    }
   } else {
     const t = startOfDay(new Date());
     const today = dueTodayBills();
