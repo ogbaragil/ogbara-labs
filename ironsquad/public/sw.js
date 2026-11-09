@@ -1,5 +1,5 @@
 /* Iron Squad — tank defence service worker */
-const CACHE = "ironsquad-v1";
+const CACHE = "ironsquad-v3";
 const ASSETS = ["./","./manifest.webmanifest",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
   "./icons/apple-touch-icon.png","./icons/favicon-32.png"];
