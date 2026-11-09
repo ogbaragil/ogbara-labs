@@ -1,0 +1,17 @@
+# Iron Squad runs as a Cloudflare Worker (not Pages) because online co-op
+# needs a Durable Object. The game itself is the static site in ./public.
+name = "ironsquad"
+main = "src/worker.js"
+compatibility_date = "2025-06-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
