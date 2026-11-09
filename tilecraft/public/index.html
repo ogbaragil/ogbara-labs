@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f2233">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tilecraft">
+<title>Tilecraft — a crossword tile game</title>
+<meta name="description" content="Build words on a 15×15 board. Play solo against the computer or pass-and-play with a friend. No ads, no accounts, works offline.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Albert+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f2233; --bg2:#08141f; --panel:#16304a; --panel2:#1c3a57; --line:rgba(255,255,255,.12);
+  --ink:#f4f1e8; --muted:#a9bccd; --faint:#7890a6;
+  --accent:#3cc6a0; --accent-ink:#06261c; --warn:#ff8a7a;
+  --board:#efe8d6; --cell:#f6f1e3; --grid:#d9cfb6;
+  --tw:#e2574c; --dw:#f2a7a0; --tl:#2f7fc6; --dl:#9fd0ef;
+  --tile1:#fdebc0; --tile2:#f1cd83; --tile-ink:#3b2a12; --tile-edge:#c99a4a;
+  --p1:#3cc6a0; --p2:#f2b544;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Albert Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;font-family:var(--body);color:var(--ink);user-select:none;-webkit-user-select:none;overscroll-behavior:none;
+  background:radial-gradient(900px 500px at 50% -10%,rgba(60,198,160,.14),transparent 60%),linear-gradient(180deg,var(--bg),var(--bg2));
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input{font-family:inherit}
+.hidden{display:none!important}
+
+/* ---------- Menu screen ---------- */
+#menu{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 18px;gap:22px}
+.logo{display:flex;gap:6px}
+.logo .tile{width:min(9vw,44px);height:min(9vw,44px);font-size:min(5.4vw,26px);animation:drop .5s cubic-bezier(.2,.8,.3,1.2) both}
+.logo .tile:nth-child(2){animation-delay:.05s}.logo .tile:nth-child(3){animation-delay:.1s}.logo .tile:nth-child(4){animation-delay:.15s}
+.logo .tile:nth-child(5){animation-delay:.2s}.logo .tile:nth-child(6){animation-delay:.25s}.logo .tile:nth-child(7){animation-delay:.3s}
+.logo .tile:nth-child(8){animation-delay:.35s}.logo .tile:nth-child(9){animation-delay:.4s}
+@keyframes drop{from{transform:translateY(-30px);opacity:0}to{transform:none;opacity:1}}
+.tagline{color:var(--muted);margin:-8px 0 0;text-align:center}
+.card{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(0,0,0,.25);padding:5px;border-radius:14px}
+.seg.three{grid-template-columns:repeat(3,1fr)}
+.seg button{padding:11px 6px;border-radius:10px;font-weight:700;color:var(--muted)}
+.seg button.on{background:var(--panel2);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.field{margin-top:16px}
+.field label{display:block;font-size:12px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.names{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.join-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.join-row .btn{margin:0;width:auto;padding:0 22px}
+#joinCode{text-align:center;letter-spacing:6px;text-transform:uppercase;font-family:var(--display);font-weight:800;font-size:20px}
+.or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;margin-top:16px}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.pl.off .nm,.pl.off .sc{opacity:.5}
+.code-tiles{display:flex;justify-content:center;gap:8px;margin:16px 0 6px}.code-tiles .tile{width:58px;height:58px;font-size:34px}
+.names input{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:16px;font-weight:600}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border-radius:999px;font-family:var(--display);font-weight:800;font-size:18px;margin-top:18px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 14px 36px rgba(60,198,160,.25)}
+.btn.primary:disabled{opacity:.55}
+.btn.ghost{border:1px solid var(--line);margin-top:10px;font-size:16px}
+.stats{display:flex;justify-content:center;gap:18px;color:var(--faint);font-size:13px;flex-wrap:wrap;text-align:center}
+.stats b{color:var(--ink);display:block;font-family:var(--display);font-size:20px}
+.foot{color:var(--faint);font-size:12px;text-align:center}
+.foot a{color:var(--muted)}
+
+/* ---------- Game screen ---------- */
+#game{height:100dvh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 1fr auto;max-width:720px;margin:0 auto;padding:8px 6px 10px}
+.top{display:flex;align-items:center;gap:6px;padding:2px 2px 8px}
+.players{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pl{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);transition:box-shadow .2s,border-color .2s;min-width:0}
+.pl .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .sc{font-family:var(--display);font-weight:800;font-size:22px;line-height:1}
+.pl.on{border-color:var(--pc);box-shadow:0 0 0 1px var(--pc),0 8px 24px rgba(0,0,0,.3)}
+.pl .dot{width:8px;height:8px;border-radius:50%;background:var(--pc);flex:none;opacity:.35}
+.pl.on .dot{opacity:1;box-shadow:0 0 10px var(--pc)}
+.icon-btn{width:44px;height:44px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;font-size:18px;flex:none}
+.status{display:flex;align-items:center;gap:8px;padding:0 4px 8px;font-size:13.5px;color:var(--muted);min-height:30px}
+.status .msg{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status .msg b{color:var(--ink)}
+.status .msg.err{color:var(--warn)}
+.chip{padding:5px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:12.5px;white-space:nowrap;color:var(--ink)}
+.boardwrap{display:flex;align-items:center;justify-content:center;min-height:0}
+.board{--s:min(calc(100vw - 12px),calc(100dvh - 300px),708px);width:var(--s);height:var(--s);display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);gap:1.5px;padding:4px;background:var(--grid);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.4);container-type:inline-size;touch-action:none}
+.cell{position:relative;background:var(--cell);border-radius:3px;display:grid;place-items:center;font-size:2.1cqw;font-weight:800;color:rgba(255,255,255,.95);letter-spacing:-.02em}
+.cell.tw{background:var(--tw)}.cell.dw,.cell.star{background:var(--dw);color:#7a2a23}.cell.tl{background:var(--tl)}.cell.dl{background:var(--dl);color:#1d4f75}
+.cell.star::after{content:"★";font-size:4cqw;color:#7a2a23}
+.cell.drop{outline:2px solid var(--accent);outline-offset:-2px}
+.tile{position:relative;display:grid;place-items:center;border-radius:12%;background:linear-gradient(160deg,var(--tile1),var(--tile2));color:var(--tile-ink);font-family:var(--display);font-weight:800;box-shadow:inset 0 -2px 0 var(--tile-edge),0 1px 2px rgba(0,0,0,.3);line-height:1}
+.tile .pt{position:absolute;right:9%;bottom:6%;font-family:var(--body);font-weight:800;font-size:.38em}
+.tile.blank .ch{color:#9b6a1e;opacity:.85}
+.cell .tile{position:absolute;inset:0;font-size:4.2cqw}
+.cell .tile .pt{font-size:1.7cqw}
+.cell .tile.pending{background:linear-gradient(160deg,#fff6d8,#ffe08a);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 2px var(--accent)}
+.cell .tile.last::before{content:"";position:absolute;left:8%;top:8%;width:14%;height:14%;border-radius:50%;background:var(--lastc,var(--accent))}
+.cell .tile.pop{animation:pop .35s cubic-bezier(.2,.8,.3,1.4)}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+.cell .tile.bad{box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 2px var(--warn)}
+.dock{padding-top:10px;display:grid;gap:10px}
+.rack{display:flex;justify-content:center;gap:min(1.2vw,6px);min-height:calc(min(11.5vw,56px) + 12px);padding:6px;border-radius:16px;background:linear-gradient(180deg,#5a3a1a,#3e2810);box-shadow:inset 0 2px 6px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.3);position:relative}
+.rack .tile{width:min(11.5vw,56px);height:min(11.5vw,56px);font-size:min(6.6vw,30px);touch-action:none;transition:transform .15s}
+.rack .tile.sel{transform:translateY(-8px);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 3px var(--accent),0 8px 16px rgba(0,0,0,.35)}
+.rack .tile.dragging{opacity:.25}
+.rack .tile.pick{outline:3px solid var(--warn);outline-offset:2px}
+.rack-cover{position:absolute;inset:0;border-radius:16px;display:grid;place-items:center;background:rgba(10,20,31,.92);font-weight:700;color:var(--muted);font-size:14px}
+.actions{display:grid;grid-template-columns:repeat(4,1fr) 1.6fr;gap:6px}
+.act{min-height:48px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1}
+.act span{font-size:17px}
+.act:disabled{opacity:.4}
+.act.play{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-family:var(--display);font-size:17px;font-weight:800;flex-direction:row;gap:8px}
+.act.play:disabled{background:var(--panel2);color:var(--faint);opacity:1}
+.ghost-tile{position:fixed;z-index:50;pointer-events:none;width:52px;height:52px;font-size:28px;transform:translate(-50%,-70%) scale(1.08);box-shadow:0 12px 28px rgba(0,0,0,.45)}
+.side{display:none}
+
+/* ---------- Sheets & overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(4,10,16,.66);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;padding:12px;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+.sheet{width:min(520px,100%);max-height:86dvh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:20px;animation:up .25s cubic-bezier(.2,.8,.3,1);margin-bottom:env(safe-area-inset-bottom)}
+@keyframes up{from{transform:translateY(30px);opacity:0}}
+.sheet h2{font-family:var(--display);margin:0 0 6px;font-size:26px;letter-spacing:-.02em}
+.sheet p{color:var(--muted);margin:6px 0}
+.sheet .row{display:flex;gap:8px}
+.sheet .row .btn{margin-top:14px}
+.menu-list{display:grid;gap:8px;margin-top:10px}
+.menu-list button{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:rgba(0,0,0,.2);border:1px solid var(--line);font-weight:700;font-size:15px;text-align:left}
+.menu-list button span{font-size:18px;width:24px;text-align:center}
+.letters{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.letters .tile{aspect-ratio:1;font-size:22px}
+.swap-rack{display:flex;justify-content:center;gap:6px;margin:14px 0 4px;flex-wrap:wrap}
+.swap-rack .tile{width:46px;height:46px;font-size:24px;transition:transform .15s}
+.swap-rack .tile.sel{transform:translateY(-6px);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 3px var(--warn)}
+.log{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.log li{display:flex;gap:10px;align-items:baseline;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,.2);font-size:14px}
+.log li .who{width:10px;height:10px;border-radius:50%;background:var(--pc);flex:none;align-self:center}
+.log li .w{flex:1;color:var(--muted)}
+.log li .w b{color:var(--ink);letter-spacing:.04em}
+.log li .s{font-family:var(--display);font-weight:800}
+.bag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px;margin-top:12px}
+.bag-grid div{display:flex;align-items:center;gap:6px;padding:6px;border-radius:10px;background:rgba(0,0,0,.2);font-weight:700}
+.bag-grid .tile{width:28px;height:28px;font-size:16px}
+.bag-grid .none{opacity:.3}
+.rules{color:var(--muted);font-size:14.5px;line-height:1.55;padding-left:18px}
+.rules li{margin:6px 0}
+.rules b{color:var(--ink)}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:16px;height:16px;border-radius:4px;vertical-align:-3px;margin-right:6px}
+.final-scores{display:grid;gap:8px;margin:14px 0 4px}
+.final-scores div{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(0,0,0,.2);font-weight:700}
+.final-scores div b{font-family:var(--display);font-size:24px}
+.final-scores small{color:var(--faint);font-weight:600;display:block}
+.handoff{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(8,20,31,.94);backdrop-filter:blur(8px);animation:fade .25s}
+.handoff .card{text-align:center}
+.handoff h2{font-family:var(--display);font-size:32px;margin:6px 0}
+.handoff .big{font-size:44px}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 70px);transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:toast 2.4s forwards;white-space:nowrap}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-10px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+.thinking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+
+/* ---------- Wide screens: side panel with the move log ---------- */
+@media (min-width:980px) and (min-height:640px){
+  #game{max-width:1100px;grid-template-columns:auto 320px;grid-template-rows:auto auto 1fr auto;column-gap:20px;padding:16px}
+  .top,.status{grid-column:1/-1}
+  .boardwrap{grid-column:1;grid-row:3}
+  .dock{grid-column:1;grid-row:4}
+  .board{--s:min(calc(100dvh - 300px),700px)}
+  .side{display:flex;flex-direction:column;grid-column:2;grid-row:3/5;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;min-height:0}
+  .side h3{margin:0;font-family:var(--display);font-size:18px}
+  .side .log{overflow:auto;flex:1}
+  .rack .tile{width:56px;height:56px;font-size:30px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ================= MENU ================= -->
+<section id="menu">
+  <div class="logo" aria-label="Tilecraft"></div>
+  <p class="tagline">Build words. Chase the triple. Outscore your rival.</p>
+  <div class="card">
+    <div class="seg" id="modeSeg">
+      <button data-mode="solo" class="on">🤖 Solo</button>
+      <button data-mode="duo">👥 Same device</button>
+      <button data-mode="online" class="hidden" id="onlineMode">🌐 Online</button>
+    </div>
+    <div class="field" id="levelField">
+      <label>Computer level</label>
+      <div class="seg three" id="levelSeg">
+        <button data-level="easy">Easy</button>
+        <button data-level="medium" class="on">Medium</button>
+        <button data-level="hard">Hard</button>
+      </div>
+    </div>
+    <div class="field">
+      <label id="namesLabel">Your name</label>
+      <div class="names">
+        <input id="name1" maxlength="14" placeholder="Player 1" autocomplete="off">
+        <input id="name2" maxlength="14" placeholder="Player 2" autocomplete="off">
+      </div>
+    </div>
+    <button class="btn primary" id="startBtn" disabled>Loading words…</button>
+    <div id="onlineBox" class="hidden">
+      <button class="btn primary" id="hostBtn" disabled>Host a game</button>
+      <div class="or">or join a friend</div>
+      <div class="join-row names"><input id="joinCode" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false"><button class="btn ghost" id="joinBtn">Join</button></div>
+      <p class="foot" style="margin:12px 0 0">Play on two devices. Close the app any time — your game waits for you.</p>
+    </div>
+    <button class="btn ghost hidden" id="rejoinBtn">Rejoin online game</button>
+    <button class="btn ghost hidden" id="resumeBtn">Continue game</button>
+    <button class="btn ghost" id="rulesBtn2">How to play</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <p class="foot">An <a href="https://ogbara.com.au/tilecraft">Ogbara</a> game · no ads · works offline</p>
+</section>
+
+<!-- ================= GAME ================= -->
+<section id="game" class="hidden">
+  <div class="top">
+    <div class="players" id="players"></div>
+    <button class="icon-btn" id="menuBtn" aria-label="Menu">☰</button>
+  </div>
+  <div class="status">
+    <div class="msg" id="msg"></div>
+    <button class="chip" id="bagChip">🎒 100</button>
+  </div>
+  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <div class="dock">
+    <div class="rack" id="rack"></div>
+    <div class="actions">
+      <button class="act" id="shuffleBtn"><span>🔀</span>Shuffle</button>
+      <button class="act" id="swapBtn"><span>♻️</span>Swap</button>
+      <button class="act" id="passBtn"><span>⏭</span>Pass</button>
+      <button class="act" id="hintBtn"><span>💡</span>Hint</button>
+      <button class="act play" id="playBtn" disabled>Play</button>
+    </div>
+  </div>
+  <aside class="side"><h3>Moves</h3><ul class="log" id="sideLog"></ul></aside>
+</section>
+
+<div id="layer"></div>
+
+<script src="engine.js?v=2"></script>
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const N = TC.N, VAL = TC.VALUES;
+const ONLINE = "tilecraft_online_v1";
+let onlineAvail = false;
+const SAVE = "tilecraft_game_v1", PREF = "tilecraft_prefs_v1", STATS = "tilecraft_stats_v1";
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const prefs = Object.assign({ mode: "solo", level: "medium", n1: "", n2: "", sound: true }, load(PREF, {}));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+/* ---------- sound (synthesised) ---------- */
+let ac = null;
+function beep(f = 520, d = 0.06, type = "triangle", vol = 0.08) {
+  if (!prefs.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = f; g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + d);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + d);
+  } catch {}
+}
+const sClick = () => beep(700, 0.04, "square", 0.03);
+const sPlay = (big) => { [523, 659, 784].concat(big ? [1047] : []).forEach((f, i) => setTimeout(() => beep(f, 0.12, "triangle", 0.07), i * 70)); };
+const sErr = () => beep(180, 0.15, "sawtooth", 0.04);
+
+/* ---------- tile markup ---------- */
+function tileHTML(letter, blank, cls = "") {
+  const ch = letter === "?" ? "" : letter.toUpperCase();
+  const pt = blank || letter === "?" ? "" : VAL[letter];
+  return `<div class="tile ${blank || letter === "?" ? "blank" : ""} ${cls}"><span class="ch">${ch}</span><span class="pt">${pt}</span></div>`;
+}
+$(".logo").innerHTML = [..."tilecraft"].map((l) => tileHTML(l)).join("");
+
+/* ---------- menu ---------- */
+function syncMenu() {
+  document.querySelectorAll("#modeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === prefs.mode));
+  document.querySelectorAll("#levelSeg button").forEach((b) => b.classList.toggle("on", b.dataset.level === prefs.level));
+  if (prefs.mode === "online" && !onlineAvail) prefs.mode = "solo";
+  const single = prefs.mode !== "duo";
+  $("#onlineMode").classList.toggle("hidden", !onlineAvail);
+  $("#modeSeg").classList.toggle("three", onlineAvail);
+  $("#levelField").classList.toggle("hidden", prefs.mode !== "solo");
+  $("#name2").classList.toggle("hidden", single);
+  $(".names").style.gridTemplateColumns = single ? "1fr" : "1fr 1fr";
+  $("#namesLabel").textContent = single ? "Your name" : "Player names";
+  $("#startBtn").classList.toggle("hidden", prefs.mode === "online");
+  $("#onlineBox").classList.toggle("hidden", prefs.mode !== "online");
+  const og = load(ONLINE, null);
+  $("#rejoinBtn").classList.toggle("hidden", !(onlineAvail && og && og.code));
+  if (og && og.code) $("#rejoinBtn").textContent = "Rejoin online game " + og.code;
+  $("#name1").value = prefs.n1; $("#name2").value = prefs.n2;
+  const saved = load(SAVE, null);
+  $("#resumeBtn").classList.toggle("hidden", !(saved && !saved.over));
+  if (saved && !saved.over) $("#resumeBtn").textContent = "Continue: " + saved.players.map((p) => `${p.name} ${p.score}`).join(" – ");
+  const st = load(STATS, {});
+  const parts = [];
+  for (const lv of ["easy", "medium", "hard"]) if (st[lv]) parts.push(`<div><b>${st[lv].w}–${st[lv].l}</b>${lv[0].toUpperCase() + lv.slice(1)}</div>`);
+  if (st.online) parts.push(`<div><b>${st.online.w}–${st.online.l}</b>Online</div>`);
+  if (st.best) parts.push(`<div><b>${st.best}</b>Best game</div>`);
+  if (st.bestWord) parts.push(`<div><b>${esc(st.bestWord.w.toUpperCase())}</b>Best word · ${st.bestWord.s}</div>`);
+  $("#stats").innerHTML = parts.join("");
+}
+$("#modeSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { prefs.mode = b.dataset.mode; store(PREF, prefs); syncMenu(); sClick(); } };
+$("#levelSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { prefs.level = b.dataset.level; store(PREF, prefs); syncMenu(); sClick(); } };
+$("#name1").oninput = (e) => { prefs.n1 = e.target.value; store(PREF, prefs); };
+$("#name2").oninput = (e) => { prefs.n2 = e.target.value; store(PREF, prefs); };
+$("#startBtn").onclick = () => newGame();
+$("#resumeBtn").onclick = () => { G = load(SAVE, null); startScreen(); };
+$("#rulesBtn2").onclick = () => showRules();
+$("#hostBtn").onclick = () => hostOnline();
+$("#joinBtn").onclick = () => joinOnline($("#joinCode").value);
+$("#joinCode").onkeydown = (e) => { if (e.key === "Enter") joinOnline($("#joinCode").value); };
+$("#rejoinBtn").onclick = () => { const og = load(ONLINE, null); if (og) joinOnline(og.code); };
+
+fetch("words.dawg").then((r) => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then((buf) => {
+  TC.loadDawg(buf); $("#startBtn").disabled = false; $("#startBtn").textContent = "New game"; $("#hostBtn").disabled = false;
+}).catch(() => { $("#startBtn").textContent = "Couldn't load the word list — reload"; });
+
+/* ---------- game state ---------- */
+let G = null;            // saved game state
+let pending = [];        // [{sq, id, l, b}] tiles placed this turn, not yet played
+let selected = null;     // tile id selected in rack (tap-to-place)
+let busy = false;        // computer thinking
+let preview = null;      // validation result for pending
+
+const cur = () => G.players[G.turn];
+const humanTurn = () => G && !G.over && (G.mode === "online" ? G.started && G.turn === G.seat && net.connected && !net.sending : !cur().ai);
+const bagCount = () => (G.mode === "online" ? G.bagCount : G.bag.length);
+function draw(p) { while (p.rack.length < TC.RACK && G.bag.length) p.rack.push(G.bag.pop()); }
+
+function newGame() {
+  if (!TC.ready()) return;
+  const solo = prefs.mode === "solo";
+  const n1 = prefs.n1.trim() || (solo ? "You" : "Player 1");
+  const n2 = solo ? "Computer" : prefs.n2.trim() || "Player 2";
+  G = { v: 1, mode: prefs.mode, level: prefs.level, board: Array(225).fill(null), bag: TC.newBag(),
+        players: [{ name: n1, score: 0, rack: [], ai: false }, { name: n2, score: 0, rack: [], ai: solo }],
+        turn: 0, moves: [], scoreless: 0, over: false, last: [], hints: 0 };
+  G.players.forEach(draw);
+  // Fair start: in two-player games, a random player goes first.
+  if (!solo && Math.random() < 0.5) G.turn = 1;
+  save(); startScreen(true);
+}
+function save() { if (G && G.mode !== "online") store(SAVE, G); }
+
+function startScreen(fresh) {
+  $("#menu").classList.add("hidden"); $("#game").classList.remove("hidden");
+  pending = []; selected = null; busy = false; preview = null;
+  buildBoard(); render();
+  if (G.over) return showGameOver();
+  if (G.mode === "duo") showHandoff(fresh ? "first" : "resume"); else if (cur().ai) aiTurn();
+}
+function toMenu() { netStop(); closeLayer(); $("#game").classList.add("hidden"); $("#menu").classList.remove("hidden"); syncMenu(); }
+
+/* ---------- rendering ---------- */
+let cells = [];
+function buildBoard() {
+  const b = $("#board"); b.innerHTML = "";
+  cells = [];
+  for (let i = 0; i < 225; i++) {
+    const c = document.createElement("div");
+    const pm = TC.PREMIUM[i];
+    c.className = "cell " + pm.k; c.dataset.sq = i;
+    c.dataset.label = { tw: "3W", dw: "2W", tl: "3L", dl: "2L", star: "", "": "" }[pm.k];
+    b.appendChild(c); cells.push(c);
+  }
+}
+function render() {
+  // players
+  $("#players").innerHTML = G.players.map((p, i) =>
+    `<div class="pl ${i === G.turn && !G.over && G.started !== false ? "on" : ""} ${G.mode === "online" && !p.online ? "off" : ""}" style="--pc:var(--p${i + 1})" title="${G.mode === "online" ? (p.online ? "Online" : "Offline") : ""}"><span class="dot"></span><span class="nm">${esc(p.name)}${G.mode === "online" && i === G.seat ? " (you)" : ""}</span><span class="sc">${p.score}</span></div>`).join("");
+  $("#bagChip").textContent = "🎒 " + bagCount();
+  // board
+  const pend = new Map(pending.map((p) => [p.sq, p]));
+  const last = new Set(G.last || []);
+  const lastColor = G.moves.length ? `var(--p${G.moves[G.moves.length - 1].p + 1})` : "";
+  const bad = new Set();
+  if (preview && preview.bad) for (const w of preview.words) if (preview.bad.includes(w.w.toUpperCase())) w.sqs.forEach((s) => pend.has(s) && bad.add(s));
+  for (let i = 0; i < 225; i++) {
+    const t = G.board[i], p = pend.get(i), c = cells[i];
+    const want = t ? `b${t.l}${t.b ? 1 : 0}${last.has(i) ? "L" : ""}` : p ? `p${p.l}${p.b ? 1 : 0}${bad.has(i) ? "x" : ""}` : "";
+    if (c.dataset.state === want) continue;
+    const wasEmpty = !c.dataset.state || c.dataset.state[0] === "p";
+    c.dataset.state = want;
+    if (t) { c.innerHTML = tileHTML(t.l, t.b, (last.has(i) ? "last" : "") + (last.has(i) && wasEmpty ? " pop" : "")); c.style.setProperty("--lastc", lastColor); }
+    else if (p) c.innerHTML = tileHTML(p.l, p.b, "pending" + (bad.has(i) ? " bad" : ""));
+    else c.innerHTML = c.dataset.label;
+  }
+  renderRack();
+  renderStatus();
+  renderLog($("#sideLog"));
+  const mine = humanTurn() && !busy;
+  $("#playBtn").disabled = G.over ? false : !(mine && preview && preview.ok);
+  $("#playBtn").textContent = G.over ? "Results" : net.sending ? "Sending…" : preview && preview.ok ? `Play · ${preview.score}` : "Play";
+  $("#swapBtn").disabled = !mine || bagCount() < TC.RACK;
+  $("#passBtn").disabled = !mine;
+  $("#shuffleBtn").disabled = !mine;
+  $("#shuffleBtn").innerHTML = pending.length ? "<span>↩️</span>Recall" : "<span>🔀</span>Shuffle";
+  $("#hintBtn").classList.toggle("hidden", G.mode !== "solo");
+  $("#hintBtn").disabled = !mine;
+  document.querySelector(".actions").style.gridTemplateColumns = G.mode === "solo" ? "repeat(4,1fr) 1.6fr" : "repeat(3,1fr) 1.6fr";
+}
+function rackOwner() {
+  if (G.mode === "online") return G.players[G.seat];
+  // In solo games the rack always shows the human's tiles.
+  if (G.mode === "solo") return G.players.find((p) => !p.ai);
+  return cur();
+}
+function renderRack() {
+  const p = rackOwner(), used = new Set(pending.map((x) => x.id));
+  if (G.mode === "online") net.order = p.rack.map((t) => t.id);
+  const r = $("#rack");
+  r.innerHTML = p.rack.filter((t) => !used.has(t.id)).map((t) =>
+    tileHTML(t.l, false, selected === t.id ? "sel" : "").replace('class="tile', `data-id="${t.id}" class="tile`)).join("");
+  if (G.mode === "duo" && handoffOpen) r.insertAdjacentHTML("beforeend", `<div class="rack-cover">Tiles hidden</div>`);
+}
+function renderStatus() {
+  const m = $("#msg"); m.classList.remove("err", "thinking");
+  if (G.mode === "online") {
+    const opp = G.players[1 - G.seat];
+    if (!net.connected && net.want) { m.textContent = G.started ? "Reconnecting" : "Connecting"; m.classList.add("thinking"); return; }
+    if (!G.started) { m.innerHTML = `Waiting for a friend to join · code <b>${esc(G.code)}</b>`; return; }
+    if (G.over) {
+      m.innerHTML = G.rematch[G.seat] && !G.rematch[1 - G.seat] ? `Rematch requested · waiting for <b>${esc(opp.name)}</b>`
+        : G.rematch[1 - G.seat] ? `<b>${esc(opp.name)}</b> wants a rematch · tap Results` : "Game over";
+      return;
+    }
+  }
+  if (G.over) { m.innerHTML = "Game over"; return; }
+  if (busy) { m.innerHTML = `<b>${esc(cur().name)}</b> is thinking`; m.classList.add("thinking"); return; }
+  if (pending.length && preview) {
+    if (preview.ok) m.innerHTML = preview.words.map((w) => `<b>${w.w.toUpperCase()}</b> ${w.s}`).join(" · ") + (preview.bingo ? " · <b>+50 bingo!</b>" : "");
+    else { m.textContent = preview.error; m.classList.add("err"); }
+    return;
+  }
+  const lm = G.moves[G.moves.length - 1];
+  const turnTxt = G.mode === "solo" ? "Your turn"
+    : G.mode === "online" ? (G.turn === G.seat ? "Your turn" : `${esc(cur().name)}'s turn${cur().online ? "" : " (offline)"}`)
+    : `${esc(cur().name)}'s turn`;
+  m.innerHTML = lm ? `${moveText(lm)} — ${turnTxt}` : `${turnTxt}. Start on the ★`;
+}
+function moveText(mv) {
+  const who = esc(G.players[mv.p].name);
+  if (mv.t === "play") return `${who}: <b>${mv.words[0].toUpperCase()}</b> ${mv.s}`;
+  if (mv.t === "swap") return `${who} swapped ${mv.n}`;
+  if (mv.t === "resign") return `${who} resigned`;
+  if (mv.t === "end") return `${who} ${mv.s >= 0 ? "+" : ""}${mv.s} tiles`;
+  return `${who} passed`;
+}
+function renderLog(ul) {
+  if (!ul) return;
+  ul.innerHTML = G.moves.slice().reverse().map((mv) => {
+    let w;
+    if (mv.t === "play") w = mv.words.map((x, i) => i ? x.toUpperCase() : `<b>${x.toUpperCase()}</b>`).join(", ") + (mv.bingo ? " · bingo" : "");
+    else if (mv.t === "swap") w = `swapped ${mv.n} tile${mv.n > 1 ? "s" : ""}`;
+    else if (mv.t === "resign") w = "resigned";
+    else if (mv.t === "end") w = mv.s >= 0 ? "tiles left on rival racks" : "tiles left on rack";
+    else w = "passed";
+    return `<li style="--pc:var(--p${mv.p + 1})"><span class="who"></span><span class="w">${w}</span><span class="s">${mv.t === "play" || mv.t === "end" ? (mv.s > 0 && mv.t === "end" ? "+" : "") + mv.s : "–"}</span></li>`;
+  }).join("") || `<li><span class="w">No moves yet.</span></li>`;
+}
+
+/* ---------- placing tiles ---------- */
+function rackTile(id) { return rackOwner().rack.find((t) => t.id === id); }
+function updatePreview() {
+  preview = pending.length ? TC.validate(G.board, pending.map((p) => ({ sq: p.sq, l: p.l, b: p.b }))) : null;
+}
+function placeTile(id, sq) {
+  if (G.board[sq]) return false;
+  const existing = pending.find((p) => p.sq === sq);
+  const moving = pending.find((p) => p.id === id);
+  if (existing && existing.id !== id) {
+    // swap occupied pending square back to rack
+    pending = pending.filter((p) => p !== existing);
+  }
+  if (moving) { moving.sq = sq; finishPlace(); return true; }
+  const t = rackTile(id); if (!t) return false;
+  if (t.l === "?") { pickBlank((l) => { pending.push({ sq, id, l, b: true }); finishPlace(); }); return true; }
+  pending.push({ sq, id, l: t.l, b: false }); finishPlace(); return true;
+}
+function finishPlace() { selected = null; sClick(); updatePreview(); render(); }
+function recallTile(id) { pending = pending.filter((p) => p.id !== id); selected = null; updatePreview(); render(); }
+function recallAll() { pending = []; selected = null; preview = null; render(); }
+
+// Pointer handling: drag from rack/board, or tap to select then tap a square.
+let drag = null;
+document.addEventListener("pointerdown", (e) => {
+  if (!humanTurn() || busy || handoffOpen) return;
+  const rt = e.target.closest("#rack .tile[data-id]");
+  const cell = e.target.closest(".cell");
+  let id = null, from = null;
+  if (rt) { id = +rt.dataset.id; from = "rack"; }
+  else if (cell) { const p = pending.find((x) => x.sq === +cell.dataset.sq); if (p) { id = p.id; from = "board"; } }
+  if (id === null) return;
+  e.preventDefault();
+  drag = { id, from, x: e.clientX, y: e.clientY, moved: false, el: rt || cell.firstElementChild, ghost: null, over: null };
+});
+document.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
+  if (!drag.moved) {
+    drag.moved = true;
+    const t = rackTile(drag.id), p = pending.find((x) => x.id === drag.id);
+    const g = document.createElement("div");
+    g.innerHTML = tileHTML(p ? p.l : t.l, p ? p.b : false, "ghost-tile");
+    drag.ghost = g.firstElementChild; document.body.appendChild(drag.ghost);
+    drag.el.classList.add("dragging");
+  }
+  drag.ghost.style.left = e.clientX + "px"; drag.ghost.style.top = e.clientY + "px";
+  const under = document.elementFromPoint(e.clientX, e.clientY - 24);
+  const c = under && under.closest(".cell");
+  if (drag.over && drag.over !== c) drag.over.classList.remove("drop");
+  drag.over = c && !G.board[+c.dataset.sq] ? c : null;
+  if (drag.over) drag.over.classList.add("drop");
+});
+document.addEventListener("pointerup", (e) => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.ghost) d.ghost.remove();
+  if (d.over) d.over.classList.remove("drop");
+  if (d.el) d.el.classList.remove("dragging");
+  if (!d.moved) { // tap
+    if (d.from === "board") return recallTile(d.id);
+    selected = selected === d.id ? null : d.id; sClick(); renderRack(); return;
+  }
+  if (d.over) return placeTile(d.id, +d.over.dataset.sq);
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const onRack = under && under.closest("#rack");
+  if (d.from === "board" && onRack) return recallTile(d.id);
+  if (d.from === "rack" && onRack) { // reorder
+    const tgt = under.closest(".tile[data-id]");
+    const rk = rackOwner().rack, a = rk.findIndex((t) => t.id === d.id);
+    const [t] = rk.splice(a, 1);
+    const b = tgt ? rk.findIndex((x) => x.id === +tgt.dataset.id) : rk.length;
+    rk.splice(b < 0 ? rk.length : b, 0, t); save(); renderRack();
+  }
+});
+document.addEventListener("pointercancel", () => { if (drag) { drag.ghost && drag.ghost.remove(); drag.el && drag.el.classList.remove("dragging"); drag = null; } });
+$("#board").addEventListener("click", (e) => {
+  const c = e.target.closest(".cell"); if (!c || selected === null || !humanTurn()) return;
+  const sq = +c.dataset.sq; if (G.board[sq] || pending.some((p) => p.sq === sq)) return;
+  placeTile(selected, sq);
+});
+// Keyboard: type letters to place along the last direction (desktop nicety).
+document.addEventListener("keydown", (e) => {
+  if (!G || $("#game").classList.contains("hidden") || !humanTurn() || busy || $("#layer").children.length || handoffOpen) return;
+  if (e.key === "Enter" && preview && preview.ok) return doPlay();
+  if (e.key === "Escape" || e.key === "Backspace") { if (pending.length) { e.key === "Escape" ? recallAll() : recallTile(pending[pending.length - 1].id); } return; }
+});
+
+/* ---------- actions ---------- */
+$("#shuffleBtn").onclick = () => {
+  if (pending.length) return recallAll();
+  const rk = rackOwner().rack;
+  for (let i = rk.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rk[i], rk[j]] = [rk[j], rk[i]]; }
+  sClick(); save(); renderRack();
+};
+$("#playBtn").onclick = () => (G.over ? showGameOver() : doPlay());
+$("#passBtn").onclick = () => confirmSheet("Pass this turn?", "You'll score nothing this turn. Six scoreless turns in a row ends the game.", "Pass", () => { recallAll(); commitPass(); });
+$("#swapBtn").onclick = () => showSwap();
+$("#hintBtn").onclick = () => doHint();
+$("#menuBtn").onclick = () => showMenu();
+$("#bagChip").onclick = () => showBag();
+
+function doPlay() {
+  updatePreview();
+  if (!preview || !preview.ok) { sErr(); render(); return; }
+  if (G.mode === "online") { net.sending = netSend({ t: "play", placements: pending.map((x) => ({ sq: x.sq, id: x.id, l: x.l })) }); render(); return; }
+  const p = cur();
+  const placements = pending.map((x) => ({ sq: x.sq, l: x.l, b: x.b }));
+  const ids = new Set(pending.map((x) => x.id));
+  p.rack = p.rack.filter((t) => !ids.has(t.id));
+  commitPlay(placements, preview);
+}
+function commitPlay(placements, res) {
+  const p = cur();
+  for (const pl of placements) G.board[pl.sq] = { l: pl.l, b: pl.b };
+  p.score += res.score;
+  G.last = placements.map((x) => x.sq);
+  G.moves.push({ p: G.turn, t: "play", s: res.score, words: res.words.map((w) => w.w), bingo: res.bingo });
+  G.scoreless = res.score > 0 ? 0 : G.scoreless + 1;
+  draw(p);
+  pending = []; preview = null; selected = null;
+  sPlay(res.bingo);
+  if (res.bingo) toast(`BINGO! +50 for ${p.name}`);
+  else if (res.score >= 40) toast(`${res.words[0].w.toUpperCase()} for ${res.score}!`);
+  if (!p.ai) bumpBestWord(res);
+  if (!p.rack.length && !G.bag.length) return endGame(G.turn);
+  nextTurn();
+}
+function commitPass() {
+  if (G.mode === "online") { netSend({ t: "pass" }); return; }
+  G.moves.push({ p: G.turn, t: "pass" }); G.scoreless++; G.last = [];
+  if (G.scoreless >= 6) return endGame(-1);
+  nextTurn();
+}
+function commitSwap(ids) {
+  if (G.mode === "online") { netSend({ t: "swap", ids: [...ids] }); return; }
+  const p = cur();
+  const out = p.rack.filter((t) => ids.has(t.id));
+  p.rack = p.rack.filter((t) => !ids.has(t.id));
+  draw(p);
+  G.bag.push(...out);
+  for (let i = G.bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [G.bag[i], G.bag[j]] = [G.bag[j], G.bag[i]]; }
+  G.moves.push({ p: G.turn, t: "swap", n: out.length }); G.scoreless++; G.last = [];
+  if (G.scoreless >= 6) return endGame(-1);
+  nextTurn();
+}
+function nextTurn() {
+  G.turn = 1 - G.turn; save(); render();
+  if (G.mode === "duo") showHandoff(false);
+  else if (cur().ai) aiTurn();
+}
+function rackValue(p) { return p.rack.reduce((a, t) => a + VAL[t.l], 0); }
+function endGame(outIdx) {
+  // outIdx: player who went out (gets rivals' rack values) or -1 for six scoreless turns.
+  const vals = G.players.map(rackValue);
+  G.players.forEach((p, i) => {
+    if (i === outIdx) return;
+    if (vals[i]) { p.score -= vals[i]; G.moves.push({ p: i, t: "end", s: -vals[i] }); }
+  });
+  if (outIdx >= 0) {
+    const bonus = vals.reduce((a, v, i) => a + (i === outIdx ? 0 : v), 0);
+    if (bonus) { G.players[outIdx].score += bonus; G.moves.push({ p: outIdx, t: "end", s: bonus }); }
+  }
+  G.over = true; G.last = G.last || [];
+  recordStats(); save(); render();
+  setTimeout(showGameOver, 700);
+}
+
+/* ---------- computer ---------- */
+function aiTurn() {
+  busy = true; render();
+  setTimeout(() => {
+    const p = cur();
+    const letters = p.rack.map((t) => t.l);
+    const t0 = performance.now();
+    const mv = TC.chooseMove(G.board, letters, G.level, G.bag.length);
+    const wait = Math.max(0, 700 - (performance.now() - t0));
+    setTimeout(() => {
+      busy = false;
+      if (mv && !(G.level !== "hard" && mv.score < 6 && G.bag.length >= TC.RACK && Math.random() < 0.5)) {
+        for (const pl of mv.placements) { const i = p.rack.findIndex((t) => t.l === (pl.b ? "?" : pl.l)); p.rack.splice(i, 1); }
+        commitPlay(mv.placements, mv);
+      } else if (G.bag.length >= TC.RACK) {
+        // swap clunky tiles: keep good ones, throw back the rest
+        const keep = new Set(), seen = {};
+        for (const t of p.rack) { seen[t.l] = (seen[t.l] || 0) + 1; if ("?seratn".includes(t.l) && seen[t.l] === 1) keep.add(t.id); }
+        const ids = new Set(p.rack.filter((t) => !keep.has(t.id)).map((t) => t.id));
+        if (!ids.size) ids.add(p.rack[0].id);
+        toast(`${p.name} swapped ${ids.size} tile${ids.size > 1 ? "s" : ""}`);
+        commitSwap(ids);
+      } else { toast(`${p.name} passed`); commitPass(); }
+    }, wait);
+  }, 60);
+}
+function doHint() {
+  recallAll();
+  const p = rackOwner();
+  const moves = TC.generate(G.board, p.rack.map((t) => t.l));
+  if (!moves.length) { toast("No words possible — try a swap"); return; }
+  moves.sort((a, b) => b.score - a.score);
+  const m = moves[Math.min(G.hints % 3, moves.length - 1)]; // cycle through the top 3
+  G.hints++;
+  const used = new Set();
+  pending = m.placements.map((pl) => {
+    const t = p.rack.find((x) => !used.has(x.id) && x.l === (pl.b ? "?" : pl.l)); used.add(t.id);
+    return { sq: pl.sq, id: t.id, l: pl.l, b: pl.b };
+  });
+  updatePreview(); sClick(); render();
+}
+
+/* ---------- stats ---------- */
+function bumpBestWord(res) {
+  const st = load(STATS, {});
+  const w = res.words.reduce((a, b) => (b.s > a.s ? b : a));
+  if (!st.bestWord || res.score > st.bestWord.s) st.bestWord = { w: w.w, s: res.score };
+  store(STATS, st);
+}
+function recordStats() {
+  const st = load(STATS, {});
+  const human = G.players.filter((p) => !p.ai);
+  human.forEach((p) => { if (!st.best || p.score > st.best) st.best = p.score; });
+  if (G.mode === "solo") {
+    const me = G.players[0].score, cpu = G.players[1].score;
+    const s = st[G.level] || (st[G.level] = { w: 0, l: 0 });
+    if (me > cpu) s.w++; else if (me < cpu) s.l++;
+  }
+  store(STATS, st);
+}
+
+/* ---------- overlays ---------- */
+let handoffOpen = false;
+function openLayer(html, onClose) {
+  const l = $("#layer");
+  l.innerHTML = `<div class="overlay"><div class="sheet">${html}</div></div>`;
+  l.firstElementChild.addEventListener("click", (e) => { if (e.target === l.firstElementChild) { closeLayer(); onClose && onClose(); } });
+  return l.querySelector(".sheet");
+}
+function closeLayer() { $("#layer").innerHTML = ""; }
+function toast(t) {
+  const d = document.createElement("div"); d.className = "toast"; d.textContent = t;
+  document.body.appendChild(d); setTimeout(() => d.remove(), 2500);
+}
+function confirmSheet(title, body, yes, fn) {
+  const s = openLayer(`<h2>${title}</h2><p>${body}</p><div class="row"><button class="btn ghost" data-a="no">Cancel</button><button class="btn primary" data-a="yes">${yes}</button></div>`);
+  s.onclick = (e) => { const a = e.target.closest("[data-a]"); if (!a) return; closeLayer(); if (a.dataset.a === "yes") fn(); };
+}
+function pickBlank(cb) {
+  const s = openLayer(`<h2>Blank tile</h2><p>Choose the letter it stands for. It scores 0.</p><div class="letters">${[..."abcdefghijklmnopqrstuvwxyz"].map((l) => `<button data-l="${l}">${tileHTML(l, true)}</button>`).join("")}</div>`);
+  s.onclick = (e) => { const b = e.target.closest("[data-l]"); if (!b) return; closeLayer(); cb(b.dataset.l); };
+}
+function showSwap() {
+  recallAll();
+  const p = cur(), sel = new Set();
+  const s = openLayer(`<h2>Swap tiles</h2><p>Pick the tiles to put back in the bag. You'll draw the same number and lose this turn.</p>
+    <div class="swap-rack">${p.rack.map((t) => tileHTML(t.l).replace('class="tile', `data-id="${t.id}" class="tile`)).join("")}</div>
+    <div class="row"><button class="btn ghost" data-a="all">Select all</button><button class="btn primary" data-a="go" disabled>Swap</button></div>`);
+  s.onclick = (e) => {
+    const t = e.target.closest(".tile[data-id]"), a = e.target.closest("[data-a]");
+    if (t) { const id = +t.dataset.id; sel.has(id) ? sel.delete(id) : sel.add(id); t.classList.toggle("sel"); sClick(); }
+    if (a && a.dataset.a === "all") { p.rack.forEach((x) => sel.add(x.id)); s.querySelectorAll(".swap-rack .tile").forEach((x) => x.classList.add("sel")); }
+    if (a && a.dataset.a === "go" && sel.size) { closeLayer(); commitSwap(sel); return; }
+    const go = s.querySelector('[data-a="go"]'); go.disabled = !sel.size; go.textContent = sel.size ? `Swap ${sel.size}` : "Swap";
+  };
+}
+function showBag() {
+  // Unseen tiles = bag + opponent rack (from the viewer's point of view).
+  const viewer = rackOwner();
+  const counts = {};
+  for (const l in TC.COUNTS) counts[l] = TC.COUNTS[l];
+  for (const t of G.board) if (t) counts[t.b ? "?" : t.l]--;
+  for (const t of viewer.rack) counts[t.l]--;
+  const unseen = Object.values(counts).reduce((a, b) => a + b, 0);
+  openLayer(`<h2>Unseen tiles</h2><p>${bagCount()} in the bag · ${unseen} unseen in total (bag plus your rival's rack).</p>
+    <div class="bag-grid">${Object.keys(counts).map((l) => `<div class="${counts[l] ? "" : "none"}">${tileHTML(l)}<span>${counts[l]}</span></div>`).join("")}</div>
+    <button class="btn ghost" onclick="document.getElementById('layer').innerHTML=''">Close</button>`);
+}
+function showLog() {
+  const s = openLayer(`<h2>Moves</h2><ul class="log"></ul><button class="btn ghost" data-close>Close</button>`);
+  renderLog(s.querySelector(".log"));
+  s.querySelector("[data-close]").onclick = closeLayer;
+}
+function showRules() {
+  const s = openLayer(`<h2>How to play</h2>
+    <ol class="rules">
+      <li>Each player has <b>7 tiles</b>. Take turns placing tiles in <b>one row or column</b> to make words that read left-to-right or top-to-bottom.</li>
+      <li>The first word must cover the <b>★ centre</b>. After that, every word must connect to tiles already on the board.</li>
+      <li>Every new word you form counts, including words made across your main word.</li>
+      <li>Coloured squares multiply the tiles placed on them: <b>2L/3L</b> double or triple a letter, <b>2W/3W</b> double or triple the word. The ★ is a double word.</li>
+      <li>Use all 7 tiles in one turn for a <b>+50 bingo</b>.</li>
+      <li>Blank tiles can be any letter and score 0.</li>
+      <li>Instead of playing you can <b>swap</b> tiles (needs 7+ in the bag) or <b>pass</b>.</li>
+      <li>The game ends when the bag is empty and someone plays their last tile (they gain the value of their rival's leftover tiles, who loses it), or after six scoreless turns in a row.</li>
+    </ol>
+    <p><b>Controls:</b> drag tiles onto the board, or tap a tile then tap a square. Tap a placed tile to take it back. Words are checked against a 170,000-word list as you place them.</p>
+    <div class="legend"><span><i style="background:var(--tw)"></i>Triple word</span><span><i style="background:var(--dw)"></i>Double word</span><span><i style="background:var(--tl)"></i>Triple letter</span><span><i style="background:var(--dl)"></i>Double letter</span></div>
+    <button class="btn primary" data-close>Got it</button>`);
+  s.querySelector("[data-close]").onclick = closeLayer;
+}
+function showMenu() {
+  const on = G.mode === "online";
+  const s = openLayer(`<h2>Menu</h2><div class="menu-list">
+    ${on && !G.started ? `<button data-a="invite"><span>📨</span>Share invite (code ${esc(G.code)})</button>` : ""}
+    <button data-a="log"><span>📜</span>Move history</button>
+    <button data-a="bag"><span>🎒</span>Unseen tiles</button>
+    <button data-a="rules"><span>📖</span>How to play</button>
+    <button data-a="check"><span>🔎</span>Check a word</button>
+    <button data-a="sound"><span>${prefs.sound ? "🔊" : "🔇"}</span>Sound: ${prefs.sound ? "on" : "off"}</button>
+    ${on && G.started && !G.over ? `<button data-a="resign"><span>🏳️</span>Resign</button>` : ""}
+    <button data-a="new"><span>✨</span>${on ? "Leave this game" : "New game"}</button>
+    <button data-a="home"><span>🏠</span>Main menu (game is saved)</button>
+  </div>`);
+  s.onclick = (e) => {
+    const a = e.target.closest("[data-a]"); if (!a) return;
+    const k = a.dataset.a;
+    if (k === "log") showLog(); else if (k === "bag") showBag(); else if (k === "rules") showRules();
+    else if (k === "check") showCheck();
+    else if (k === "sound") { prefs.sound = !prefs.sound; store(PREF, prefs); showMenu(); }
+    else if (k === "invite") { closeLayer(); shareInvite(); }
+    else if (k === "resign") confirmSheet("Resign this game?", `${esc(G.players[1 - G.seat].name)} will win.`, "Resign", () => netSend({ t: "resign" }));
+    else if (k === "new" && on) confirmSheet("Leave this game?", "It will be removed from this device. You can only rejoin with the code if the other seat is still free.", "Leave", () => { store(ONLINE, null); toMenu(); });
+    else if (k === "new") confirmSheet("Start a new game?", G.over ? "Set up a fresh board." : "The current game will be abandoned.", "New game", () => { if (!G.over) localStorage.removeItem(SAVE); toMenu(); });
+    else if (k === "home") toMenu();
+  };
+}
+function showCheck() {
+  const s = openLayer(`<h2>Check a word</h2><p>See whether a word is in the list (no turn is used).</p>
+    <div class="names" style="grid-template-columns:1fr"><input id="chk" maxlength="15" placeholder="Type a word" autocapitalize="off" autocomplete="off"></div>
+    <p id="chkOut" style="min-height:24px;font-weight:700"></p><button class="btn ghost" data-close>Close</button>`);
+  const i = s.querySelector("#chk"); i.focus();
+  i.oninput = () => { const w = i.value.trim().toLowerCase().replace(/[^a-z]/g, "");
+    s.querySelector("#chkOut").innerHTML = w.length < 2 ? "" : TC.isWord(w) ? `✅ <b>${w.toUpperCase()}</b> is valid` : `❌ <b>${w.toUpperCase()}</b> isn't in the list`; };
+  s.querySelector("[data-close]").onclick = closeLayer;
+}
+function showHandoff(resume) {
+  handoffOpen = true; render();
+  const p = cur(), lm = G.moves[G.moves.length - 1];
+  const l = $("#layer");
+  l.innerHTML = `<div class="handoff"><div class="card">
+    <div class="big">📱</div><p class="tagline" style="margin:0">${resume === "first" ? "First to play" : resume ? "Welcome back" : "Pass the device to"}</p>
+    <h2 style="color:var(--p${G.turn + 1})">${esc(p.name)}</h2>
+    ${lm && !resume ? `<p class="tagline" style="margin:0">${moveText(lm)}</p>` : ""}
+    <button class="btn primary" id="ready">Show my tiles</button>
+    <button class="btn ghost" id="peek">Look at the board first</button></div></div>`;
+  $("#ready").onclick = () => { handoffOpen = false; closeLayer(); render(); };
+  $("#peek").onclick = () => { closeLayer(); render(); // board visible, rack stays covered
+    $("#msg").innerHTML = `Tap the rack when <b>${esc(p.name)}</b> is ready`;
+    $("#rack").onclick = () => { $("#rack").onclick = null; handoffOpen = false; render(); }; };
+}
+function showGameOver() {
+  const ps = G.players.slice().map((p, i) => ({ ...p, i })).sort((a, b) => b.score - a.score);
+  const tie = ps[0].score === ps[1].score;
+  let title = G.mode === "online" && G.resigned >= 0 ? (G.resigned === G.seat ? "You resigned" : `${G.players[G.resigned].name} resigned · you win! 🎉`)
+    : tie ? "It's a draw!" : G.mode === "online" ? (ps[0].i === G.seat ? "You win! 🎉" : `${ps[0].name} wins`) : G.mode === "solo" ? (ps[0].ai ? `${ps[0].name} wins` : "You win! 🎉") : `${ps[0].name} wins! 🎉`;
+  const best = (i) => {
+    let b = null;
+    for (const m of G.moves) if (m.p === i && m.t === "play" && (!b || m.s > b.s)) b = m;
+    return b ? `Best: ${b.words[0].toUpperCase()} ${b.s}` : "";
+  };
+  const s = openLayer(`<h2>${esc(title)}</h2>
+    <div class="final-scores">${ps.map((p) => `<div style="border-left:4px solid var(--p${p.i + 1})"><span>${esc(p.name)}<small>${best(p.i)}</small></span><b>${p.score}</b></div>`).join("")}</div>
+    <div class="row"><button class="btn ghost" data-a="board">View board</button><button class="btn primary" data-a="again">${G.mode === "online" ? (G.rematch[G.seat] ? "Rematch asked" : G.rematch[1 - G.seat] ? "Accept rematch" : "Rematch") : "Play again"}</button></div>
+    <button class="btn ghost" data-a="menu">Main menu</button>`);
+  if (G.mode === "online" ? (G.resigned >= 0 ? G.resigned !== G.seat : !tie && ps[0].i === G.seat) : !tie && !ps[0].ai) sPlay(true);
+  s.onclick = (e) => {
+    const a = e.target.closest("[data-a]"); if (!a) return;
+    closeLayer();
+    if (a.dataset.a === "again" && G.mode === "online") { netSend({ t: "rematch" }); render(); }
+    else if (a.dataset.a === "again") { prefs.mode = G.mode; prefs.level = G.level; newGame(); }
+    else if (a.dataset.a === "menu") toMenu();
+  };
+}
+
+/* ---------- online play (needs the Tilecraft Worker; hidden otherwise) ---------- */
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const net = { ws: null, want: false, connected: false, sending: false, retry: 0, timer: 0, code: "", role: "guest", order: [], n: -1 };
+const randCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+const myName = () => prefs.n1.trim() || "Player";
+function hostOnline() { netStart(randCode(), "host"); }
+function joinOnline(code) {
+  code = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 4) { sErr(); toast("Enter the 4-character code"); return; }
+  netStart(code, "guest");
+}
+function netStart(code, role) {
+  netStop();
+  Object.assign(net, { code, role, want: true, retry: 0, n: -1, order: [] });
+  pending = []; preview = null; selected = null; busy = false; handoffOpen = false;
+  G = { mode: "online", seat: 0, code, started: false, n: 0, board: Array(225).fill(null), bagCount: 0,
+        players: [{ name: myName(), score: 0, tiles: 0, online: true, ai: false, rack: [] },
+                  { name: "Waiting…", score: 0, tiles: 0, online: false, ai: false, rack: [] }],
+        turn: 0, moves: [], scoreless: 0, over: false, last: [], rematch: [false, false], resigned: -1 };
+  closeLayer();
+  $("#menu").classList.add("hidden"); $("#game").classList.remove("hidden");
+  buildBoard(); render();
+  netConnect();
+}
+function netConnect() {
+  clearTimeout(net.timer);
+  const og = load(ONLINE, null);
+  const q = new URLSearchParams({ room: net.code, role: net.role, name: myName(), token: og && og.code === net.code ? og.token : "" });
+  let ws;
+  try { ws = new WebSocket((location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + "/ws?" + q); }
+  catch { return netRetry(); }
+  net.ws = ws;
+  ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } onNet(m); };
+  ws.onclose = (e) => {
+    if (net.ws !== ws) return;
+    net.ws = null; net.connected = false; net.sending = false;
+    if (e.code === 4001) { net.want = false; toast("This game was opened on another screen"); }
+    if (e.code === 4002) { net.want = false; store(ONLINE, null); toast("That game has expired"); }
+    if (net.want) netRetry();
+    if (G && G.mode === "online") render();
+  };
+}
+function netRetry() {
+  clearTimeout(net.timer);
+  const d = Math.min(8000, 700 * 2 ** net.retry++);
+  net.timer = setTimeout(() => { if (net.want && !net.ws) netConnect(); }, d);
+}
+function netStop() {
+  net.want = false; clearTimeout(net.timer);
+  if (net.ws) { const w = net.ws; net.ws = null; try { w.close(1000); } catch {} }
+  net.connected = false; net.sending = false;
+}
+function netSend(m) {
+  if (net.ws && net.connected) { net.ws.send(JSON.stringify(m)); return true; }
+  toast("Not connected · reconnecting…"); return false;
+}
+function wake() { if (!document.hidden && net.want && !net.ws) { net.retry = 0; netConnect(); } }
+document.addEventListener("visibilitychange", wake);
+addEventListener("online", wake);
+addEventListener("pageshow", wake);
+
+function onNet(m) {
+  if (m.t === "err") {
+    netStop();
+    if (m.e === "taken" && net.role === "host") return hostOnline(); // code clash: pick another
+    const og = load(ONLINE, null);
+    if (og && og.code === net.code) store(ONLINE, null);
+    toMenu(); sErr();
+    toast(m.e === "nohost" ? `No game found with code ${net.code}` : m.e === "full" ? "That game already has two players" : "Couldn't join that game");
+    return;
+  }
+  if (m.t === "welcome") {
+    net.connected = true; net.retry = 0; net.role = "guest";
+    store(ONLINE, { code: m.code || net.code, token: m.token });
+    return;
+  }
+  if (m.t === "reject") { net.sending = false; sErr(); toast(m.msg); render(); return; }
+  if (m.t === "state") applyState(m);
+}
+
+function applyState(s) {
+  const wasLobby = !!(G && G.mode === "online" && !G.started);
+  const prev = G && G.mode === "online" && G.started && net.n === s.n ? G : null;
+  const newRound = s.started && net.n !== s.n && net.n !== -1;
+  net.n = s.n;
+  const prevMoves = prev ? prev.moves.length : -1;
+  const rack = s.rack.slice().sort((a, b) => {
+    const ia = net.order.indexOf(a.id), ib = net.order.indexOf(b.id);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  G = { mode: "online", seat: s.seat, code: s.code || net.code, started: s.started, n: s.n, board: s.board, bagCount: s.bag,
+        players: s.players.map((p, k) => ({ name: p.name, score: p.score, tiles: p.tiles, online: p.online, ai: false, rack: k === s.seat ? rack : [] })),
+        turn: s.turn, moves: s.moves, scoreless: s.scoreless, over: s.over, last: s.last, rematch: s.rematch, resigned: s.resigned };
+  while (G.players.length < 2) G.players.push({ name: "Waiting…", score: 0, tiles: 0, online: false, ai: false, rack: [] });
+  net.sending = false;
+  if (s.moves.length !== prevMoves) { pending = []; preview = null; selected = null; }
+  else { const ids = new Set(rack.map((t) => t.id)); pending = pending.filter((p) => ids.has(p.id)); updatePreview(); }
+
+  const lobby = $("#layer .lobby");
+  if (!G.started) { if (!lobby) showLobby(); }
+  else if (lobby || newRound) closeLayer();
+  if (G.started && !s.moves.length && (newRound || wasLobby)) { toast(G.turn === G.seat ? "You go first!" : `${G.players[G.turn].name} goes first`); beep(660, 0.12); }
+
+  if (prev && s.moves.length > prevMoves) {
+    for (const mv of s.moves.slice(prevMoves)) {
+      if (mv.t === "play") {
+        sPlay(mv.bingo);
+        if (mv.p !== G.seat) toast(`${G.players[mv.p].name}: ${mv.words[0].toUpperCase()} for ${mv.s}${mv.bingo ? " · bingo!" : ""}`);
+        else if (mv.bingo) toast("BINGO! +50");
+        else if (mv.s >= 40) toast(`${mv.words[0].toUpperCase()} for ${mv.s}!`);
+      } else if (mv.p !== G.seat && (mv.t === "swap" || mv.t === "pass")) toast(`${G.players[mv.p].name} ${mv.t === "swap" ? "swapped " + mv.n : "passed"}`);
+    }
+    const last = s.moves[s.moves.length - 1];
+    if (last.p === G.seat && last.t === "play") bumpBestWord({ score: last.s, words: last.words.map((w) => ({ w, s: last.s })) });
+    if (!G.over && G.turn === G.seat && navigator.vibrate) try { navigator.vibrate(60); } catch {}
+  }
+  if (prev && !prev.over && G.over) { recordOnlineStats(); setTimeout(showGameOver, 700); }
+  else if (!prev && G.over && G.started && !$("#layer").children.length) setTimeout(showGameOver, 300);
+  else if (prev && prev.over && G.over && $("#layer .final-scores")) showGameOver(); // refresh rematch state
+  render();
+}
+function recordOnlineStats() {
+  const st = load(STATS, {}), me = G.players[G.seat], opp = G.players[1 - G.seat];
+  const s = st.online || (st.online = { w: 0, l: 0 });
+  const won = G.resigned >= 0 ? G.resigned !== G.seat : me.score > opp.score;
+  const lost = G.resigned >= 0 ? G.resigned === G.seat : me.score < opp.score;
+  if (won) s.w++; else if (lost) s.l++;
+  if (!st.best || me.score > st.best) st.best = me.score;
+  store(STATS, st);
+}
+function inviteUrl() { return location.origin + "/?join=" + G.code; }
+function shareInvite() {
+  const url = inviteUrl(), text = `Play Tilecraft with me! Code ${G.code}`;
+  if (navigator.share) navigator.share({ title: "Tilecraft", text, url }).catch(() => {});
+  else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast("Invite link copied"), () => toast(url));
+  else toast(url);
+}
+function showLobby() {
+  const s = openLayer(`<div class="lobby"><h2>Invite a friend</h2>
+    <p>Send them the link, or ask them to choose <b>Online → Join</b> and enter this code:</p>
+    <div class="code-tiles">${[...G.code.toLowerCase()].map((c) => /[a-z]/.test(c) ? tileHTML(c) : `<div class="tile"><span class="ch">${c}</span></div>`).join("")}</div>
+    <p class="thinking" style="text-align:center">Waiting for them to join</p>
+    <div class="row"><button class="btn ghost" data-a="cancel">Cancel</button><button class="btn primary" data-a="share">Share invite</button></div></div>`);
+  s.onclick = (e) => {
+    const a = e.target.closest("[data-a]"); if (!a) return;
+    if (a.dataset.a === "share") shareInvite();
+    else { store(ONLINE, null); toMenu(); }
+  };
+}
+
+// Online is offered only when the page is served by the Tilecraft Worker.
+fetch("/api/ping", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+  if (!j || j.game !== "tilecraft") return;
+  onlineAvail = true;
+  const join = new URLSearchParams(location.search).get("join");
+  if (join) {
+    prefs.mode = "online"; store(PREF, prefs);
+    $("#joinCode").value = join.toUpperCase().slice(0, 4);
+    history.replaceState(null, "", location.pathname);
+  }
+  syncMenu();
+  if (join) setTimeout(() => $("#joinCode").focus(), 100);
+}).catch(() => {});
+syncMenu();
+
+window.__tc = { get G() { return G; }, newGame, render, doPlay, placeTile, aiTurn, net }; // test hook
+
+if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>

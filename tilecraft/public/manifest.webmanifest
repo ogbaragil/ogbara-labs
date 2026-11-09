@@ -1,0 +1,18 @@
+{
+  "name": "Tilecraft — crossword tile game",
+  "short_name": "Tilecraft",
+  "description": "Build words on a 15×15 board. Solo against the computer or pass-and-play for two.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f2233",
+  "theme_color": "#0f2233",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
