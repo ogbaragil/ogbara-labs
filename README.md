@@ -18,6 +18,8 @@ SETUP-SUPABASE.md.
 | `supersnakes/` | Super Snakes (family)      | `supersnakes.ogbara.com.au`  |
 | `billminder/`  | Bill Minder (bill tracker) | `billminder.ogbara.com.au`   |
 | `kajolacare/`  | Kajola Care (care ops)     | `kajolacare.ogbara.com.au`   |
+| `ironsquad/`   | Iron Squad (tank arcade)   | `ironsquad.ogbara.com.au`    |
+| `tilecraft/`   | Tilecraft (word tile game) | `tilecraft.ogbara.com.au`    |
 
 Most folders are self-contained: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/`
 (How Many? also has a separate `app.js`).
@@ -145,3 +147,9 @@ Full setup including SQL: **SETUP-SUPABASE.md**.
 - **Super Snakes** — editable family names, emoji avatars with optional photos;
   cloud-syncs the family roster + avatars. Quest rules, power-ups, and the
   exact-100 rule match the original.
+- **Tilecraft** — crossword tile game (15×15 board, 100 tiles, standard
+  scoring, +50 bingo). Solo against the computer (Easy / Medium / Hard),
+  pass-and-play on one device, or online across two devices with a 4-letter
+  code. Like Iron Squad it deploys as a **Worker with static assets** (not a
+  Pages project) because online games live in a Durable Object. Setup is in
+  `tilecraft/README.md`.
