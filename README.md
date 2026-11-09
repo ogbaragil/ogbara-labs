@@ -20,6 +20,7 @@ SETUP-SUPABASE.md.
 | `kajolacare/`  | Kajola Care (care ops)     | `kajolacare.ogbara.com.au`   |
 | `ironsquad/`   | Iron Squad (tank arcade)   | `ironsquad.ogbara.com.au`    |
 | `tilecraft/`   | Tilecraft (word tile game) | `tilecraft.ogbara.com.au`    |
+| `checkmate/`   | Check Mate (chess)         | `checkmate.ogbara.com.au`    |
 
 Most folders are self-contained: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/`
 (How Many? also has a separate `app.js`).
@@ -153,3 +154,10 @@ Full setup including SQL: **SETUP-SUPABASE.md**.
   code. Like Iron Squad it deploys as a **Worker with static assets** (not a
   Pages project) because online games live in a Durable Object. Setup is in
   `tilecraft/README.md`.
+- **Check Mate** — chess with full rules (castling, en passant, promotion,
+  all draw rules) and PGN export. Solo against the computer (Easy / Medium /
+  Hard, searched in a web worker), pass & play, or online across two devices
+  with a 4-letter code, on a 2D board or an optional 3D board (three.js,
+  prebuilt into `checkmate/public/board3d.js`, loaded only when used). Deploys as a **Worker with static assets** like Iron
+  Squad and Tilecraft; setup is in `checkmate/README.md`.
+
