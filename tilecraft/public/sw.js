@@ -1,5 +1,5 @@
 /* Tilecraft service worker */
-const CACHE = "tilecraft-v3";
+const CACHE = "tilecraft-v4";
 const ASSETS = ["./","./manifest.webmanifest","./engine.js?v=2","./words.dawg",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
   "./icons/apple-touch-icon.png","./icons/favicon-32.png"];
