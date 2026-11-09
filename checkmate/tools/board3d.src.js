@@ -52,6 +52,23 @@ const MAT = {
   w: new MeshStandardMaterial({ color: 0xf1ead9, roughness: 0.42, metalness: 0.04 }),
   b: new MeshStandardMaterial({ color: 0x27323d, roughness: 0.38, metalness: 0.08 }),
 };
+// Loser's pieces fade to these at the end of a game; winner's pieces briefly glow gold.
+const DIM_TO = { w: new Color(0x8c877d), b: new Color(0x151b21) };
+const DIM = { w: MAT.w.clone(), b: MAT.b.clone() };
+DIM.w.color.copy(DIM_TO.w); DIM.b.color.copy(DIM_TO.b);
+const GLOW = { w: MAT.w.clone(), b: MAT.b.clone() };
+for (const c of ["w", "b"]) { GLOW[c].emissive.setHex(0xe9b949); GLOW[c].emissiveIntensity = 0; }
+function paint(g, mat) { g.traverse((o) => { if (o.isMesh) o.material = mat; }); }
+const colorOf = (p) => (p === p.toUpperCase() ? "w" : "b");
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeIn = (k) => k * k * k;
+function bounce(k) { // ease-out bounce
+  const n = 7.5625, d = 2.75;
+  if (k < 1 / d) return n * k * k;
+  if (k < 2 / d) return n * (k -= 1.5 / d) * k + 0.75;
+  if (k < 2.5 / d) return n * (k -= 2.25 / d) * k + 0.9375;
+  return n * (k -= 2.625 / d) * k + 0.984375;
+}
 function makePiece(p) {
   const t = p.toLowerCase(), c = p === t ? "b" : "w", m = MAT[c], g = new Group();
   const add = (geometry, x = 0, y = 0, z = 0) => { const me = new Mesh(geometry, m); me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true; g.add(me); return me; };
@@ -137,10 +154,10 @@ export function createBoard3D(container, handlers = {}) {
   const pieces = new Group(); scene.add(pieces);
 
   // ---------- camera orbit ----------
-  const cam = { az: 0, azTarget: 0, polar: 0.86, dist: 12.5, user: 0, k: 0 };
+  const cam = { az: 0, azTarget: 0, polar: 0.86, dist: 12.5, user: 0, k: 0, shake: 0 };
   function placeCamera() {
     const az = cam.az + cam.user;
-    camera.position.set(Math.sin(az) * Math.sin(cam.polar) * cam.dist, Math.cos(cam.polar) * cam.dist, Math.cos(az) * Math.sin(cam.polar) * cam.dist);
+    camera.position.set(Math.sin(az) * Math.sin(cam.polar) * cam.dist + Math.cos(az) * cam.shake, Math.cos(cam.polar) * cam.dist, Math.cos(az) * Math.sin(cam.polar) * cam.dist - Math.sin(az) * cam.shake);
     camera.lookAt(Math.sin(az) * cam.k, -0.3, Math.cos(az) * cam.k); // aim slightly toward the viewer to centre the board
   }
 
@@ -155,8 +172,10 @@ export function createBoard3D(container, handlers = {}) {
     for (let i = tweens.length - 1; i >= 0; i--) {
       const tw = tweens[i];
       if (tw.start == null) tw.start = t;
-      const k = Math.min(1, (t - tw.start) / tw.dur);
-      tw.step(k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, k);
+      const el = t - tw.start - (tw.delay || 0);
+      if (el < 0) { busy = true; continue; }
+      const k = Math.min(1, el / tw.dur);
+      tw.step(tw.ease ? tw.ease(k) : k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, k);
       if (k >= 1) { tweens.splice(i, 1); tw.done && tw.done(); } else busy = true;
     }
     placeCamera();
@@ -225,8 +244,10 @@ export function createBoard3D(container, handlers = {}) {
     // Report both the piece under the finger and the board square under it: a tall piece in front can
     // cover part of the square behind it, so the app decides which one the player meant.
     let pieceSq = -1, boardSq = -1;
-    const hit = ray.intersectObjects(pieces.children, true)[0];
-    if (hit) { let o = hit.object; while (o && o.userData.sq == null) o = o.parent; if (o) pieceSq = o.userData.sq; }
+    for (const hit of ray.intersectObjects(pieces.children, true)) { // pieces still flying in don't count
+      let o = hit.object; while (o && o.userData.sq == null) o = o.parent;
+      if (o && !o.userData.tweening) { pieceSq = o.userData.sq; break; }
+    }
     const t = -ray.ray.origin.y / ray.ray.direction.y;
     if (t > 0) {
       const x = ray.ray.origin.x + ray.ray.direction.x * t, z = ray.ray.origin.z + ray.ray.direction.z * t;
@@ -260,41 +281,127 @@ export function createBoard3D(container, handlers = {}) {
     dots.forEach((d) => (d.visible = false)); rings.forEach((r) => (r.visible = false));
     for (const t of v.targets || []) (t.cap ? rings : dots)[t.to].visible = true;
 
-    // Same position and nothing to animate: just lift the selected piece (keeps running tweens intact).
-    const key = v.board.join(",");
-    if (key === lastKey && !v.anim) {
-      for (const sq in bySq) { const g = bySq[sq]; if (!g.userData.tweening) g.position.y = +sq === v.sel ? 0.12 : 0; }
+    const reduced = !!v.reduced, fx = reduced ? null : v.fx, a = reduced ? null : v.anim;
+    const over = v.over && v.over.loser ? v.over : null;
+    const lift = (g, y) => { // smooth pick-up / put-down of the selected piece
+      if (g.userData.tweening || Math.abs(g.position.y - y) < 0.001) return;
+      if (reduced) { g.position.y = y; return; }
+      const y0 = g.position.y; g.userData.tweening = true;
+      tweens.push({ dur: 140, ease: easeOut, step: (e) => { g.position.y = y0 + (y - y0) * e; }, done: () => { g.userData.tweening = false; } });
+    };
+
+    // Same position and nothing new to show: only the selection changes (running animations keep going).
+    const key = v.board.join(",") + "|" + (over ? over.loser + over.down : "");
+    if (key === lastKey && !a && !fx) {
+      for (const sq in bySq) lift(bySq[sq], +sq === v.sel ? 0.18 : 0);
       kick(); return;
     }
     lastKey = key;
-    // pieces: rebuild from the board, then animate the move that produced it
+
+    // Rebuild pieces from the board, then animate what changed.
     pieces.clear();
     bySq = {};
+    const fallenSq = over && over.down ? v.board.indexOf(over.loser === "w" ? "K" : "k") : -1;
+    const lieDown = (g) => { g.rotation.z = -1.38; g.position.x += 0.34; g.position.y = 0.13; };
     v.board.forEach((p, sq) => {
       if (!p) return;
       const g = makePiece(p); g.position.set(sqX(sq), 0, sqZ(sq)); g.userData.sq = sq;
       if (p === "n" || p === "N") g.children[1].rotation.y = sqX(sq) < 0 ? Math.PI : 0; // knights look toward the centre
-      if (sq === v.sel) g.position.y = 0.12;
+      if (over && colorOf(p) === over.loser) paint(g, DIM[over.loser]);
+      if (sq === fallenSq && !(fx && fx.type === "mate")) lieDown(g);
+      if (sq === v.sel) g.position.y = 0.18;
       pieces.add(g); bySq[sq] = g;
     });
-    const a = v.anim;
+    if (over && !(fx && fx.type === "mate")) DIM[over.loser].color.copy(DIM_TO[over.loser]);
+
+    // ----- the move -----
     if (a) {
-      const slide = (from, to, hop) => {
-        const g = bySq[to]; if (!g) return;
-        const fx = sqX(from), fz = sqZ(from), tx = sqX(to), tz = sqZ(to);
-        g.position.set(fx, 0, fz); g.userData.tweening = true;
-        tweens.push({ dur: 300, step: (e) => { g.position.set(fx + (tx - fx) * e, Math.sin(Math.PI * e) * hop, fz + (tz - fz) * e); }, done: () => { g.userData.tweening = false; } });
+      const land = (g) => tweens.push({ dur: 200, ease: (k) => k, step: (e, k) => {
+        const s = Math.sin(Math.PI * k) * 0.1; g.scale.set(1 + s * 0.5, 1 - s, 1 + s * 0.5); }, done: () => g.scale.set(1, 1, 1) });
+      const slide = (g, from, to, hop, delay, after) => {
+        const fx0 = sqX(from), fz0 = sqZ(from), tx = sqX(to), tz = sqZ(to);
+        g.position.set(fx0, 0, fz0); g.userData.tweening = true;
+        tweens.push({ dur: 300, delay, step: (e) => { g.position.set(fx0 + (tx - fx0) * e, Math.sin(Math.PI * e) * hop, fz0 + (tz - fz0) * e); },
+          done: () => { g.userData.tweening = false; g.position.y = 0; (after || land)(g); } });
       };
       const knight = a.p && a.p.toLowerCase() === "n";
       const far = Math.hypot(sqX(a.from) - sqX(a.to), sqZ(a.from) - sqZ(a.to));
-      slide(a.from, a.to, knight ? 0.7 : Math.min(0.35, 0.08 + far * 0.04));
-      if (a.f === "k") slide(a.to + 1, a.to - 1, 0.25);
-      if (a.f === "q") slide(a.to - 2, a.to + 1, 0.25);
-      if (a.cap) { // captured piece shrinks away
+      const hop = knight ? 0.75 : Math.min(0.4, 0.12 + far * 0.04);
+      const moved = bySq[a.to];
+      if (moved && a.promo) {
+        // Promotion: the pawn makes the trip, then becomes the new piece with a flash.
+        moved.visible = false;
+        const pawn = makePiece(colorOf(a.p) === "w" ? "P" : "p"); scene.add(pawn);
+        slide(pawn, a.from, a.to, hop, 0, () => {
+          scene.remove(pawn); moved.visible = true;
+          const c = colorOf(a.p), mat = GLOW[c].clone(); paint(moved, mat);
+          tweens.push({ dur: 650, ease: (k) => k, step: (e, k) => {
+            const sc = k < 0.6 ? 0.3 + (k / 0.6) * 0.95 : 1.25 - ((k - 0.6) / 0.4) * 0.25; moved.scale.set(sc, sc, sc);
+            mat.emissiveIntensity = 1.2 * (1 - k); }, done: () => { moved.scale.set(1, 1, 1); paint(moved, MAT[c]); } });
+          const ring = new Mesh(new RingGeometry(0.3, 0.4, 48), new MeshBasicMaterial({ color: 0xe9b949, transparent: true, depthWrite: false }));
+          ring.rotation.x = -Math.PI / 2; ring.position.set(sqX(a.to), 0.02, sqZ(a.to)); scene.add(ring);
+          tweens.push({ dur: 700, ease: easeOut, step: (e) => { const sc = 1 + e * 2.4; ring.scale.set(sc, sc, sc); ring.material.opacity = 1 - e; },
+            done: () => { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } });
+        });
+      } else if (moved) slide(moved, a.from, a.to, hop, 0);
+      // Castling: the rook follows the king.
+      if (a.f === "k" && bySq[a.to - 1]) slide(bySq[a.to - 1], a.to + 1, a.to - 1, 0.45, 130);
+      if (a.f === "q" && bySq[a.to + 1]) slide(bySq[a.to + 1], a.to - 2, a.to + 1, 0.45, 130);
+      if (a.cap) {
+        // Captured piece is knocked over in the direction of travel, then slides off the capturer's edge.
         const capSq = a.f === "e" ? a.to + (a.cap === "p" ? 8 : -8) : a.to;
-        const g = makePiece(a.cap); g.position.set(sqX(capSq), 0, sqZ(capSq)); scene.add(g);
-        tweens.push({ dur: 320, step: (e, k) => { const s = 1 - k; g.scale.set(s, s, s); }, done: () => scene.remove(g) });
+        const g = makePiece(a.cap), sx = sqX(capSq), sz = sqZ(capSq); g.position.set(sx, 0, sz); scene.add(g);
+        let dx = sqX(a.to) - sqX(a.from), dz = sqZ(a.to) - sqZ(a.from); const n = Math.hypot(dx, dz) || 1; dx /= n; dz /= n;
+        // Off the nearest side edge, drifting toward the capturer's half.
+        const ex = (sx === 0 ? (dx || 1) : Math.sign(sx)) * 5.6, ez = sz * 0.4 + (colorOf(a.p) === "w" ? 1.8 : -1.8);
+        tweens.push({ dur: 900, delay: 140, ease: (k) => k, step: (e, k) => {
+          const tip = Math.min(1, k / 0.3), ang = easeOut(tip) * 1.45;
+          g.rotation.set(dz * ang, 0, -dx * ang);
+          const m = Math.max(0, (k - 0.25) / 0.75), mm = easeIn(m);
+          g.position.set(sx + (ex - sx) * mm + dx * 0.3 * tip, 0.08 * tip + Math.sin(Math.PI * m) * 0.5, sz + (ez - sz) * mm + dz * 0.3 * tip);
+          const sc = 1 - m * m * 0.9; g.scale.set(sc, sc, sc);
+        }, done: () => scene.remove(g) });
       }
+    }
+
+    // ----- game moments -----
+    const king = (c) => bySq[v.board.indexOf(c === "w" ? "K" : "k")];
+    if (fx && fx.type === "intro") {
+      // Pieces drop onto the board rank by rank, far side first.
+      for (const sq in bySq) {
+        const g = bySq[sq], row = v.bottom === "w" ? sq >> 3 : 7 - (sq >> 3), col = v.bottom === "w" ? sq & 7 : 7 - (sq & 7);
+        g.position.y = 5; g.userData.tweening = true;
+        tweens.push({ dur: 520, delay: row * 70 + col * 12, ease: bounce, step: (e) => { g.position.y = 5 * (1 - e); }, done: () => { g.userData.tweening = false; g.position.y = 0; } });
+      }
+    }
+    if (fx && fx.type === "check" && v.check >= 0) {
+      const o = overlays[v.check], k = bySq[v.check];
+      tweens.push({ dur: 1300, ease: (q) => q, step: (e, q) => { o.material.opacity = 0.45 + 0.45 * Math.abs(Math.sin(q * Math.PI * 4)); }, done: () => { o.material.opacity = 0.75; } });
+      if (k) tweens.push({ dur: 600, delay: 250, ease: (q) => q, step: (e, q) => { k.rotation.z = Math.sin(q * Math.PI * 4) * 0.14 * (1 - q); }, done: () => { k.rotation.z = 0; } });
+      tweens.push({ dur: 420, delay: 250, ease: (q) => q, step: (e, q) => { cam.shake = Math.sin(q * 38) * 0.14 * (1 - q); }, done: () => { cam.shake = 0; } });
+    }
+    if (fx && fx.type === "mate" && over) {
+      const k = bySq[fallenSq], lc = over.loser, wc = lc === "w" ? "b" : "w";
+      if (k) {
+        const x0 = k.position.x;
+        tweens.push({ dur: 1100, delay: 300, ease: (q) => q, step: (e, q) => {
+          // Rock back a touch, then topple over and bounce to rest.
+          if (q < 0.25) { k.rotation.z = 0.18 * Math.sin((q / 0.25) * Math.PI / 2); return; }
+          const b = bounce((q - 0.25) / 0.75);
+          k.rotation.z = 0.18 + (-1.38 - 0.18) * b; k.position.x = x0 + 0.34 * b; k.position.y = 0.13 * b;
+        }, done: () => { k.rotation.z = -1.38; k.position.x = x0 + 0.34; k.position.y = 0.13; } });
+      }
+      // Loser fades, winner glows.
+      const from = MAT[lc].color.clone();
+      tweens.push({ dur: 900, delay: 400, step: (e) => { DIM[lc].color.lerpColors(from, DIM_TO[lc], e); } });
+      DIM[lc].color.copy(from);
+      const winners = Object.values(bySq).filter((g) => colorOf(g.userData.piece) === wc);
+      winners.forEach((g) => paint(g, GLOW[wc]));
+      tweens.push({ dur: 1600, delay: 500, ease: (q) => q, step: (e, q) => { GLOW[wc].emissiveIntensity = 0.22 * Math.sin(Math.PI * q); },
+        done: () => { GLOW[wc].emissiveIntensity = 0; winners.forEach((g) => paint(g, MAT[wc])); } });
+    }
+    if (fx && fx.type === "draw") {
+      for (const c of ["w", "b"]) { const k = king(c); if (k) tweens.push({ dur: 1100, delay: 200, ease: (q) => q, step: (e, q) => { k.rotation.x = Math.sin(q * Math.PI * 4) * 0.2 * (1 - q); }, done: () => { k.rotation.x = 0; } }); }
     }
     kick();
   }
