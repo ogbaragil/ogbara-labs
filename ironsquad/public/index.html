@@ -52,9 +52,9 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);overf
 #stage{grid-area:stage;min-width:0;min-height:0;display:grid;place-items:center}
 #screen{position:relative;width:300px;height:300px;box-shadow:0 0 0 2px var(--line),0 0 0 6px var(--panel)}
 #cv{display:block;width:100%;height:100%;image-rendering:pixelated}
-#overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(9,12,11,.84);overflow:auto;padding:14px;box-sizing:border-box}
+#overlay{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;background:rgba(9,12,11,.9);box-sizing:border-box;padding-block:max(22px,calc(env(safe-area-inset-top,0px) + 14px)) max(84px,calc(env(safe-area-inset-bottom,0px) + 76px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 #overlay[hidden]{display:none!important}
-.card{display:flex;flex-direction:column;gap:10px;max-width:290px;width:100%}
+.card{display:flex;flex-direction:column;gap:12px;max-width:420px;width:100%;margin:auto}
 .eyebrow{font-family:var(--display);font-size:9px;letter-spacing:.16em;color:var(--cyan);margin:0}
 .card h1,.card h2{font-family:var(--display);font-weight:700;margin:0;color:var(--amber);text-shadow:3px 3px 0 var(--amber-d);text-wrap:balance;line-height:.9}
 .card h1{font-size:clamp(34px,13vw,52px)}
@@ -112,7 +112,12 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);overf
 .stars .star:nth-child(1){animation-delay:.3s}.stars .star:nth-child(2){animation-delay:.6s}.stars .star:nth-child(3){animation-delay:.9s}
 @keyframes starIn{from{transform:scale(2.4) rotate(-30deg);opacity:0}to{transform:none;opacity:1}}
 @keyframes starFade{from{opacity:0}to{opacity:1}}
-#overlay.demo{background:rgba(9,12,11,.66)}
+#overlay.demo{background:rgba(9,12,11,.8)}
+#overlay{-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+#moreFade{position:fixed;left:0;right:0;bottom:0;height:110px;z-index:21;pointer-events:none;background:linear-gradient(rgba(9,12,11,0),rgba(9,12,11,.96) 70%)}
+#moreHint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);transform:translateX(-50%);z-index:22;font-family:var(--display);font-size:12px;letter-spacing:.08em;background:var(--amber);color:#1b1306;border:0;border-bottom:3px solid var(--amber-d);border-radius:999px;padding:10px 18px 8px;box-shadow:0 6px 18px rgba(0,0,0,.5);cursor:pointer;animation:moreBob 1.6s ease-in-out infinite}
+@keyframes moreBob{50%{transform:translate(-50%,3px)}}
+@media (prefers-reduced-motion:reduce){#moreHint{animation:none}}
 @media (prefers-reduced-motion:reduce){.stars .star,.stars .star.on{animation:none}}
 .crit{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
 .crit li::before{content:"✕";display:inline-block;width:16px;color:var(--red)}
@@ -183,7 +188,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);overf
   #pad,#fireWrap,#stickZone{display:none}
   .keys{display:block}
 }
-#toast{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:2;pointer-events:none;background:var(--panel);border:1px solid var(--line);color:var(--fg);font-family:var(--display);font-size:11px;padding:6px 10px;border-radius:4px;white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:30;pointer-events:none;background:var(--panel);border:1px solid var(--line);color:var(--fg);font-family:var(--display);font-size:11px;padding:6px 10px;border-radius:4px;white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis}
 .btn:disabled{opacity:.4;cursor:default}
 .code{font-family:var(--display);font-size:clamp(34px,12vw,48px);letter-spacing:.18em;text-indent:.18em;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:4px;padding:8px 0 4px;user-select:text;-webkit-user-select:text;font-variant-numeric:tabular-nums}
 .codein{font-family:var(--display);font-size:28px;letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;text-align:center;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:8px;width:100%;box-sizing:border-box;user-select:text;-webkit-user-select:text}
@@ -209,7 +214,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);overf
       <div class="stat"><b>RANK</b><span class="rank" id="hRank"><i></i><i></i><i></i></span></div>
     </div>
   </header>
-  <div id="stage"><div id="screen"><canvas id="cv" width="300" height="300"></canvas><div id="overlay"></div><div id="toast" role="status" hidden></div></div></div>
+  <div id="stage"><div id="screen"><canvas id="cv" width="300" height="300"></canvas><div id="overlay"></div><div id="moreFade" hidden></div><button id="moreHint" hidden aria-label="Scroll down for more">More ↓</button><div id="toast" role="status" hidden></div></div></div>
   <div id="pad" aria-label="Direction pad">
     <div class="pb" id="pu"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 6l7 9H5z"/></svg></div>
     <div class="pb" id="pl"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 12l9-7v14z"/></svg></div>
@@ -1098,14 +1103,19 @@ function updateHud(){const tl=state==='title',mine=tl?null:players[me()],lv=mine
  mineBtn.hidden=!(mn>0&&state==='play');mineN.textContent=mn}
 
 /* ---------- screens ---------- */
+const moreHint=document.getElementById('moreHint'),moreFade=document.getElementById('moreFade');
+function updateMore(){const need=!overlay.hidden&&overlay.scrollHeight-overlay.clientHeight-overlay.scrollTop>30;moreHint.hidden=moreFade.hidden=!need}
+overlay.addEventListener('scroll',updateMore,{passive:true});addEventListener('resize',updateMore);
+moreHint.addEventListener('click',()=>{overlay.scrollBy({top:overlay.clientHeight*.7,behavior:reduceMotion?'auto':'smooth'})});
+try{document.fonts&&document.fonts.ready.then(updateMore)}catch(e){}
 let toastT=0;
 function toast(msg){toastEl.textContent=msg;toastEl.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{toastEl.hidden=true},2600)}
 let ctlReturn=null;
 function showScreen(html){if(ctlReturn)ctlReturn.html=html;else show(html)}
-function show(html,keep){if(!keep)ctlReturn=null;overlay.innerHTML=html;overlay.classList.toggle('demo',state==='title');overlay.hidden=false;overlay.querySelectorAll('canvas[data-p]').forEach(c=>{const g=c.getContext('2d');g.setTransform(2,0,0,2,0,0);drawPower(g,c.dataset.p,0,0)});
+function show(html,keep){if(!keep){ctlReturn=null;overlay.scrollTop=0}overlay.innerHTML=html;requestAnimationFrame(updateMore);setTimeout(updateMore,300);overlay.classList.toggle('demo',state==='title');overlay.hidden=false;overlay.querySelectorAll('canvas[data-p]').forEach(c=>{const g=c.getContext('2d');g.setTransform(2,0,0,2,0,0);drawPower(g,c.dataset.p,0,0)});
  overlay.querySelectorAll('canvas[data-thumb]').forEach(c=>{const m=getMapById(c.dataset.thumb);if(m)drawThumb(c.getContext('2d'),m.rows)});
  const b=overlay.querySelector('[data-focus]')||overlay.querySelector('.btn:not(:disabled)');if(b)setTimeout(()=>b.focus({preventScroll:true}),30)}
-function hide(){ctlReturn=null;overlay.hidden=true;overlay.innerHTML=''}
+function hide(){ctlReturn=null;overlay.hidden=true;moreHint.hidden=moreFade.hidden=true;overlay.innerHTML=''}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const youChip=i=>`<span class="you" style="background:${PCOL[i][0]}"></span>`;
 function picker(){if(unlocked<1)return '';let h='';for(let i=0;i<=unlocked+1;i++){const lock=i>unlocked,sn=stars[i]||0;
