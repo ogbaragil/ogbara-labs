@@ -22,7 +22,11 @@
   --board:#efe8d6; --cell:#f6f1e3; --grid:#d9cfb6;
   --tw:#e2574c; --dw:#f2a7a0; --tl:#2f7fc6; --dl:#9fd0ef;
   --tile1:#fdebc0; --tile2:#f1cd83; --tile-ink:#3b2a12; --tile-edge:#c99a4a;
-  --p1:#3cc6a0; --p2:#f2b544;
+  --p1:#3cc6a0; --p2:#a98bff;
+  /* Played tiles take their owner's colour: face top, face bottom, edge, ink */
+  --p1a:#e9fbf4; --p1b:#93dfc3; --p1e:#2a9d7c; --p1i:#0b3a2c;
+  --p2a:#f3eeff; --p2b:#bda9ff; --p2e:#7457dd; --p2i:#25175a;
+  --turn:var(--p1); --turn-ink:#06261c;
   --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Albert Sans",system-ui,sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -37,11 +41,11 @@ input{font-family:inherit}
 /* ---------- Menu screen ---------- */
 #menu{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 18px;gap:22px}
 .logo{display:flex;gap:6px}
-.logo .tile{width:min(9vw,44px);height:min(9vw,44px);font-size:min(5.4vw,26px);animation:drop .5s cubic-bezier(.2,.8,.3,1.2) both}
-.logo .tile:nth-child(2){animation-delay:.05s}.logo .tile:nth-child(3){animation-delay:.1s}.logo .tile:nth-child(4){animation-delay:.15s}
-.logo .tile:nth-child(5){animation-delay:.2s}.logo .tile:nth-child(6){animation-delay:.25s}.logo .tile:nth-child(7){animation-delay:.3s}
-.logo .tile:nth-child(8){animation-delay:.35s}.logo .tile:nth-child(9){animation-delay:.4s}
-@keyframes drop{from{transform:translateY(-30px);opacity:0}to{transform:none;opacity:1}}
+.logo .tile{width:min(9vw,44px);height:min(9vw,44px);font-size:min(5.4vw,26px);
+  animation:drop .6s cubic-bezier(.2,.8,.3,1.35) calc(var(--i)*55ms) both,float 3.4s ease-in-out calc(700ms + var(--i)*140ms) infinite}
+@keyframes drop{from{transform:translateY(-60px) rotate(-14deg) scale(1.3);opacity:0}to{transform:none;opacity:1}}
+@keyframes float{0%,100%{transform:none}50%{transform:translateY(-5px) rotate(var(--r,2deg))}}
+.logo .tile:nth-child(odd){--r:-2deg}
 .tagline{color:var(--muted);margin:-8px 0 0;text-align:center}
 .card{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(0,0,0,.25);padding:5px;border-radius:14px}
@@ -70,12 +74,17 @@ input{font-family:inherit}
 #game{height:100dvh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 1fr auto;max-width:720px;margin:0 auto;padding:8px 6px 10px}
 .top{display:flex;align-items:center;gap:6px;padding:2px 2px 8px}
 .players{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.pl{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);transition:box-shadow .2s,border-color .2s;min-width:0}
-.pl .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pl .sc{font-family:var(--display);font-weight:800;font-size:22px;line-height:1}
-.pl.on{border-color:var(--pc);box-shadow:0 0 0 1px var(--pc),0 8px 24px rgba(0,0,0,.3)}
-.pl .dot{width:8px;height:8px;border-radius:50%;background:var(--pc);flex:none;opacity:.35}
-.pl.on .dot{opacity:1;box-shadow:0 0 10px var(--pc)}
+.pl{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);transition:box-shadow .35s,border-color .35s,background .35s,transform .35s cubic-bezier(.2,.8,.3,1.3);min-width:0}
+.pl>*{position:relative}
+.pl .nm{flex:1;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .sc{display:inline-block;font-family:var(--display);font-weight:800;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
+.pl.on{border-color:var(--pc);background:color-mix(in srgb,var(--pc) 16%,var(--panel));box-shadow:0 0 0 1px var(--pc),0 8px 28px color-mix(in srgb,var(--pc) 30%,transparent);transform:translateY(-1px)}
+.pl.on::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--pc) 28%,transparent) 50%,transparent 70%);transform:translateX(-110%);animation:sheen 3.2s ease-in-out infinite}
+@keyframes sheen{0%,35%{transform:translateX(-110%)}100%{transform:translateX(110%)}}
+/* mini tile in the player's colour, so the board colours are self-explanatory */
+.pl .dot{width:16px;height:16px;border-radius:4px;flex:none;background:linear-gradient(160deg,var(--t1),var(--t2));box-shadow:inset 0 -2px 0 var(--te);opacity:.7;transition:opacity .3s}
+.pl.on .dot{opacity:1;animation:breathe 1.8s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:none}50%{transform:scale(1.2) rotate(10deg)}}
 .icon-btn{width:44px;height:44px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;font-size:18px;flex:none}
 .status{display:flex;align-items:center;gap:8px;padding:0 4px 8px;font-size:13.5px;color:var(--muted);min-height:30px}
 .status .msg{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -87,31 +96,44 @@ input{font-family:inherit}
 .cell{position:relative;background:var(--cell);border-radius:3px;display:grid;place-items:center;font-size:2.1cqw;font-weight:800;color:rgba(255,255,255,.95);letter-spacing:-.02em}
 .cell.tw{background:var(--tw)}.cell.dw,.cell.star{background:var(--dw);color:#7a2a23}.cell.tl{background:var(--tl)}.cell.dl{background:var(--dl);color:#1d4f75}
 .cell.star::after{content:"★";font-size:4cqw;color:#7a2a23}
-.cell.drop{outline:2px solid var(--accent);outline-offset:-2px}
-.tile{position:relative;display:grid;place-items:center;border-radius:12%;background:linear-gradient(160deg,var(--tile1),var(--tile2));color:var(--tile-ink);font-family:var(--display);font-weight:800;box-shadow:inset 0 -2px 0 var(--tile-edge),0 1px 2px rgba(0,0,0,.3);line-height:1}
+.cell.drop{outline:2px solid var(--turn);outline-offset:-2px;animation:dropPulse .9s ease-in-out infinite}
+@keyframes dropPulse{50%{outline-offset:-4px;filter:brightness(1.12)}}
+.board.intro .cell{animation:cellIn .5s cubic-bezier(.2,.8,.3,1.3) calc(var(--d)*38ms) both}
+@keyframes cellIn{from{transform:scale(.2) rotate(-20deg);opacity:0}}
+/* tile colours: wood by default (rack, pending), owner colours once played */
+.o0{--t1:var(--p1a);--t2:var(--p1b);--te:var(--p1e);--ti:var(--p1i)}
+.o1{--t1:var(--p2a);--t2:var(--p2b);--te:var(--p2e);--ti:var(--p2i)}
+.tile{position:relative;display:grid;place-items:center;border-radius:12%;background:linear-gradient(160deg,var(--t1,var(--tile1)),var(--t2,var(--tile2)));color:var(--ti,var(--tile-ink));font-family:var(--display);font-weight:800;box-shadow:inset 0 -2px 0 var(--te,var(--tile-edge)),0 1px 2px rgba(0,0,0,.3);line-height:1}
 .tile .pt{position:absolute;right:9%;bottom:6%;font-family:var(--body);font-weight:800;font-size:.38em}
-.tile.blank .ch{color:#9b6a1e;opacity:.85}
+.tile.blank .ch{color:var(--te,#9b6a1e);opacity:.9}
 .cell .tile{position:absolute;inset:0;font-size:4.2cqw}
 .cell .tile .pt{font-size:1.7cqw}
-.cell .tile.pending{background:linear-gradient(160deg,#fff6d8,#ffe08a);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 2px var(--accent)}
-.cell .tile.last::before{content:"";position:absolute;left:8%;top:8%;width:14%;height:14%;border-radius:50%;background:var(--lastc,var(--accent))}
-.cell .tile.pop{animation:pop .35s cubic-bezier(.2,.8,.3,1.4)}
-@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+.cell .tile.pending{background:linear-gradient(160deg,#fff6d8,#ffe08a);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 2px var(--turn),0 4px 10px rgba(0,0,0,.25);z-index:1}
+.cell .tile.last::before{content:"";position:absolute;left:9%;top:9%;width:15%;height:15%;border-radius:50%;background:var(--te,var(--accent));box-shadow:0 0 0 1.5px rgba(255,255,255,.7)}
 .cell .tile.bad{box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 2px var(--warn)}
+.score-pop{position:fixed;z-index:55;pointer-events:none;left:0;top:0;padding:6px 14px;border-radius:999px;font-family:var(--display);font-weight:800;font-size:24px;background:var(--pc);color:#08141f;box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 -3px 0 rgba(0,0,0,.18);white-space:nowrap}
+.score-pop small{font-size:.6em;margin-left:6px;letter-spacing:.06em}
+.confetti{position:fixed;z-index:56;pointer-events:none;width:10px;height:10px;border-radius:2px;left:0;top:0}
 .dock{padding-top:10px;display:grid;gap:10px}
 .rack{display:flex;justify-content:center;gap:min(1.2vw,6px);min-height:calc(min(11.5vw,56px) + 12px);padding:6px;border-radius:16px;background:linear-gradient(180deg,#5a3a1a,#3e2810);box-shadow:inset 0 2px 6px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.3);position:relative}
-.rack .tile{width:min(11.5vw,56px);height:min(11.5vw,56px);font-size:min(6.6vw,30px);touch-action:none;transition:transform .15s}
-.rack .tile.sel{transform:translateY(-8px);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 3px var(--accent),0 8px 16px rgba(0,0,0,.35)}
+.rack .tile{width:min(11.5vw,56px);height:min(11.5vw,56px);font-size:min(6.6vw,30px);touch-action:none;transition:transform .18s cubic-bezier(.2,.8,.3,1.4),box-shadow .18s}
+.rack .tile:active{transform:scale(.93)}
+.rack .tile.sel{transform:translateY(-9px);box-shadow:inset 0 -2px 0 var(--tile-edge),0 0 0 3px var(--turn),0 10px 18px rgba(0,0,0,.4);animation:bob 1.3s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(-9px)}50%{transform:translateY(-13px) rotate(-2deg)}}
 .rack .tile.dragging{opacity:.25}
 .rack .tile.pick{outline:3px solid var(--warn);outline-offset:2px}
 .rack-cover{position:absolute;inset:0;border-radius:16px;display:grid;place-items:center;background:rgba(10,20,31,.92);font-weight:700;color:var(--muted);font-size:14px}
 .actions{display:grid;grid-template-columns:repeat(4,1fr) 1.6fr;gap:6px}
 .act{min-height:48px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1}
 .act span{font-size:17px}
+.act{transition:transform .15s,background .3s,color .3s,box-shadow .3s}
+.act:active:not(:disabled){transform:scale(.94)}
 .act:disabled{opacity:.4}
-.act.play{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-family:var(--display);font-size:17px;font-weight:800;flex-direction:row;gap:8px}
-.act.play:disabled{background:var(--panel2);color:var(--faint);opacity:1}
-.ghost-tile{position:fixed;z-index:50;pointer-events:none;width:52px;height:52px;font-size:28px;transform:translate(-50%,-70%) scale(1.08);box-shadow:0 12px 28px rgba(0,0,0,.45)}
+.act.play{background:var(--turn);color:var(--turn-ink);border-color:transparent;font-family:var(--display);font-size:17px;font-weight:800;flex-direction:row;gap:8px;box-shadow:0 8px 24px color-mix(in srgb,var(--turn) 35%,transparent)}
+.act.play.ready{animation:ready 1.6s ease-in-out infinite}
+@keyframes ready{50%{box-shadow:0 8px 30px color-mix(in srgb,var(--turn) 60%,transparent),0 0 0 4px color-mix(in srgb,var(--turn) 25%,transparent)}}
+.act.play:disabled{background:var(--panel2);color:var(--faint);opacity:1;box-shadow:none}
+.ghost-tile{position:fixed;z-index:50;pointer-events:none;width:52px;height:52px;font-size:28px;transform:translate(-50%,-70%) scale(1.12) rotate(-5deg);box-shadow:0 16px 32px rgba(0,0,0,.5)}
 .side{display:none}
 
 /* ---------- Sheets & overlays ---------- */
@@ -135,8 +157,7 @@ input{font-family:inherit}
 .log li{display:flex;gap:10px;align-items:baseline;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,.2);font-size:14px}
 .log li .who{width:10px;height:10px;border-radius:50%;background:var(--pc);flex:none;align-self:center}
 .log li .w{flex:1;color:var(--muted)}
-.log li .w b{color:var(--ink);letter-spacing:.04em}
-.log li .s{font-family:var(--display);font-weight:800}
+.log li .w b{color:var(--pc);letter-spacing:.04em}.log li .s{font-family:var(--display);font-weight:800}
 .bag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px;margin-top:12px}
 .bag-grid div{display:flex;align-items:center;gap:6px;padding:6px;border-radius:10px;background:rgba(0,0,0,.2);font-weight:700}
 .bag-grid .tile{width:28px;height:28px;font-size:16px}
@@ -147,6 +168,7 @@ input{font-family:inherit}
 .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:13px;color:var(--muted)}
 .legend i{display:inline-block;width:16px;height:16px;border-radius:4px;vertical-align:-3px;margin-right:6px}
 .final-scores{display:grid;gap:8px;margin:14px 0 4px}
+.final-scores div{animation:up .45s cubic-bezier(.2,.8,.3,1.2) both}.final-scores div:nth-child(2){animation-delay:.12s}
 .final-scores div{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(0,0,0,.2);font-weight:700}
 .final-scores div b{font-family:var(--display);font-size:24px}
 .final-scores small{color:var(--faint);font-weight:600;display:block}
@@ -168,7 +190,7 @@ input{font-family:inherit}
   .board{--s:min(calc(100dvh - 300px),700px)}
   .side{display:flex;flex-direction:column;grid-column:2;grid-row:3/5;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;min-height:0}
   .side h3{margin:0;font-family:var(--display);font-size:18px}
-  .side .log{overflow:auto;flex:1}
+  .side .log{overflow:auto;flex:1;align-content:start}
   .rack .tile{width:56px;height:56px;font-size:30px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -273,12 +295,146 @@ const sPlay = (big) => { [523, 659, 784].concat(big ? [1047] : []).forEach((f, i
 const sErr = () => beep(180, 0.15, "sawtooth", 0.04);
 
 /* ---------- tile markup ---------- */
-function tileHTML(letter, blank, cls = "") {
+function tileHTML(letter, blank, cls = "", id = null) {
   const ch = letter === "?" ? "" : letter.toUpperCase();
   const pt = blank || letter === "?" ? "" : VAL[letter];
-  return `<div class="tile ${blank || letter === "?" ? "blank" : ""} ${cls}"><span class="ch">${ch}</span><span class="pt">${pt}</span></div>`;
+  return `<div ${id !== null ? `data-id="${id}" ` : ""}class="tile ${blank || letter === "?" ? "blank" : ""} ${cls}"><span class="ch">${ch}</span><span class="pt">${pt}</span></div>`;
 }
-$(".logo").innerHTML = [..."tilecraft"].map((l) => tileHTML(l)).join("");
+const ownCls = (t) => (t && (t.p === 0 || t.p === 1) ? "o" + t.p : "");
+// "tile" in player 1's colour, "craft" in player 2's
+$(".logo").innerHTML = [..."tilecraft"].map((l, i) => tileHTML(l, false, i < 4 ? "o0" : "o1").replace('class="tile', `style="--i:${i}" class="tile`)).join("");
+
+/* ---------- motion ---------- */
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const anim = (el, kf, opt) => (RM || !el || !el.animate ? null : el.animate(kf, opt));
+const center = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+// FLIP: remember where every tile is, change the DOM, then glide each tile from its old spot.
+function snapTiles() {
+  const m = new Map();
+  document.querySelectorAll("#rack .tile[data-id], #board .tile[data-id]").forEach((el) => m.set(+el.dataset.id, el.getBoundingClientRect()));
+  return m;
+}
+let flipOverride = null; // {id, rect} — e.g. where a dragged ghost tile was let go
+function flipTiles(before) {
+  const over = flipOverride; flipOverride = null;
+  if (RM) return;
+  document.querySelectorAll("#rack .tile[data-id], #board .tile[data-id]").forEach((el) => {
+    const id = +el.dataset.id, a = over && over.id === id ? over.rect : before.get(id);
+    if (!a) return;
+    const b = el.getBoundingClientRect(), ca = center(a), cb = center(b);
+    const dx = ca.x - cb.x, dy = ca.y - cb.y, s = a.width / b.width;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(s - 1) < 0.02) return;
+    const far = Math.hypot(dx, dy) > 80;
+    el.style.zIndex = 6;
+    const a1 = el.animate([
+      { transform: `translate(${dx}px,${dy}px) scale(${s})` },
+      ...(far ? [{ transform: `translate(${dx * 0.35}px,${dy * 0.35 - 14}px) scale(${(s + 1) / 2 * 1.12}) rotate(${dx > 0 ? -6 : 6}deg)`, offset: 0.55 }] : []),
+      { transform: "none" }], { duration: far ? 380 : 240, easing: "cubic-bezier(.25,.8,.3,1.12)" });
+    a1.onfinish = a1.oncancel = () => (el.style.zIndex = "");
+  });
+}
+let flipSnap = null;
+function withFlip(fn) { const b = (flipSnap = snapTiles()); try { fn(); } finally { flipSnap = null; } flipTiles(b); }
+
+// Score counters roll up instead of jumping.
+const scoreAnim = [null, null], shown = [0, 0];
+let scoreRaf = 0;
+function rollScore(i, from, delay) {
+  if (RM) return;
+  scoreAnim[i] = { from, t0: performance.now() + delay }; shown[i] = from;
+  if (!scoreRaf) scoreRaf = requestAnimationFrame(tickScores);
+}
+function tickScores(now) {
+  let more = false;
+  for (let i = 0; i < 2; i++) {
+    const a = scoreAnim[i]; if (!a) continue;
+    const to = G && G.players[i] ? G.players[i].score : a.from;
+    const t = Math.min(1, Math.max(0, (now - a.t0) / 700)), e = 1 - Math.pow(1 - t, 3);
+    shown[i] = Math.round(a.from + (to - a.from) * e);
+    const el = document.querySelector(`#players .pl[data-i="${i}"] .sc`);
+    if (el) el.textContent = shown[i];
+    if (t >= 1) {
+      scoreAnim[i] = null;
+      anim(el, [{ transform: "scale(1)" }, { transform: "scale(1.45)", color: `var(--p${i + 1})` }, { transform: "scale(1)" }], { duration: 420, easing: "cubic-bezier(.2,.8,.3,1.4)" });
+    } else more = true;
+  }
+  scoreRaf = more ? requestAnimationFrame(tickScores) : 0;
+}
+
+// Played-word effects. Queued by a commit, run by the next render once the tiles are in the DOM.
+let fx = null; // {sqs, main, p, drop, score, bingo}
+const FX_STAGGER = { drop: 115, stamp: 55 };
+function fxDuration(f) { return RM ? 0 : f.sqs.length * (f.drop ? FX_STAGGER.drop : FX_STAGGER.stamp) + (f.drop ? 430 : 260); }
+function runFx() {
+  const f = fx; fx = null;
+  if (!f || RM) return;
+  const order = f.sqs.slice().sort((a, b) => a - b);
+  const st = f.drop ? FX_STAGGER.drop : FX_STAGGER.stamp;
+  order.forEach((sq, i) => {
+    const el = cells[sq] && cells[sq].firstElementChild; if (!el) return;
+    if (f.drop) {
+      // opponent's tiles fall onto the board one at a time
+      el.animate([
+        { transform: "translateY(-140%) scale(1.6) rotate(-12deg)", opacity: 0, filter: "drop-shadow(0 18px 10px rgba(0,0,0,.35))" },
+        { transform: "translateY(0) scale(.9,1.06)", opacity: 1, offset: 0.62 },
+        { transform: "scale(1.06,.94)", offset: 0.8 },
+        { transform: "none", filter: "none" }], { duration: 480, delay: i * st, easing: "cubic-bezier(.3,.6,.4,1)", fill: "backwards" });
+      setTimeout(() => beep(420 + i * 45, 0.05, "triangle", 0.05), i * st + 300);
+    } else {
+      // your tiles stamp down and turn your colour
+      el.animate([
+        { transform: "scale(1)", filter: "brightness(1)" },
+        { transform: "scale(1.24) rotate(-4deg)", filter: "brightness(1.3)", offset: 0.4 },
+        { transform: "scale(.96)", offset: 0.75 },
+        { transform: "none", filter: "brightness(1)" }], { duration: 400, delay: i * st, easing: "ease-out", fill: "backwards" });
+    }
+  });
+  const end = fxDuration(f);
+  // light wave along the whole main word, including tiles that were already there
+  (f.main || order).forEach((sq, i) => {
+    const el = cells[sq] && cells[sq].firstElementChild; if (!el) return;
+    el.animate([{ transform: "none", filter: "brightness(1)" }, { transform: "translateY(-14%)", filter: "brightness(1.35)" }, { transform: "none", filter: "brightness(1)" }],
+      { duration: 340, delay: end + i * 45, easing: "ease-in-out" });
+  });
+  setTimeout(() => scorePop(f), end);
+}
+function scorePop(f) {
+  const sqs = f.main && f.main.length ? f.main : f.sqs;
+  if (!sqs.length || !cells[sqs[0]]) return;
+  const rs = sqs.map((s) => cells[s].getBoundingClientRect());
+  const x = rs.reduce((a, r) => a + r.left + r.width / 2, 0) / rs.length;
+  const y = Math.min(...rs.map((r) => r.top));
+  const d = document.createElement("div");
+  d.className = "score-pop"; d.style.setProperty("--pc", `var(--p${f.p + 1})`);
+  d.innerHTML = `+${f.score}${f.bingo ? "<small>BINGO</small>" : ""}`;
+  document.body.appendChild(d);
+  const w = d.offsetWidth, h = d.offsetHeight;
+  const px = Math.max(w / 2 + 6, Math.min(innerWidth - w / 2 - 6, x)) - w / 2, py = y - h / 2;
+  const a = d.animate([
+    { transform: `translate(${px}px,${py + 20}px) scale(.3)`, opacity: 0 },
+    { transform: `translate(${px}px,${py - 14}px) scale(1.18)`, opacity: 1, offset: 0.18 },
+    { transform: `translate(${px}px,${py - 26}px) scale(1)`, opacity: 1, offset: 0.7 },
+    { transform: `translate(${px}px,${py - 70}px) scale(.85)`, opacity: 0 }], { duration: 1500, easing: "cubic-bezier(.2,.8,.3,1)" });
+  a.onfinish = () => d.remove();
+  if (f.bingo || f.score >= 40) confetti(x, y, f.p, f.bingo ? 60 : 28);
+}
+function confetti(x, y, p, n) {
+  const cols = [`var(--p${p + 1})`, `var(--p${p + 1}b)`, "#ffd166", "#ffffff"];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("div"); c.className = "confetti";
+    c.style.background = cols[i % cols.length];
+    if (i % 3 === 0) c.style.borderRadius = "50%";
+    document.body.appendChild(c);
+    const ang = Math.random() * Math.PI * 2, v = 80 + Math.random() * 180;
+    const dx = Math.cos(ang) * v, dy = Math.sin(ang) * v - 120, rot = (Math.random() - 0.5) * 900;
+    const a = c.animate([
+      { transform: `translate(${x}px,${y}px) rotate(0) scale(1)`, opacity: 1 },
+      { transform: `translate(${x + dx * 0.7}px,${y + dy * 0.7}px) rotate(${rot * 0.6}deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(${x + dx}px,${y + dy + 260}px) rotate(${rot}deg) scale(.6)`, opacity: 0 }],
+      { duration: 1300 + Math.random() * 600, easing: "cubic-bezier(.15,.6,.4,1)" });
+    a.onfinish = () => c.remove();
+  }
+}
 
 /* ---------- menu ---------- */
 function syncMenu() {
@@ -354,8 +510,8 @@ function save() { if (G && G.mode !== "online") store(SAVE, G); }
 
 function startScreen(fresh) {
   $("#menu").classList.add("hidden"); $("#game").classList.remove("hidden");
-  pending = []; selected = null; busy = false; preview = null;
-  buildBoard(); render();
+  pending = []; selected = null; busy = false; preview = null; fx = null; scoreAnim[0] = scoreAnim[1] = null;
+  buildBoard(true); render();
   if (G.over) return showGameOver();
   if (G.mode === "duo") showHandoff(fresh ? "first" : "resume"); else if (cur().ai) aiTurn();
 }
@@ -363,43 +519,49 @@ function toMenu() { netStop(); closeLayer(); $("#game").classList.add("hidden");
 
 /* ---------- rendering ---------- */
 let cells = [];
-function buildBoard() {
+function buildBoard(intro) {
   const b = $("#board"); b.innerHTML = "";
   cells = [];
+  if (intro && !RM) { b.classList.add("intro"); setTimeout(() => b.classList.remove("intro"), 1100); }
   for (let i = 0; i < 225; i++) {
     const c = document.createElement("div");
     const pm = TC.PREMIUM[i];
     c.className = "cell " + pm.k; c.dataset.sq = i;
+    c.style.setProperty("--d", Math.hypot(Math.floor(i / N) - 7, (i % N) - 7).toFixed(2)); // ripple out from the star
     c.dataset.label = { tw: "3W", dw: "2W", tl: "3L", dl: "2L", star: "", "": "" }[pm.k];
     b.appendChild(c); cells.push(c);
   }
 }
 function render() {
-  // players
-  $("#players").innerHTML = G.players.map((p, i) =>
-    `<div class="pl ${i === G.turn && !G.over && G.started !== false ? "on" : ""} ${G.mode === "online" && !p.online ? "off" : ""}" style="--pc:var(--p${i + 1})" title="${G.mode === "online" ? (p.online ? "Online" : "Offline") : ""}"><span class="dot"></span><span class="nm">${esc(p.name)}${G.mode === "online" && i === G.seat ? " (you)" : ""}</span><span class="sc">${p.score}</span></div>`).join("");
+  // whose colour drives the controls (play button, drop outline, pending tiles)
+  const me = ownerIdx();
+  $("#game").style.setProperty("--turn", `var(--p${me + 1})`);
+  $("#game").style.setProperty("--turn-ink", me ? "#1a1040" : "#06261c");
+  renderPlayers();
   $("#bagChip").textContent = "🎒 " + bagCount();
   // board
   const pend = new Map(pending.map((p) => [p.sq, p]));
   const last = new Set(G.last || []);
-  const lastColor = G.moves.length ? `var(--p${G.moves[G.moves.length - 1].p + 1})` : "";
   const bad = new Set();
   if (preview && preview.bad) for (const w of preview.words) if (preview.bad.includes(w.w.toUpperCase())) w.sqs.forEach((s) => pend.has(s) && bad.add(s));
   for (let i = 0; i < 225; i++) {
     const t = G.board[i], p = pend.get(i), c = cells[i];
-    const want = t ? `b${t.l}${t.b ? 1 : 0}${last.has(i) ? "L" : ""}` : p ? `p${p.l}${p.b ? 1 : 0}${bad.has(i) ? "x" : ""}` : "";
-    if (c.dataset.state === want) continue;
-    const wasEmpty = !c.dataset.state || c.dataset.state[0] === "p";
-    c.dataset.state = want;
-    if (t) { c.innerHTML = tileHTML(t.l, t.b, (last.has(i) ? "last" : "") + (last.has(i) && wasEmpty ? " pop" : "")); c.style.setProperty("--lastc", lastColor); }
-    else if (p) c.innerHTML = tileHTML(p.l, p.b, "pending" + (bad.has(i) ? " bad" : ""));
-    else c.innerHTML = c.dataset.label;
+    const want = t ? `b${t.l}${t.b ? 1 : 0}${ownCls(t)}` : p ? `p${p.id}${p.l}${p.b ? 1 : 0}${bad.has(i) ? "x" : ""}` : "";
+    if (c.dataset.state !== want) {
+      c.dataset.state = want;
+      if (t) c.innerHTML = tileHTML(t.l, t.b, ownCls(t));
+      else if (p) c.innerHTML = tileHTML(p.l, p.b, "pending" + (bad.has(i) ? " bad" : ""), p.id);
+      else c.innerHTML = c.dataset.label;
+    }
+    if (t) c.firstElementChild.classList.toggle("last", last.has(i));
   }
   renderRack();
   renderStatus();
   renderLog($("#sideLog"));
+  runFx();
   const mine = humanTurn() && !busy;
   $("#playBtn").disabled = G.over ? false : !(mine && preview && preview.ok);
+  $("#playBtn").classList.toggle("ready", !G.over && mine && !!(preview && preview.ok));
   $("#playBtn").textContent = G.over ? "Results" : net.sending ? "Sending…" : preview && preview.ok ? `Play · ${preview.score}` : "Play";
   $("#swapBtn").disabled = !mine || bagCount() < TC.RACK;
   $("#passBtn").disabled = !mine;
@@ -409,21 +571,68 @@ function render() {
   $("#hintBtn").disabled = !mine;
   document.querySelector(".actions").style.gridTemplateColumns = G.mode === "solo" ? "repeat(4,1fr) 1.6fr" : "repeat(3,1fr) 1.6fr";
 }
-function rackOwner() {
-  if (G.mode === "online") return G.players[G.seat];
+function ownerIdx() {
+  if (G.mode === "online") return G.seat || 0;
   // In solo games the rack always shows the human's tiles.
-  if (G.mode === "solo") return G.players.find((p) => !p.ai);
-  return cur();
+  if (G.mode === "solo") return Math.max(0, G.players.findIndex((p) => !p.ai));
+  return G.turn;
+}
+function rackOwner() { return G.players[ownerIdx()]; }
+function renderPlayers() {
+  const wrap = $("#players");
+  if (wrap.children.length !== G.players.length)
+    wrap.innerHTML = G.players.map((_, i) => `<div class="pl" data-i="${i}" style="--pc:var(--p${i + 1})"><span class="dot o${i}"></span><span class="nm"></span><span class="sc"></span></div>`).join("");
+  G.players.forEach((p, i) => {
+    const el = wrap.children[i];
+    const on = i === G.turn && !G.over && G.started !== false;
+    const was = el.classList.contains("on");
+    el.classList.toggle("on", on);
+    el.classList.toggle("off", G.mode === "online" && !p.online);
+    el.title = G.mode === "online" ? (p.online ? "Online" : "Offline") : "";
+    el.querySelector(".nm").textContent = p.name + (G.mode === "online" && i === G.seat ? " (you)" : "");
+    if (!scoreAnim[i]) shown[i] = p.score;
+    el.querySelector(".sc").textContent = shown[i];
+    if (on && !was) anim(el, [{ transform: "scale(1)" }, { transform: "scale(1.06) translateY(-2px)" }, { transform: "translateY(-1px)" }], { duration: 420, easing: "cubic-bezier(.2,.8,.3,1.4)" });
+  });
 }
 function renderRack() {
   const p = rackOwner(), used = new Set(pending.map((x) => x.id));
   if (G.mode === "online") net.order = p.rack.map((t) => t.id);
   const r = $("#rack");
-  r.innerHTML = p.rack.filter((t) => !used.has(t.id)).map((t) =>
-    tileHTML(t.l, false, selected === t.id ? "sel" : "").replace('class="tile', `data-id="${t.id}" class="tile`)).join("");
-  if (G.mode === "duo" && handoffOpen) r.insertAdjacentHTML("beforeend", `<div class="rack-cover">Tiles hidden</div>`);
+  const hide = G.mode === "duo" && handoffOpen;
+  const tiles = hide ? [] : p.rack.filter((t) => !used.has(t.id));
+  // Keep existing tile elements so they can glide (FLIP) rather than being rebuilt.
+  const old = new Map([...r.querySelectorAll(".tile[data-id]")].map((el) => [+el.dataset.id, el]));
+  const onBoard = flipSnap || new Map();
+  r.querySelectorAll(".rack-cover").forEach((el) => el.remove());
+  let dealt = 0;
+  tiles.forEach((t, i) => {
+    let el = old.get(t.id);
+    if (el) old.delete(t.id);
+    else {
+      const h = document.createElement("div"); h.innerHTML = tileHTML(t.l, false, "", t.id); el = h.firstElementChild;
+      // fresh tiles are dealt in from below; tiles coming back from the board glide instead (flipTiles)
+      if (!onBoard.has(t.id)) el._deal = dealt++;
+    }
+    el.classList.toggle("sel", selected === t.id);
+    if (r.children[i] !== el) r.insertBefore(el, r.children[i] || null);
+  });
+  old.forEach((el) => el.remove());
+  r.querySelectorAll(".tile[data-id]").forEach((el) => {
+    if (el._deal === undefined) return;
+    const k = el._deal; delete el._deal;
+    anim(el, [{ transform: "translateY(70px) rotate(-12deg) scale(.5)", opacity: 0 }, { transform: "translateY(-6px) scale(1.05)", opacity: 1, offset: 0.7 }, { transform: "none" }],
+      { duration: 420, delay: k * 60, easing: "cubic-bezier(.2,.8,.3,1.2)", fill: "backwards" });
+  });
+  if (hide) r.insertAdjacentHTML("beforeend", `<div class="rack-cover">Tiles hidden</div>`);
 }
+let lastMsg = "";
 function renderStatus() {
+  renderStatusInner();
+  const m = $("#msg");
+  if (m.innerHTML !== lastMsg) { lastMsg = m.innerHTML; anim(m, [{ opacity: 0, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: "ease-out" }); }
+}
+function renderStatusInner() {
   const m = $("#msg"); m.classList.remove("err", "thinking");
   if (G.mode === "online") {
     const opp = G.players[1 - G.seat];
@@ -450,7 +659,7 @@ function renderStatus() {
 }
 function moveText(mv) {
   const who = esc(G.players[mv.p].name);
-  if (mv.t === "play") return `${who}: <b>${mv.words[0].toUpperCase()}</b> ${mv.s}`;
+  if (mv.t === "play") return `${who}: <b style="color:var(--p${mv.p + 1})">${mv.words[0].toUpperCase()}</b> ${mv.s}`;
   if (mv.t === "swap") return `${who} swapped ${mv.n}`;
   if (mv.t === "resign") return `${who} resigned`;
   if (mv.t === "end") return `${who} ${mv.s >= 0 ? "+" : ""}${mv.s} tiles`;
@@ -487,9 +696,9 @@ function placeTile(id, sq) {
   if (t.l === "?") { pickBlank((l) => { pending.push({ sq, id, l, b: true }); finishPlace(); }); return true; }
   pending.push({ sq, id, l: t.l, b: false }); finishPlace(); return true;
 }
-function finishPlace() { selected = null; sClick(); updatePreview(); render(); }
-function recallTile(id) { pending = pending.filter((p) => p.id !== id); selected = null; updatePreview(); render(); }
-function recallAll() { pending = []; selected = null; preview = null; render(); }
+function finishPlace() { selected = null; sClick(); updatePreview(); withFlip(render); }
+function recallTile(id) { pending = pending.filter((p) => p.id !== id); selected = null; updatePreview(); withFlip(render); }
+function recallAll() { if (!pending.length) return; pending = []; selected = null; preview = null; withFlip(render); }
 
 // Pointer handling: drag from rack/board, or tap to select then tap a square.
 let drag = null;
@@ -525,7 +734,7 @@ document.addEventListener("pointermove", (e) => {
 document.addEventListener("pointerup", (e) => {
   if (!drag) return;
   const d = drag; drag = null;
-  if (d.ghost) d.ghost.remove();
+  if (d.ghost) { flipOverride = { id: d.id, rect: d.ghost.getBoundingClientRect() }; d.ghost.remove(); }
   if (d.over) d.over.classList.remove("drop");
   if (d.el) d.el.classList.remove("dragging");
   if (!d.moved) { // tap
@@ -541,8 +750,11 @@ document.addEventListener("pointerup", (e) => {
     const rk = rackOwner().rack, a = rk.findIndex((t) => t.id === d.id);
     const [t] = rk.splice(a, 1);
     const b = tgt ? rk.findIndex((x) => x.id === +tgt.dataset.id) : rk.length;
-    rk.splice(b < 0 ? rk.length : b, 0, t); save(); renderRack();
+    rk.splice(b < 0 ? rk.length : b, 0, t); save(); withFlip(renderRack);
+    return;
   }
+  // dropped somewhere useless: glide back home
+  withFlip(render);
 });
 document.addEventListener("pointercancel", () => { if (drag) { drag.ghost && drag.ghost.remove(); drag.el && drag.el.classList.remove("dragging"); drag = null; } });
 $("#board").addEventListener("click", (e) => {
@@ -562,7 +774,7 @@ $("#shuffleBtn").onclick = () => {
   if (pending.length) return recallAll();
   const rk = rackOwner().rack;
   for (let i = rk.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rk[i], rk[j]] = [rk[j], rk[i]]; }
-  sClick(); save(); renderRack();
+  sClick(); save(); withFlip(renderRack);
 };
 $("#playBtn").onclick = () => (G.over ? showGameOver() : doPlay());
 $("#passBtn").onclick = () => confirmSheet("Pass this turn?", "You'll score nothing this turn. Six scoreless turns in a row ends the game.", "Pass", () => { recallAll(); commitPass(); });
@@ -573,7 +785,11 @@ $("#bagChip").onclick = () => showBag();
 
 function doPlay() {
   updatePreview();
-  if (!preview || !preview.ok) { sErr(); render(); return; }
+  if (!preview || !preview.ok) {
+    sErr(); render();
+    document.querySelectorAll("#board .tile.pending").forEach((el) => anim(el, [0, -6, 6, -4, 4, 0].map((x) => ({ transform: `translateX(${x}px)` })), { duration: 360 }));
+    return;
+  }
   if (G.mode === "online") { net.sending = netSend({ t: "play", placements: pending.map((x) => ({ sq: x.sq, id: x.id, l: x.l })) }); render(); return; }
   const p = cur();
   const placements = pending.map((x) => ({ sq: x.sq, l: x.l, b: x.b }));
@@ -583,7 +799,9 @@ function doPlay() {
 }
 function commitPlay(placements, res) {
   const p = cur();
-  for (const pl of placements) G.board[pl.sq] = { l: pl.l, b: pl.b };
+  for (const pl of placements) G.board[pl.sq] = { l: pl.l, b: pl.b, p: G.turn };
+  fx = { sqs: placements.map((x) => x.sq), main: res.words[0] && res.words[0].sqs, p: G.turn, drop: !!p.ai, score: res.score, bingo: res.bingo };
+  rollScore(G.turn, p.score, fxDuration(fx));
   p.score += res.score;
   G.last = placements.map((x) => x.sq);
   G.moves.push({ p: G.turn, t: "play", s: res.score, words: res.words.map((w) => w.w), bingo: res.bingo });
@@ -616,8 +834,11 @@ function commitSwap(ids) {
   nextTurn();
 }
 function nextTurn() {
-  G.turn = 1 - G.turn; save(); render();
-  if (G.mode === "duo") showHandoff(false);
+  const wait = fx ? fxDuration(fx) + 900 : 0; // let the word land before covering the board
+  G.turn = 1 - G.turn;
+  if (G.mode === "duo") handoffOpen = true; // hide the next rack straight away
+  save(); render();
+  if (G.mode === "duo") setTimeout(() => { if (G && G.mode === "duo" && !G.over) showHandoff(false); }, wait);
   else if (cur().ai) aiTurn();
 }
 function rackValue(p) { return p.rack.reduce((a, t) => a + VAL[t.l], 0); }
@@ -633,8 +854,9 @@ function endGame(outIdx) {
     if (bonus) { G.players[outIdx].score += bonus; G.moves.push({ p: outIdx, t: "end", s: bonus }); }
   }
   G.over = true; G.last = G.last || [];
+  const wait = fx ? fxDuration(fx) + 1300 : 700;
   recordStats(); save(); render();
-  setTimeout(showGameOver, 700);
+  setTimeout(showGameOver, wait);
 }
 
 /* ---------- computer ---------- */
@@ -664,10 +886,9 @@ function aiTurn() {
   }, 60);
 }
 function doHint() {
-  recallAll();
   const p = rackOwner();
   const moves = TC.generate(G.board, p.rack.map((t) => t.l));
-  if (!moves.length) { toast("No words possible — try a swap"); return; }
+  if (!moves.length) { recallAll(); toast("No words possible — try a swap"); return; }
   moves.sort((a, b) => b.score - a.score);
   const m = moves[Math.min(G.hints % 3, moves.length - 1)]; // cycle through the top 3
   G.hints++;
@@ -676,7 +897,7 @@ function doHint() {
     const t = p.rack.find((x) => !used.has(x.id) && x.l === (pl.b ? "?" : pl.l)); used.add(t.id);
     return { sq: pl.sq, id: t.id, l: pl.l, b: pl.b };
   });
-  updatePreview(); sClick(); render();
+  selected = null; updatePreview(); sClick(); withFlip(render);
 }
 
 /* ---------- stats ---------- */
@@ -759,6 +980,7 @@ function showRules() {
       <li>Coloured squares multiply the tiles placed on them: <b>2L/3L</b> double or triple a letter, <b>2W/3W</b> double or triple the word. The ★ is a double word.</li>
       <li>Use all 7 tiles in one turn for a <b>+50 bingo</b>.</li>
       <li>Blank tiles can be any letter and score 0.</li>
+      <li>Played tiles take on the <b style="color:var(--p1)">colour</b> of the <b style="color:var(--p2)">player</b> who placed them, so you can see at a glance who built what.</li>
       <li>Instead of playing you can <b>swap</b> tiles (needs 7+ in the bag) or <b>pass</b>.</li>
       <li>The game ends when the bag is empty and someone plays their last tile (they gain the value of their rival's leftover tiles, who loses it), or after six scoreless turns in a row.</li>
     </ol>
@@ -954,6 +1176,13 @@ function applyState(s) {
       } else if (mv.p !== G.seat && (mv.t === "swap" || mv.t === "pass")) toast(`${G.players[mv.p].name} ${mv.t === "swap" ? "swapped " + mv.n : "passed"}`);
     }
     const last = s.moves[s.moves.length - 1];
+    const lastPlay = s.moves.slice(prevMoves).filter((mv) => mv.t === "play").pop();
+    if (lastPlay && s.last && s.last.length && s.last.every((sq) => s.board[sq])) {
+      let main = null;
+      try { main = TC.scoreMove(prev.board, s.last.map((sq) => ({ sq, l: s.board[sq].l, b: s.board[sq].b }))).words[0].sqs; } catch {}
+      fx = { sqs: s.last.slice(), main, p: lastPlay.p, drop: lastPlay.p !== G.seat, score: lastPlay.s, bingo: lastPlay.bingo };
+      rollScore(lastPlay.p, prev.players[lastPlay.p].score, fxDuration(fx));
+    }
     if (last.p === G.seat && last.t === "play") bumpBestWord({ score: last.s, words: last.words.map((w) => ({ w, s: last.s })) });
     if (!G.over && G.turn === G.seat && navigator.vibrate) try { navigator.vibrate(60); } catch {}
   }

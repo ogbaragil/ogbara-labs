@@ -179,7 +179,7 @@ export class Room extends DurableObject {
       }
       const res = TC.validate(g.board, pl);
       if (!res.ok) return this.reject(ws, res.error);
-      for (const p of pl) g.board[p.sq] = { l: p.l, b: p.b };
+      for (const p of pl) g.board[p.sq] = { l: p.l, b: p.b, p: seat }; // owner, so clients can colour tiles
       me.rack = me.rack.filter((t) => !used.has(t.id));
       me.score += res.score;
       g.last = pl.map((p) => p.sq);
