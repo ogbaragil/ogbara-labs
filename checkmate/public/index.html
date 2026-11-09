@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101c26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Check Mate">
+<title>Check Mate — chess for one or two</title>
+<meta name="description" content="Play chess against the computer, with a friend on one device, or online across two devices. No ads, no accounts, works offline.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Albert+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#101c26; --bg2:#081017; --panel:#172a38; --panel2:#1e3546; --line:rgba(255,255,255,.12);
+  --ink:#f3f1ea; --muted:#a8b9c6; --faint:#7389a0;
+  --accent:#e9b949; --accent-ink:#2a1d02; --warn:#ff8a7a; --ok:#3cc6a0;
+  --light:#e9e3d0; --dark:#5f8c80; --coord-l:#5f8c80; --coord-d:#e9e3d0;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Albert Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;font-family:var(--body);color:var(--ink);user-select:none;-webkit-user-select:none;overscroll-behavior:none;
+  background:radial-gradient(900px 500px at 50% -10%,rgba(233,185,73,.12),transparent 60%),linear-gradient(180deg,var(--bg),var(--bg2));
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input{font-family:inherit}
+.hidden{display:none!important}
+svg.defs{position:absolute;width:0;height:0}
+
+/* pieces */
+.pc{width:100%;height:100%;display:block;pointer-events:none}
+.pc svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 1.5px rgba(0,0,0,.28))}
+.pc.w{--pf:#fbf8ef;--ps:#1c2731;--pd:#1c2731}
+.pc.b{--pf:#24323e;--ps:#0a1118;--pd:#e9e3d0}
+
+/* ---------- Menu ---------- */
+#menu{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 18px;gap:20px}
+.logo{display:flex;flex-direction:column;align-items:center;gap:6px}
+.logo .row{display:flex;gap:2px}
+.logo .row .pc{width:min(11vw,48px);height:min(11vw,48px);animation:hop .6s cubic-bezier(.2,.8,.3,1.3) both}
+.logo .row .pc:nth-child(2){animation-delay:.06s}.logo .row .pc:nth-child(3){animation-delay:.12s}.logo .row .pc:nth-child(4){animation-delay:.18s}.logo .row .pc:nth-child(5){animation-delay:.24s}.logo .row .pc:nth-child(6){animation-delay:.3s}
+@keyframes hop{from{transform:translateY(-24px);opacity:0}to{transform:none;opacity:1}}
+.logo h1{margin:0;font-family:var(--display);font-size:clamp(40px,11vw,60px);letter-spacing:-.04em;line-height:1}
+.logo h1 em{color:var(--accent);font-style:normal}
+.tagline{color:var(--muted);margin:0;text-align:center}
+.card{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(0,0,0,.25);padding:5px;border-radius:14px}
+.seg.three{grid-template-columns:repeat(3,1fr)}
+.seg button{padding:11px 6px;border-radius:10px;font-weight:700;color:var(--muted)}
+.seg button.on{background:var(--panel2);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.field{margin-top:16px}
+.field label.lb{display:block;font-size:12px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.names{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inp{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:16px;font-weight:600}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:12px;border-radius:12px;background:rgba(0,0,0,.2);font-weight:600;font-size:14.5px;color:var(--muted)}
+.toggle input{width:44px;height:26px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.18);border-radius:999px;position:relative;cursor:pointer;flex:none;transition:background .2s}
+.toggle input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle input:checked{background:var(--ok)}.toggle input:checked::after{transform:translateX(18px)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border-radius:999px;font-family:var(--display);font-weight:800;font-size:18px;margin-top:18px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 14px 36px rgba(233,185,73,.22)}
+.btn.primary:disabled{opacity:.55}
+.btn.ghost{border:1px solid var(--line);margin-top:10px;font-size:16px}
+.join-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.join-row .btn{margin:0;width:auto;padding:0 22px}
+#joinCode{text-align:center;letter-spacing:6px;text-transform:uppercase;font-family:var(--display);font-weight:800;font-size:20px}
+.or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;margin-top:16px}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.stats{display:flex;justify-content:center;gap:18px;color:var(--faint);font-size:13px;flex-wrap:wrap;text-align:center}
+.stats b{color:var(--ink);display:block;font-family:var(--display);font-size:20px}
+.foot{color:var(--faint);font-size:12px;text-align:center}
+.foot a{color:var(--muted)}
+
+/* ---------- Game ---------- */
+#game{height:100dvh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(5,auto);align-content:center;max-width:640px;margin:0 auto;padding:8px 8px 10px;gap:8px}
+.pcard{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);min-height:52px;transition:box-shadow .2s,border-color .2s}
+.pcard.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.3)}
+.pcard .sw{width:22px;height:22px;border-radius:7px;flex:none;box-shadow:inset 0 0 0 2px rgba(0,0,0,.35)}
+.pcard .sw.w{background:#fbf8ef}.pcard .sw.b{background:#24323e;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.pcard .who{min-width:0;flex:1}
+.pcard .nm{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .nm small{font-weight:600;color:var(--faint);margin-left:6px}
+.pcard .caps{display:flex;align-items:center;flex-wrap:wrap;min-height:18px}
+.pcard .caps .pc{width:18px;height:18px;margin-right:-5px}
+.pcard .caps b{margin-left:9px;font-size:12px;color:var(--muted)}
+.pcard .st{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+.pcard.off .nm{opacity:.55}
+.thinking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.boardwrap{display:flex;align-items:center;justify-content:center;min-height:0}
+.board{--s:min(calc(100vw - 16px),calc(100dvh - 290px),620px);width:var(--s);height:var(--s);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border-radius:10px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.45),0 0 0 4px #2b4252;touch-action:none;container-type:inline-size}
+.sq{position:relative;background:var(--light)}
+.sq.d{background:var(--dark)}
+.sq .co{position:absolute;font-size:2.1cqw;font-weight:800;line-height:1;pointer-events:none;color:var(--coord-l)}
+.sq.d .co{color:var(--coord-d)}
+.sq .co.f{right:3%;bottom:3%}.sq .co.r{left:4%;top:4%}
+.sq.last::before{content:"";position:absolute;inset:0;background:rgba(240,196,70,.42)}
+.sq.sel::before{content:"";position:absolute;inset:0;background:rgba(60,198,160,.55)}
+.sq.hint::before{content:"";position:absolute;inset:0;background:rgba(120,170,255,.55)}
+.sq.chk::before{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(255,60,50,.95) 0,rgba(255,60,50,.5) 45%,transparent 72%)}
+.sq.mv::after{content:"";position:absolute;left:35%;top:35%;width:30%;height:30%;border-radius:50%;background:rgba(10,30,40,.3);pointer-events:none}
+.sq.mv.cap::after{left:4%;top:4%;width:92%;height:92%;background:transparent;box-shadow:inset 0 0 0 .9cqw rgba(10,30,40,.3)}
+.sq.over{box-shadow:inset 0 0 0 .6cqw rgba(255,255,255,.85)}
+.sq .pc{position:absolute;inset:3%;width:94%;height:94%;z-index:1}
+.sq .pc.moving{transition:transform .2s cubic-bezier(.3,.7,.3,1)}
+.sq .pc.lift{opacity:.25}
+.dragghost{position:fixed;z-index:50;pointer-events:none;transform:translate(-50%,-60%) scale(1.15)}
+.moves{display:flex;gap:4px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;min-height:30px;align-items:center}
+.moves::-webkit-scrollbar{display:none}
+.moves span{flex:none;font-size:13.5px;font-weight:700;color:var(--muted);padding:4px 7px;border-radius:8px}
+.moves span.n{color:var(--faint);padding-right:0;font-weight:600}
+.moves span.cur{background:var(--panel2);color:var(--ink)}
+.moves .empty{color:var(--faint);font-weight:600}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.act{min-height:50px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1}
+.act span{font-size:17px}
+.act:disabled{opacity:.4}
+.side{display:none}
+
+/* ---------- Sheets ---------- */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(4,10,16,.62);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;padding:12px;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+.sheet{width:min(500px,100%);max-height:86dvh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:20px;animation:up .25s cubic-bezier(.2,.8,.3,1);margin-bottom:env(safe-area-inset-bottom)}
+@keyframes up{from{transform:translateY(30px);opacity:0}}
+.sheet h2{font-family:var(--display);margin:0 0 6px;font-size:26px;letter-spacing:-.02em}
+.sheet p{color:var(--muted);margin:6px 0}
+.sheet .row{display:flex;gap:8px}
+.sheet .row .btn{margin-top:14px}
+.menu-list{display:grid;gap:8px;margin-top:10px}
+.menu-list button{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:rgba(0,0,0,.2);border:1px solid var(--line);font-weight:700;font-size:15px;text-align:left}
+.menu-list button span{font-size:18px;width:24px;text-align:center}
+.promo{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.promo button{aspect-ratio:1;border-radius:16px;background:var(--light);padding:8px}
+.promo button:nth-child(even){background:var(--dark)}
+.code-tiles{display:flex;justify-content:center;gap:8px;margin:16px 0 6px}
+.code-tiles b{width:56px;height:56px;display:grid;place-items:center;border-radius:12px;background:var(--light);color:#1c2731;font-family:var(--display);font-size:32px}
+.code-tiles b:nth-child(even){background:var(--dark);color:#fff}
+.result{display:grid;gap:8px;margin:14px 0 4px}
+.result div{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(0,0,0,.2);font-weight:700}
+.result div .sw{width:20px;height:20px;border-radius:6px}
+.result div .sw.w{background:#fbf8ef}.result div .sw.b{background:#24323e;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.result div b{margin-left:auto;font-family:var(--display);font-size:22px}
+.rules{color:var(--muted);font-size:14.5px;line-height:1.55;padding-left:18px}
+.rules li{margin:6px 0}.rules b{color:var(--ink)}
+.banner{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 16px);transform:translateX(-50%);z-index:35;width:min(460px,calc(100% - 24px));background:var(--panel2);border:1px solid var(--accent);border-radius:18px;padding:14px;box-shadow:0 20px 50px rgba(0,0,0,.5);display:flex;align-items:center;gap:10px;animation:bup .25s}
+@keyframes bup{from{transform:translate(-50%,30px);opacity:0}}
+.banner p{margin:0;flex:1;font-weight:700}
+.banner button{padding:10px 14px;border-radius:999px;font-weight:800}
+.banner .yes{background:var(--accent);color:var(--accent-ink)}.banner .no{border:1px solid var(--line)}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 70px);transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:toast 2.4s forwards;white-space:nowrap}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-10px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+
+@media (min-width:980px) and (min-height:640px){
+  #game{max-width:1080px;grid-template-columns:auto 300px;grid-template-rows:repeat(4,auto);column-gap:22px;padding:16px}
+  #topCard{grid-column:1;grid-row:1}.boardwrap{grid-column:1;grid-row:2}#botCard{grid-column:1;grid-row:3}.moves{display:none}.actions{grid-column:1;grid-row:4}
+  .board{--s:min(calc(100dvh - 250px),700px)}
+  .side{display:flex;flex-direction:column;grid-column:2;grid-row:1/5;max-height:calc(100dvh - 32px);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;min-height:0}
+  .side h3{margin:0 0 8px;font-family:var(--display);font-size:18px}
+  .mlist{overflow:auto;flex:1;display:grid;grid-template-columns:36px 1fr 1fr;align-content:start;gap:2px 4px;font-size:14px;font-weight:700}
+  .mlist i{font-style:normal;color:var(--faint);font-weight:600;padding:4px 0}
+  .mlist span{padding:4px 8px;border-radius:8px;color:var(--muted)}
+  .mlist span.cur{background:var(--panel2);color:var(--ink)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<!-- Original piece artwork (Ogbara). Colours come from CSS variables on .pc.w / .pc.b -->
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <g id="base"><path d="M24 88h52c3 0 5-2 5-5v-1c0-3-2-5-5-5H24c-3 0-5 2-5 5v1c0 3 2 5 5 5z"/></g>
+  </defs>
+  <symbol id="p-p" viewBox="0 0 100 100"><g fill="var(--pf)" stroke="var(--ps)" stroke-width="3" stroke-linejoin="round">
+    <path d="M36 77c1-10 5-18 8-24h12c3 6 7 14 8 24z"/><rect x="37" y="47" width="26" height="7" rx="3.5"/><circle cx="50" cy="34" r="12"/><use href="#base"/></g></symbol>
+  <symbol id="p-r" viewBox="0 0 100 100"><g fill="var(--pf)" stroke="var(--ps)" stroke-width="3" stroke-linejoin="round">
+    <path d="M33 77l3-31h28l3 31z"/><path d="M29 46V20h9v7h8v-7h8v7h8v-7h9v26z"/><use href="#base"/></g></symbol>
+  <symbol id="p-n" viewBox="0 0 100 100"><g fill="var(--pf)" stroke="var(--ps)" stroke-width="3" stroke-linejoin="round">
+    <path d="M33 77C33 66 37 59 44 53C38 54 33 54 29 50C25 46 26 41 30 38L47 23C47 19 46 15 48 11L55 18C68 21 75 33 73 50C72 60 69 68 69 77Z"/><use href="#base"/></g>
+    <circle cx="46" cy="31" r="3" fill="var(--pd)"/><path d="M57 22c6 6 9 15 8 27" fill="none" stroke="var(--pd)" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></symbol>
+  <symbol id="p-b" viewBox="0 0 100 100"><g fill="var(--pf)" stroke="var(--ps)" stroke-width="3" stroke-linejoin="round">
+    <path d="M36 77c3-9 6-15 8-21h12c2 6 5 12 8 21z"/><rect x="35" y="50" width="30" height="7" rx="3.5"/>
+    <path d="M50 17c11 8 16 18 14 27-1 4-5 6-14 6s-13-2-14-6c-2-9 3-19 14-27z"/><circle cx="50" cy="12" r="4.5"/><use href="#base"/></g>
+    <path d="M56 26l-9 11" stroke="var(--pd)" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="p-q" viewBox="0 0 100 100"><g fill="var(--pf)" stroke="var(--ps)" stroke-width="3" stroke-linejoin="round">
+    <path d="M35 77c3-10 5-16 7-22h16c2 6 4 12 7 22z"/><path d="M31 50L24 24L38 37L43 18L50 33L57 18L62 37L76 24L69 50Z"/>
+    <rect x="33" y="49" width="34" height="7" rx="3.5"/><circle cx="24" cy="21" r="4"/><circle cx="43" cy="15" r="4"/><circle cx="57" cy="15" r="4"/><circle cx="76" cy="21" r="4"/><use href="#base"/></g></symbol>
+  <symbol id="p-k" viewBox="0 0 100 100"><g fill="var(--pf)" stroke="var(--ps)" stroke-width="3" stroke-linejoin="round">
+    <path d="M35 77c3-10 5-16 7-22h16c2 6 4 12 7 22z"/><path d="M33 50c-5-9-2-19 8-19 4 0 7 2 9 5 2-3 5-5 9-5 10 0 13 10 8 19z"/>
+    <rect x="33" y="49" width="34" height="7" rx="3.5"/><path d="M47 9h6v7h6v6h-6v9h-6v-9h-6v-6h6z"/><use href="#base"/></g></symbol>
+</svg>
+
+<!-- ================= MENU ================= -->
+<section id="menu">
+  <div class="logo"><div class="row" id="logoRow"></div><h1>Check <em>Mate</em></h1></div>
+  <p class="tagline">Chess for one, two, or two devices.</p>
+  <div class="card">
+    <div class="seg" id="modeSeg">
+      <button data-mode="solo" class="on">🤖 Solo</button>
+      <button data-mode="duo">👥 Pass &amp; play</button>
+      <button data-mode="online" class="hidden" id="onlineMode">🌐 Online</button>
+    </div>
+    <div id="soloBox">
+      <div class="field"><label class="lb">Computer level</label>
+        <div class="seg three" id="levelSeg"><button data-level="easy">Easy</button><button data-level="medium" class="on">Medium</button><button data-level="hard">Hard</button></div></div>
+      <div class="field"><label class="lb">You play</label>
+        <div class="seg three" id="colorSeg"><button data-color="w">♙ White</button><button data-color="r" class="on">🎲 Random</button><button data-color="b">♟ Black</button></div></div>
+    </div>
+    <div class="field">
+      <label class="lb" id="namesLabel">Your name</label>
+      <div class="names"><input class="inp" id="name1" maxlength="14" placeholder="Player 1" autocomplete="off"><input class="inp" id="name2" maxlength="14" placeholder="Player 2" autocomplete="off"></div>
+      <label class="toggle" id="rotateRow"><span>Turn the board for each player</span><input type="checkbox" id="rotate"></label>
+    </div>
+    <button class="btn primary" id="startBtn">New game</button>
+    <div id="onlineBox" class="hidden">
+      <button class="btn primary" id="hostBtn">Host a game</button>
+      <div class="or">or join a friend</div>
+      <div class="join-row"><input class="inp" id="joinCode" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false"><button class="btn ghost" id="joinBtn">Join</button></div>
+      <p class="foot" style="margin:12px 0 0">Play on two devices. Close the app any time — your game waits for you.</p>
+    </div>
+    <button class="btn ghost hidden" id="resumeBtn">Continue game</button>
+    <button class="btn ghost hidden" id="rejoinBtn">Rejoin online game</button>
+    <button class="btn ghost" id="rulesBtn">How to play</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <p class="foot">An <a href="https://ogbara.com.au/checkmate">Ogbara</a> game · no ads · works offline</p>
+</section>
+
+<!-- ================= GAME ================= -->
+<section id="game" class="hidden">
+  <div class="pcard" id="topCard"></div>
+  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <div class="pcard" id="botCard"></div>
+  <div class="moves" id="moves"></div>
+  <div class="actions" id="actions"></div>
+  <aside class="side"><h3>Moves</h3><div class="mlist" id="mlist"></div></aside>
+</section>
+
+<div id="layer"></div>
+<div id="bannerSlot"></div>
+
+<script src="engine.js?v=1"></script>
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const SAVE = "checkmate_game_v1", PREF = "checkmate_prefs_v1", STATS = "checkmate_stats_v1", ONLINE = "checkmate_online_v1";
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const prefs = Object.assign({ mode: "solo", level: "medium", color: "r", n1: "", n2: "", rotate: true, sound: true, coords: true }, load(PREF, {}));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const other = (c) => (c === "w" ? "b" : "w");
+const cname = (c) => (c === "w" ? "White" : "Black");
+let onlineAvail = false;
+
+/* ---------- sound ---------- */
+let ac = null;
+function tone(f, d, type = "triangle", vol = 0.07, delay = 0) {
+  if (!prefs.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = f; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d);
+  } catch {}
+}
+const sMove = () => { tone(330, 0.05, "square", 0.035); tone(220, 0.07, "sine", 0.06); };
+const sCap = () => { tone(140, 0.12, "sawtooth", 0.05); tone(90, 0.16, "sine", 0.09); };
+const sCheck = () => { tone(880, 0.09, "triangle", 0.06); tone(660, 0.12, "triangle", 0.06, 0.09); };
+const sEnd = (good) => (good ? [523, 659, 784, 1047] : [440, 370, 311]).forEach((f, i) => tone(f, 0.16, "triangle", 0.07, i * 0.09));
+const sErr = () => tone(160, 0.14, "sawtooth", 0.04);
+
+/* ---------- pieces ---------- */
+const pieceHTML = (p, cls = "") => p ? `<div class="pc ${CM.isWhite(p) ? "w" : "b"} ${cls}"><svg viewBox="0 0 100 100"><use href="#p-${p.toLowerCase()}"/></svg></div>` : "";
+$("#logoRow").innerHTML = ["K", "q", "B", "n", "R", "p"].map((p) => pieceHTML(p)).join("");
+
+/* ---------- menu ---------- */
+function syncMenu() {
+  if (prefs.mode === "online" && !onlineAvail) prefs.mode = "solo";
+  document.querySelectorAll("#modeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === prefs.mode));
+  document.querySelectorAll("#levelSeg button").forEach((b) => b.classList.toggle("on", b.dataset.level === prefs.level));
+  document.querySelectorAll("#colorSeg button").forEach((b) => b.classList.toggle("on", b.dataset.color === prefs.color));
+  $("#onlineMode").classList.toggle("hidden", !onlineAvail);
+  $("#modeSeg").classList.toggle("three", onlineAvail);
+  const duo = prefs.mode === "duo", online = prefs.mode === "online";
+  $("#soloBox").classList.toggle("hidden", prefs.mode !== "solo");
+  $("#name2").classList.toggle("hidden", !duo);
+  $(".names").style.gridTemplateColumns = duo ? "1fr 1fr" : "1fr";
+  $("#name1").placeholder = duo ? "White" : "Your name"; $("#name2").placeholder = "Black";
+  $("#namesLabel").textContent = duo ? "Player names (White, Black)" : "Your name";
+  $("#rotateRow").classList.toggle("hidden", !duo);
+  $("#rotate").checked = prefs.rotate;
+  $("#startBtn").classList.toggle("hidden", online);
+  $("#onlineBox").classList.toggle("hidden", !online);
+  $("#name1").value = prefs.n1; $("#name2").value = prefs.n2;
+  const saved = load(SAVE, null);
+  $("#resumeBtn").classList.toggle("hidden", !(saved && !saved.over));
+  if (saved && !saved.over) $("#resumeBtn").textContent = saved.mode === "solo" ? `Continue vs computer (${saved.level})` : `Continue ${saved.names.w} v ${saved.names.b}`;
+  const og = load(ONLINE, null);
+  $("#rejoinBtn").classList.toggle("hidden", !(onlineAvail && og && og.code));
+  if (og && og.code) $("#rejoinBtn").textContent = "Rejoin online game " + og.code;
+  const st = load(STATS, {}), parts = [];
+  for (const k of ["easy", "medium", "hard", "online"]) if (st[k]) parts.push(`<div><b>${st[k].w}–${st[k].l}–${st[k].d}</b>${k[0].toUpperCase() + k.slice(1)}</div>`);
+  $("#stats").innerHTML = parts.length ? parts.join("") + `<div style="flex-basis:100%;font-size:11.5px">wins – losses – draws</div>` : "";
+}
+$("#modeSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { prefs.mode = b.dataset.mode; store(PREF, prefs); syncMenu(); } };
+$("#levelSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { prefs.level = b.dataset.level; store(PREF, prefs); syncMenu(); } };
+$("#colorSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { prefs.color = b.dataset.color; store(PREF, prefs); syncMenu(); } };
+$("#name1").oninput = (e) => { prefs.n1 = e.target.value; store(PREF, prefs); };
+$("#name2").oninput = (e) => { prefs.n2 = e.target.value; store(PREF, prefs); };
+$("#rotate").onchange = (e) => { prefs.rotate = e.target.checked; store(PREF, prefs); };
+$("#startBtn").onclick = () => newGame();
+$("#resumeBtn").onclick = () => { G = load(SAVE, null); startGame(); };
+$("#rulesBtn").onclick = () => showRules();
+$("#hostBtn").onclick = () => hostOnline();
+$("#joinBtn").onclick = () => joinOnline($("#joinCode").value);
+$("#joinCode").onkeydown = (e) => { if (e.key === "Enter") joinOnline($("#joinCode").value); };
+$("#rejoinBtn").onclick = () => { const og = load(ONLINE, null); if (og) joinOnline(og.code); };
+
+/* ---------- state ----------
+   G (saved for local games): {mode, level, human, names:{w,b}, moves:[{from,to,promo}], over, rotate}
+   R: replay of G.moves → {s, keys, list, status}                                                     */
+let G = null, R = null;
+let sel = -1, targets = [], hintSq = [], flipManual = false, aiId = 0, aiBusy = false;
+let ai = null;
+try { ai = new Worker("ai.js?v=1"); ai.onmessage = (e) => onAI(e.data); } catch { ai = null; }
+
+function newGame(opts) {
+  const solo = prefs.mode === "solo";
+  let human = prefs.color === "r" ? (Math.random() < 0.5 ? "w" : "b") : prefs.color;
+  if (opts && opts.human) human = opts.human;
+  const me = prefs.n1.trim() || (solo ? "You" : "White");
+  G = { v: 1, mode: solo ? "solo" : "duo", level: prefs.level, human: solo ? human : "",
+        names: solo ? (human === "w" ? { w: me, b: "Computer" } : { w: "Computer", b: me })
+                    : (opts && opts.names) || { w: prefs.n1.trim() || "White", b: prefs.n2.trim() || "Black" },
+        moves: [], over: null, rotate: prefs.rotate };
+  save(); startGame();
+}
+function save() { if (G && G.mode !== "online") store(SAVE, G); }
+function startGame() {
+  closeLayer(); clearBanner();
+  $("#menu").classList.add("hidden"); $("#game").classList.remove("hidden");
+  sel = -1; targets = []; hintSq = []; flipManual = false;
+  R = CM.replay(G.moves);
+  render();
+  maybeAI();
+}
+function toMenu() { netStop(); aiId++; aiBusy = false; closeLayer(); clearBanner(); $("#game").classList.add("hidden"); $("#menu").classList.remove("hidden"); syncMenu(); }
+
+/* whose pieces can this screen move right now? */
+function controlColor() {
+  if (!G || G.over || !R) return "";
+  if (G.mode === "solo") return R.s.turn === G.human && !aiBusy ? G.human : "";
+  if (G.mode === "duo") return R.s.turn;
+  return G.started && net.connected && R.s.turn === G.color ? G.color : "";
+}
+function bottomColor() {
+  let c = G.mode === "solo" ? G.human : G.mode === "online" ? G.color || "w" : G.rotate ? R.s.turn : "w";
+  return flipManual ? other(c) : c;
+}
+
+/* ---------- rendering ---------- */
+let cells = [];
+function render() {
+  const s = R.s, bc = bottomColor();
+  const board = $("#board");
+  if (!cells.length) for (let v = 0; v < 64; v++) { const d = document.createElement("div"); board.appendChild(d); cells.push(d); }
+  const last = R.list[R.list.length - 1];
+  const chk = CM.inCheck(s) ? s.board.indexOf(s.turn === "w" ? "K" : "k") : -1;
+  for (let v = 0; v < 64; v++) {
+    const sq = bc === "w" ? v : 63 - v, r = sq >> 3, c = sq & 7, el = cells[v];
+    el.dataset.sq = sq;
+    const cls = ["sq"];
+    if ((r + c) % 2) cls.push("d");
+    if (last && (sq === last.from || sq === last.to)) cls.push("last");
+    if (sq === sel) cls.push("sel");
+    if (hintSq.includes(sq)) cls.push("hint");
+    if (sq === chk) cls.push("chk");
+    const t = targets.find((m) => m.to === sq);
+    if (t) cls.push("mv"), t.cap && cls.push("cap");
+    el.className = cls.join(" ");
+    let co = "";
+    if (prefs.coords) {
+      if (v >> 3 === 7) co += `<span class="co f">${CM.FILES[c]}</span>`;
+      if ((v & 7) === 0) co += `<span class="co r">${8 - r}</span>`;
+    }
+    el.innerHTML = co + pieceHTML(s.board[sq]);
+  }
+  // player cards
+  const top = other(bc), bot = bc;
+  renderCard($("#topCard"), top); renderCard($("#botCard"), bot);
+  renderMoves();
+  renderActions();
+}
+function capturedBy(color) { // pieces of the other colour that `color` has taken
+  const start = { p: 8, n: 2, b: 2, r: 2, q: 1 }, have = { p: 0, n: 0, b: 0, r: 0, q: 0 };
+  const theirs = other(color);
+  for (const p of R.s.board) if (p && CM.colorOf(p) === theirs && p.toLowerCase() !== "k") have[p.toLowerCase()]++;
+  let out = [];
+  for (const t of ["q", "r", "b", "n", "p"]) for (let i = have[t]; i < start[t]; i++) out.push(theirs === "w" ? t.toUpperCase() : t);
+  return out;
+}
+function renderCard(el, color) {
+  const name = G.mode === "online" ? (G.players[G.colorSeat[color]] || {}).name || "Waiting…" : G.names[color];
+  const mat = CM.material(R.s.board), diff = color === "w" ? mat.w - mat.b : mat.b - mat.w;
+  const turn = !G.over && R.s.turn === color && (G.mode !== "online" || G.started);
+  let st = "";
+  if (G.over) {
+    const won = (G.over.result === "1-0" && color === "w") || (G.over.result === "0-1" && color === "b");
+    st = G.over.result === "1/2-1/2" ? "½" : won ? "Winner" : "";
+  } else if (G.mode === "solo" && color !== G.human && aiBusy) st = `<span class="thinking">Thinking</span>`;
+  else if (G.mode === "online") {
+    const p = G.players[G.colorSeat[color]];
+    if (!G.started && color !== G.color) st = "Invite pending";
+    else if (p && !p.online) st = "Offline";
+    else if (turn) st = color === G.color ? "Your move" : "To move";
+  } else if (turn) st = "To move";
+  const you = (G.mode === "solo" && color === G.human) || (G.mode === "online" && color === G.color);
+  el.className = "pcard" + (turn ? " on" : "") + (G.mode === "online" && G.players[G.colorSeat[color]] && !G.players[G.colorSeat[color]].online ? " off" : "");
+  el.innerHTML = `<span class="sw ${color}"></span><div class="who"><div class="nm">${esc(name)}${you ? "<small>you</small>" : ""}</div>
+    <div class="caps">${capturedBy(color).map((p) => pieceHTML(p)).join("")}${diff > 0 ? `<b>+${diff}</b>` : ""}</div></div><span class="st">${st}</span>`;
+}
+function renderMoves() {
+  const L = R.list;
+  let h = "", side = "";
+  L.forEach((m, i) => {
+    if (i % 2 === 0) { h += `<span class="n">${i / 2 + 1}.</span>`; side += `<i>${i / 2 + 1}.</i>`; }
+    const cur = i === L.length - 1 ? "cur" : "";
+    h += `<span class="${cur}">${m.san}</span>`; side += `<span class="${cur}">${m.san}</span>`;
+  });
+  if (G.over) { const r = `<span class="cur">${G.over.result}</span>`; h += r; if (L.length % 2) side += "<span></span>"; side += `<i></i>${r}`; }
+  $("#moves").innerHTML = h || `<span class="empty">${G.mode === "online" && !G.started ? "Waiting for your friend to join…" : "White to move"}</span>`;
+  $("#moves").scrollLeft = 1e6;
+  $("#mlist").innerHTML = side || `<span style="grid-column:1/-1" class="empty">No moves yet.</span>`;
+  $("#mlist").scrollTop = 1e6;
+}
+function renderActions() {
+  const a = [];
+  if (G.mode === "online") {
+    a.push(["draw", "🤝", G.drawOffer === 1 - G.seat ? "Accept draw" : G.drawOffer === G.seat ? "Offered" : "Draw", !G.started || !!G.over || G.drawOffer === G.seat]);
+    a.push(["resign", "🏳️", "Resign", !G.started || !!G.over]);
+  } else {
+    a.push(["undo", "↩️", "Undo", !G.moves.length || (G.mode === "solo" && G.moves.length < (G.human === "w" ? 1 : 2) && !aiBusy)]);
+    if (G.mode === "solo") a.push(["hint", "💡", "Hint", !controlColor()]);
+    else a.push(["draw", "🤝", "Draw", !!G.over]);
+  }
+  a.push(["flip", "🔄", "Flip", false]);
+  a.push(G.over ? ["results", "🏁", "Results", false] : ["menu", "☰", "Menu", false]);
+  $("#actions").innerHTML = a.map(([k, i, t, dis]) => `<button class="act" data-a="${k}" ${dis ? "disabled" : ""}><span>${i}</span>${t}</button>`).join("");
+}
+$("#actions").onclick = (e) => {
+  const b = e.target.closest("[data-a]"); if (!b || b.disabled) return;
+  const k = b.dataset.a;
+  if (k === "undo") doUndo();
+  else if (k === "hint") doHint();
+  else if (k === "flip") { flipManual = !flipManual; render(); }
+  else if (k === "menu") showMenu();
+  else if (k === "results") showGameOver();
+  else if (k === "resign") confirmSheet("Resign this game?", "Your opponent wins.", "Resign", () => netSend({ t: "resign" }));
+  else if (k === "draw" && G.mode === "online") netSend({ t: "draw" });
+  else if (k === "draw") confirmSheet("Agree a draw?", "Both players agree to end the game as a draw.", "Draw", () => finish({ result: "1/2-1/2", reason: "agreement" }));
+};
+
+/* ---------- moving ---------- */
+function animate(m) {
+  const pairs = [[m.from, m.to]];
+  if (m.f === "k") pairs.push([m.to + 1, m.to - 1]);
+  if (m.f === "q") pairs.push([m.to - 2, m.to + 1]);
+  for (const [a, b] of pairs) {
+    const ea = cells.find((c) => +c.dataset.sq === a), eb = cells.find((c) => +c.dataset.sq === b);
+    const pc = eb && eb.querySelector(".pc"); if (!pc || !ea) continue;
+    const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
+    pc.style.transform = `translate(${ra.left - rb.left}px,${ra.top - rb.top}px)`;
+    pc.getBoundingClientRect();
+    pc.classList.add("moving"); pc.style.transform = "";
+  }
+}
+function feedback(m) {
+  if (R.status && R.status.reason === "checkmate") return;
+  if (CM.inCheck(R.s)) sCheck(); else if (m.cap) sCap(); else sMove();
+}
+// Apply a move locally (solo/duo, or optimistic online). Returns the move or null.
+function applyMove(from, to, promo, quiet) {
+  const m = CM.findMove(R.s, from, to, promo);
+  if (!m) return null;
+  G.moves.push({ from, to, promo: m.promo });
+  R = CM.replay(G.moves);
+  sel = -1; targets = []; hintSq = [];
+  if (G.mode === "duo" && G.rotate && !flipManual) { render(); animate(m); setTimeout(render, 420); }
+  else { render(); animate(m); }
+  if (!quiet) feedback(m);
+  if (R.status && G.mode !== "online") finish(R.status);
+  save();
+  return m;
+}
+function endSound() {
+  const me = G.mode === "solo" ? G.human : G.mode === "online" ? G.color : "";
+  const r = G.over.result, winner = r === "1-0" ? "w" : r === "0-1" ? "b" : "";
+  sEnd(!me || !winner || winner === me);
+}
+function finish(st) {
+  G.over = st; save(); recordStats(); render(); endSound();
+  setTimeout(showGameOver, 650);
+}
+function humanMove(from, to) {
+  const ms = CM.legal(R.s).filter((m) => m.from === from && m.to === to);
+  if (!ms.length) return false;
+  const go = (promo) => {
+    if (G.mode === "online") {
+      const m = applyMove(from, to, promo); if (!m) return;
+      net.sending = true; netSend({ t: "move", from, to, promo: m.promo });
+    } else { applyMove(from, to, promo); maybeAI(); }
+  };
+  if (ms[0].promo) pickPromotion(R.s.turn, go); else go("");
+  return true;
+}
+function selectSq(sq) {
+  sel = sq; targets = sq >= 0 ? CM.legal(R.s).filter((m) => m.from === sq) : [];
+  render();
+}
+
+// Pointer input: tap-tap or drag.
+let drag = null;
+$("#board").addEventListener("pointerdown", (e) => {
+  const cell = e.target.closest(".sq"); if (!cell) return;
+  const sq = +cell.dataset.sq, me = controlColor();
+  if (!me) return;
+  e.preventDefault();
+  const p = R.s.board[sq];
+  if (sel >= 0 && targets.some((m) => m.to === sq)) { humanMove(sel, sq); return; }
+  if (p && CM.colorOf(p) === me) {
+    const already = sel === sq;
+    selectSq(sq);
+    drag = { sq, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null, already };
+  } else if (sel >= 0) selectSq(-1);
+});
+addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+  const cell = cells.find((c) => +c.dataset.sq === drag.sq);
+  if (!drag.moved) {
+    drag.moved = true;
+    const pc = cell.querySelector(".pc"); if (pc) pc.classList.add("lift");
+    const w = cell.getBoundingClientRect().width;
+    const g = document.createElement("div"); g.className = "dragghost"; g.style.width = g.style.height = w * 1.05 + "px";
+    g.innerHTML = pieceHTML(R.s.board[drag.sq]); document.body.appendChild(g); drag.ghost = g;
+  }
+  drag.ghost.style.left = e.clientX + "px"; drag.ghost.style.top = e.clientY + "px";
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const c = under && under.closest(".sq");
+  if (drag.over && drag.over !== c) drag.over.classList.remove("over");
+  drag.over = c; if (c) c.classList.add("over");
+});
+addEventListener("pointerup", (e) => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.ghost) d.ghost.remove();
+  if (d.over) d.over.classList.remove("over");
+  if (!d.moved) { if (d.already) selectSq(-1); return; }
+  const under = document.elementFromPoint(e.clientX, e.clientY), c = under && under.closest(".sq");
+  if (c && humanMove(d.sq, +c.dataset.sq)) return;
+  render();
+});
+addEventListener("pointercancel", () => { if (drag) { drag.ghost && drag.ghost.remove(); drag = null; render(); } });
+
+/* ---------- computer ---------- */
+function maybeAI() {
+  if (!G || G.mode !== "solo" || G.over || R.s.turn === G.human) return;
+  aiBusy = true; render();
+  const id = ++aiId, started = performance.now();
+  const req = { id, fen: CM.toFEN(R.s), level: G.level, keys: R.keys };
+  const done = (m) => {
+    if (id !== aiId) return;
+    setTimeout(() => {
+      if (id !== aiId) return;
+      aiBusy = false;
+      if (m) applyMove(m.from, m.to, m.promo); else render();
+    }, Math.max(0, 450 - (performance.now() - started)));
+  };
+  pendingAI = done;
+  if (ai) ai.postMessage(req);
+  else setTimeout(() => done(CM.think(req.fen, { level: req.level, keys: req.keys })), 30);
+}
+let pendingAI = null;
+function onAI(d) { if (pendingAI && d.id === aiId) pendingAI(d.m); }
+function doUndo() {
+  if (!G.moves.length) return;
+  if (G.mode === "solo") {
+    if (aiBusy) { aiId++; aiBusy = false; G.moves.pop(); }
+    else { G.moves.pop(); if (R.s.turn === G.human || G.over) { if (G.moves.length && CM.replay(G.moves).s.turn !== G.human) G.moves.pop(); } }
+  } else G.moves.pop();
+  const wasOver = !!G.over;
+  G.over = null; R = CM.replay(G.moves); sel = -1; targets = []; hintSq = [];
+  closeLayer(); save(); render();
+  if (G.mode === "solo" && R.s.turn !== G.human) maybeAI();
+  if (wasOver) toast("Move taken back");
+}
+function doHint() {
+  const me = controlColor(); if (!me) return;
+  toast("Thinking…");
+  const id = "h" + Date.now();
+  const show = (m) => { if (!m) return; hintSq = [m.from, m.to]; render(); };
+  if (ai) {
+    const w = new Worker("ai.js?v=1"); w.onmessage = (e) => { show(e.data.m); w.terminate(); };
+    w.postMessage({ id, fen: CM.toFEN(R.s), level: "hard", keys: R.keys, ms: 900 });
+  } else show(CM.think(CM.toFEN(R.s), { level: "hard", keys: R.keys, ms: 900 }));
+}
+
+/* ---------- stats ---------- */
+function recordStats() {
+  if (G.mode === "duo" || !G.over) return;
+  const st = load(STATS, {}), k = G.mode === "online" ? "online" : G.level;
+  const me = G.mode === "online" ? G.color : G.human;
+  const s = st[k] || (st[k] = { w: 0, l: 0, d: 0 });
+  const r = G.over.result;
+  if (r === "1/2-1/2") s.d++; else if ((r === "1-0") === (me === "w")) s.w++; else s.l++;
+  store(STATS, st);
+}
+
+/* ---------- sheets ---------- */
+function openLayer(html) {
+  const l = $("#layer");
+  l.innerHTML = `<div class="overlay"><div class="sheet">${html}</div></div>`;
+  l.firstElementChild.addEventListener("click", (e) => { if (e.target === l.firstElementChild && !l.querySelector(".lobby,.promo")) closeLayer(); });
+  return l.querySelector(".sheet");
+}
+function closeLayer() { $("#layer").innerHTML = ""; }
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2500); }
+function confirmSheet(title, body, yes, fn) {
+  const s = openLayer(`<h2>${title}</h2><p>${body}</p><div class="row"><button class="btn ghost" data-a="no">Cancel</button><button class="btn primary" data-a="yes">${yes}</button></div>`);
+  s.onclick = (e) => { const a = e.target.closest("[data-a]"); if (!a) return; closeLayer(); if (a.dataset.a === "yes") fn(); };
+}
+function pickPromotion(color, cb) {
+  const s = openLayer(`<h2>Promote to</h2><div class="promo">${["q", "r", "b", "n"].map((t) => `<button data-p="${t}">${pieceHTML(color === "w" ? t.toUpperCase() : t)}</button>`).join("")}</div>
+    <button class="btn ghost" data-p="">Cancel</button>`);
+  s.onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; closeLayer(); if (b.dataset.p) cb(b.dataset.p); else selectSq(-1); };
+}
+function showRules() {
+  const s = openLayer(`<h2>How to play</h2>
+    <ol class="rules">
+      <li><b>Tap a piece</b> to see where it can go, then tap a dot. Or drag it.</li>
+      <li>Each piece moves its own way: rooks in straight lines, bishops diagonally, the queen both, knights in an L that jumps over pieces, the king one square, pawns forward and capture diagonally.</li>
+      <li>Put the enemy king in <b>check</b> so it can't escape: that's <b>checkmate</b> and you win.</li>
+      <li>Special moves are built in: <b>castling</b> (move the king two squares toward a rook), <b>en passant</b>, and <b>promotion</b> when a pawn reaches the far side.</li>
+      <li>Draws happen by stalemate, threefold repetition, the fifty-move rule, not enough pieces to mate, or agreement.</li>
+    </ol>
+    <p><b>Solo:</b> Undo takes back your last move, and Hint shows a strong move. <b>Same device:</b> turn on "Turn the board" if you're facing each other.</p>
+    <button class="btn primary" data-close>Got it</button>`);
+  s.querySelector("[data-close]").onclick = closeLayer;
+}
+function showMenu() {
+  const on = G.mode === "online";
+  const s = openLayer(`<h2>Menu</h2><div class="menu-list">
+    ${on && !G.started ? `<button data-a="invite"><span>📨</span>Share invite (code ${esc(G.code)})</button>` : ""}
+    ${!on && !G.over ? `<button data-a="resign"><span>🏳️</span>Resign</button>` : ""}
+    <button data-a="pgn"><span>📋</span>Copy moves (PGN)</button>
+    <button data-a="coords"><span>🔤</span>Coordinates: ${prefs.coords ? "on" : "off"}</button>
+    <button data-a="sound"><span>${prefs.sound ? "🔊" : "🔇"}</span>Sound: ${prefs.sound ? "on" : "off"}</button>
+    <button data-a="rules"><span>📖</span>How to play</button>
+    <button data-a="new"><span>✨</span>${on ? "Leave this game" : "New game"}</button>
+    <button data-a="home"><span>🏠</span>Main menu (game is saved)</button>
+  </div>`);
+  s.onclick = (e) => {
+    const a = e.target.closest("[data-a]"); if (!a) return;
+    const k = a.dataset.a;
+    if (k === "invite") { closeLayer(); shareInvite(); }
+    else if (k === "resign") confirmSheet("Resign this game?", G.mode === "solo" ? "The computer wins." : `${esc(G.names[R.s.turn])} resigns and ${esc(G.names[other(R.s.turn)])} wins.`, "Resign",
+      () => { aiId++; aiBusy = false; const loser = G.mode === "solo" ? G.human : R.s.turn; finish({ result: loser === "w" ? "0-1" : "1-0", reason: "resignation" }); });
+    else if (k === "pgn") { closeLayer(); copyPGN(); }
+    else if (k === "coords") { prefs.coords = !prefs.coords; store(PREF, prefs); render(); showMenu(); }
+    else if (k === "sound") { prefs.sound = !prefs.sound; store(PREF, prefs); showMenu(); }
+    else if (k === "rules") showRules();
+    else if (k === "new" && on) confirmSheet("Leave this game?", "It will be removed from this device.", "Leave", () => { store(ONLINE, null); toMenu(); });
+    else if (k === "new") confirmSheet("Start a new game?", G.over ? "Set up a fresh board." : "The current game will be abandoned.", "New game", () => { if (!G.over) localStorage.removeItem(SAVE); toMenu(); });
+    else if (k === "home") toMenu();
+  };
+}
+function names() { return G.mode === "online" ? { w: (G.players[G.colorSeat.w] || {}).name, b: (G.players[G.colorSeat.b] || {}).name } : G.names; }
+function copyPGN() {
+  const n = names(), d = new Date();
+  const txt = CM.pgn(R.list, { Event: "Check Mate (Ogbara)", Date: `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`,
+    White: n.w, Black: n.b, Result: G.over ? G.over.result : "*" });
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast("Moves copied"), () => toast("Couldn't copy"));
+}
+function showGameOver() {
+  if (!G.over) return;
+  const n = names(), r = G.over.result, me = G.mode === "solo" ? G.human : G.mode === "online" ? G.color : "";
+  const winner = r === "1-0" ? "w" : r === "0-1" ? "b" : "";
+  let title;
+  if (!winner) title = "Draw";
+  else if (me) title = winner === me ? "You win! 🎉" : G.mode === "solo" ? "The computer wins" : `${n[winner]} wins`;
+  else title = `${n[winner]} wins! 🎉`;
+  const reason = { checkmate: "by checkmate", resignation: "by resignation", stalemate: "by stalemate", agreement: "by agreement",
+    "threefold repetition": "by threefold repetition", "fifty-move rule": "by the fifty-move rule", "insufficient material": "— not enough pieces to mate" }[G.over.reason] || "";
+  const score = (c) => (!winner ? "½" : winner === c ? "1" : "0");
+  const on = G.mode === "online";
+  const again = on ? (G.rematch[G.seat] ? "Rematch asked" : G.rematch[1 - G.seat] ? "Accept rematch" : "Rematch") : G.mode === "solo" ? "Play again" : "Rematch";
+  const s = openLayer(`<h2>${esc(title)}</h2><p>${winner ? `${cname(winner)} wins ${reason}` : `Drawn ${reason}`} · ${Math.ceil(R.list.length / 2)} moves</p>
+    <div class="result">${["w", "b"].map((c) => `<div><span class="sw ${c}"></span>${esc(n[c] || cname(c))}<b>${score(c)}</b></div>`).join("")}</div>
+    <div class="row"><button class="btn ghost" data-a="board">View board</button><button class="btn primary" data-a="again" ${on && G.rematch[G.seat] ? "disabled" : ""}>${again}</button></div>
+    <div class="row"><button class="btn ghost" data-a="pgn">Copy moves</button><button class="btn ghost" data-a="menu">Main menu</button></div>`);
+  s.onclick = (e) => {
+    const a = e.target.closest("[data-a]"); if (!a) return;
+    const k = a.dataset.a;
+    if (k === "pgn") return copyPGN();
+    closeLayer();
+    if (k === "again" && on) { netSend({ t: "rematch" }); }
+    else if (k === "again" && G.mode === "solo") { prefs.level = G.level; newGame({ human: prefs.color === "r" ? other(G.human) : undefined }); }
+    else if (k === "again") { prefs.mode = "duo"; newGame({ names: { w: G.names.b, b: G.names.w } }); } // swap colours
+    else if (k === "menu") toMenu();
+  };
+}
+function clearBanner() { $("#bannerSlot").innerHTML = ""; }
+
+/* ---------- online play (needs the Check Mate Worker; hidden otherwise) ---------- */
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const net = { ws: null, want: false, connected: false, sending: false, retry: 0, timer: 0, code: "", role: "guest", n: -1 };
+const randCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+const myName = () => (document.getElementById("name1").value || prefs.n1 || "").trim() || "Player";
+function hostOnline() { netStart(randCode(), "host"); }
+function joinOnline(code) {
+  code = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 4) { sErr(); toast("Enter the 4-character code"); return; }
+  netStart(code, "guest");
+}
+function netStart(code, role) {
+  netStop();
+  Object.assign(net, { code, role, want: true, retry: 0, n: -1 });
+  G = { mode: "online", seat: 0, color: "w", colorSeat: { w: 0, b: 1 }, code, started: false, n: 0,
+        players: [{ name: myName(), online: true }], moves: [], over: null, drawOffer: -1, rematch: [false, false] };
+  R = CM.replay([]);
+  closeLayer(); clearBanner();
+  $("#menu").classList.add("hidden"); $("#game").classList.remove("hidden");
+  sel = -1; targets = []; hintSq = []; flipManual = false;
+  render();
+  netConnect();
+}
+function netConnect() {
+  clearTimeout(net.timer);
+  const og = load(ONLINE, null);
+  const q = new URLSearchParams({ room: net.code, role: net.role, name: myName(), token: og && og.code === net.code ? og.token : "" });
+  let ws;
+  try { ws = new WebSocket((location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + "/ws?" + q); } catch { return netRetry(); }
+  net.ws = ws;
+  ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } onNet(m); };
+  ws.onclose = (e) => {
+    if (net.ws !== ws) return;
+    net.ws = null; net.connected = false; net.sending = false;
+    if (e.code === 4001) { net.want = false; toast("This game was opened on another screen"); }
+    if (e.code === 4002) { net.want = false; store(ONLINE, null); toast("That game has expired"); }
+    if (net.want) netRetry();
+    if (G && G.mode === "online") render();
+  };
+}
+function netRetry() { clearTimeout(net.timer); const d = Math.min(8000, 700 * 2 ** net.retry++); net.timer = setTimeout(() => { if (net.want && !net.ws) netConnect(); }, d); }
+function netStop() { net.want = false; clearTimeout(net.timer); if (net.ws) { const w = net.ws; net.ws = null; try { w.close(1000); } catch {} } net.connected = false; net.sending = false; }
+function netSend(m) { if (net.ws && net.connected) { net.ws.send(JSON.stringify(m)); return true; } toast("Not connected · reconnecting…"); return false; }
+function wake() { if (!document.hidden && net.want && !net.ws) { net.retry = 0; netConnect(); } }
+document.addEventListener("visibilitychange", wake); addEventListener("online", wake); addEventListener("pageshow", wake);
+
+function onNet(m) {
+  if (m.t === "err") {
+    netStop();
+    if (m.e === "taken" && net.role === "host") return hostOnline();
+    const og = load(ONLINE, null); if (og && og.code === net.code) store(ONLINE, null);
+    toMenu(); sErr();
+    toast(m.e === "nohost" ? `No game found with code ${net.code}` : m.e === "full" ? "That game already has two players" : "Couldn't join that game");
+    return;
+  }
+  if (m.t === "welcome") { net.connected = true; net.retry = 0; net.role = "guest"; store(ONLINE, { code: m.code || net.code, token: m.token }); return; }
+  if (m.t === "reject") { net.sending = false; sErr(); toast(m.msg); return; }
+  if (m.t === "state") applyState(m);
+}
+function applyState(s) {
+  const wasLobby = !!(G && G.mode === "online" && !G.started);
+  const same = G && G.mode === "online" && G.started && net.n === s.n;
+  const newRound = s.started && net.n !== -1 && net.n !== s.n;
+  net.n = s.n; net.sending = false;
+  const prevMoves = same ? G.moves : [];
+  const prevOver = same ? G.over : null;
+  const prevOffer = same ? G.drawOffer : -1;
+  const colorSeat = { w: s.players.findIndex((p) => p.color === "w"), b: s.players.findIndex((p) => p.color === "b") };
+  G = { mode: "online", seat: s.seat, color: s.players[s.seat] ? s.players[s.seat].color : "w", colorSeat, code: s.code || net.code,
+        started: s.started, n: s.n, players: s.players, moves: s.moves, over: s.over, drawOffer: s.drawOffer, rematch: s.rematch };
+  if (colorSeat.w < 0) G.colorSeat = { w: 0, b: 1 };
+  // Work out whether this is just one new move on top of what we show, so we can animate it.
+  const shown = R ? R.list.length : 0;
+  const ext = same && s.moves.length === shown + 1 && R.list.every((m, i) => m.from === s.moves[i].from && m.to === s.moves[i].to);
+  const echo = same && s.moves.length === shown && R.list.every((m, i) => m.from === s.moves[i].from && m.to === s.moves[i].to);
+  if (!echo) { R = CM.replay(s.moves); sel = -1; targets = []; hintSq = []; }
+  else R = CM.replay(s.moves);
+  const lobby = $("#layer .lobby");
+  if (!G.started) { if (!lobby) showLobby(); }
+  else if (lobby || newRound) { closeLayer(); }
+  if (G.started && (wasLobby || newRound) && !s.moves.length) { toast(`You play ${cname(G.color)}${G.color === "w" ? " · your move" : ""}`); flipManual = false; tone(660, 0.12); }
+  render();
+  if (ext) { const m = R.list[R.list.length - 1]; animate(m); feedback(m); if (navigator.vibrate) try { navigator.vibrate(40); } catch {} }
+  // draw offer banner
+  if (G.started && !G.over && G.drawOffer === 1 - G.seat) showDrawBanner(); else clearBanner();
+  if (same && prevOffer === G.seat && G.drawOffer === -1 && !G.over && prevMoves.length === s.moves.length) toast("Draw offer declined");
+  if (same && !prevOver && G.over) { recordStats(); endSound(); setTimeout(showGameOver, 650); }
+  else if (!same && G.over && G.started && !$("#layer").children.length) setTimeout(showGameOver, 300);
+  else if (same && prevOver && G.over && $("#layer .result")) showGameOver();
+}
+function showDrawBanner() {
+  if ($("#bannerSlot .banner")) return;
+  const n = G.players[1 - G.seat].name;
+  $("#bannerSlot").innerHTML = `<div class="banner"><p>${esc(n)} offers a draw</p><button class="no" data-a="decline">Decline</button><button class="yes" data-a="accept">Accept</button></div>`;
+  $("#bannerSlot").onclick = (e) => { const b = e.target.closest("[data-a]"); if (!b) return; netSend({ t: b.dataset.a === "accept" ? "draw" : "decline" }); clearBanner(); };
+}
+function inviteUrl() { return location.origin + "/?join=" + G.code; }
+function shareInvite() {
+  const url = inviteUrl(), text = `Play chess with me on Check Mate! Code ${G.code}`;
+  if (navigator.share) navigator.share({ title: "Check Mate", text, url }).catch(() => {});
+  else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast("Invite link copied"), () => toast(url));
+  else toast(url);
+}
+function showLobby() {
+  const s = openLayer(`<div class="lobby"><h2>Invite a friend</h2>
+    <p>Send them the link, or ask them to choose <b>Online → Join</b> and enter this code:</p>
+    <div class="code-tiles">${[...G.code].map((c) => `<b>${c}</b>`).join("")}</div>
+    <p class="thinking" style="text-align:center">Waiting for them to join</p>
+    <p style="text-align:center;font-size:13px">Colours are picked at random when they join.</p>
+    <div class="row"><button class="btn ghost" data-a="cancel">Cancel</button><button class="btn primary" data-a="share">Share invite</button></div></div>`);
+  s.onclick = (e) => { const a = e.target.closest("[data-a]"); if (!a) return; if (a.dataset.a === "share") shareInvite(); else { store(ONLINE, null); toMenu(); } };
+}
+
+fetch("/api/ping", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+  if (!j || j.game !== "checkmate") return;
+  onlineAvail = true;
+  const join = new URLSearchParams(location.search).get("join");
+  if (join) { prefs.mode = "online"; store(PREF, prefs); $("#joinCode").value = join.toUpperCase().slice(0, 4); history.replaceState(null, "", location.pathname); }
+  syncMenu();
+  if (join) setTimeout(() => $("#joinCode").focus(), 100);
+}).catch(() => {});
+syncMenu();
+
+window.__cm = { get G() { return G; }, get R() { return R; }, net, humanMove, newGame, render };
+if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>
