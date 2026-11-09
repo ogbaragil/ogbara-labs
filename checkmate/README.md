@@ -6,6 +6,10 @@ Chess for phones, tablets and desktops. Three ways to play:
 - **Pass & play** on one device, with an option to turn the board for each player
 - **Online** on two devices, joined with a four-character code or an invite link
 
+Every mode can be played on the flat **2D board** or a **3D board** (tap the 3D
+button or the menu). In 3D, drag to turn the board, pinch or scroll to zoom, and
+tap pieces and squares as usual.
+
 Full rules are built in: castling, en passant, promotion, check, checkmate,
 stalemate, threefold repetition, the fifty-move rule and insufficient material.
 Moves are shown in standard notation and can be copied as PGN.
@@ -17,10 +21,12 @@ Moves are shown in standard notation and can be copied as PGN.
 | `public/` | The game: `index.html`, `engine.js`, `ai.js`, `manifest.webmanifest`, `sw.js`, `icons/` |
 | `public/engine.js` | Rules, notation, draw rules and the computer player. Used by the app, the AI worker **and** the Cloudflare Worker |
 | `public/ai.js` | Web worker that runs the computer's search off the main thread |
+| `public/board3d.js` | The 3D board, bundled with the parts of three.js it uses (MIT). Loaded only when a player turns 3D on |
+| `tools/board3d.src.js` | Source for `board3d.js` — rebuild with `npm run build:3d` |
 | `src/worker.js` | Serves `public/` and runs online games |
 | `wrangler.toml` | Cloudflare settings (Worker, static assets, Durable Object) |
 
-No build step. The piece artwork is original SVG in `index.html`, and all sound
+No build step to deploy. (`board3d.js` is prebuilt and committed; you only rebuild it if you change the 3D board.) The piece artwork is original SVG in `index.html`, and all sound
 is made in the browser.
 
 ## Why this one is a Worker, not a Pages project
@@ -68,3 +74,12 @@ Open http://localhost:8787 in a normal and a private window to try online play.
 Edit files in `public/`, then bump `CACHE` in `public/sw.js`
 (`checkmate-v1` → `checkmate-v2`). If you change `engine.js` or `ai.js`, also
 bump their `?v=` everywhere they're referenced (`index.html`, `ai.js`, `sw.js`).
+
+To change the 3D board, edit `tools/board3d.src.js`, then:
+
+```
+npm install
+npm run build:3d
+```
+
+and bump the `?v=` on `board3d.js` in `public/index.html`.

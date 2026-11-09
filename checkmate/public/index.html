@@ -89,8 +89,9 @@ svg.defs{position:absolute;width:0;height:0}
 .pcard.off .nm{opacity:.55}
 .thinking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1s steps(4) infinite}
 @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
-.boardwrap{display:flex;align-items:center;justify-content:center;min-height:0}
-.board{--s:min(calc(100vw - 16px),calc(100dvh - 290px),620px);width:var(--s);height:var(--s);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border-radius:10px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.45),0 0 0 4px #2b4252;touch-action:none;container-type:inline-size}
+.boardwrap{--s:min(calc(100vw - 16px),calc(100dvh - 290px),620px);display:flex;align-items:center;justify-content:center;min-height:0}
+.board3d{width:var(--s);height:calc(var(--s) * .84);border-radius:14px;background:radial-gradient(circle at 50% 40%,#22394a,#0f1c26 75%);box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.board{width:var(--s);height:var(--s);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border-radius:10px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.45),0 0 0 4px #2b4252;touch-action:none;container-type:inline-size}
 .sq{position:relative;background:var(--light)}
 .sq.d{background:var(--dark)}
 .sq .co{position:absolute;font-size:2.1cqw;font-weight:800;line-height:1;pointer-events:none;color:var(--coord-l)}
@@ -113,7 +114,7 @@ svg.defs{position:absolute;width:0;height:0}
 .moves span.n{color:var(--faint);padding-right:0;font-weight:600}
 .moves span.cur{background:var(--panel2);color:var(--ink)}
 .moves .empty{color:var(--faint);font-weight:600}
-.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.actions{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .act{min-height:50px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1}
 .act span{font-size:17px}
 .act:disabled{opacity:.4}
@@ -155,7 +156,7 @@ svg.defs{position:absolute;width:0;height:0}
 @media (min-width:980px) and (min-height:640px){
   #game{max-width:1080px;grid-template-columns:auto 300px;grid-template-rows:repeat(4,auto);column-gap:22px;padding:16px}
   #topCard{grid-column:1;grid-row:1}.boardwrap{grid-column:1;grid-row:2}#botCard{grid-column:1;grid-row:3}.moves{display:none}.actions{grid-column:1;grid-row:4}
-  .board{--s:min(calc(100dvh - 250px),700px)}
+  .boardwrap{--s:min(calc(100dvh - 250px),700px)}
   .side{display:flex;flex-direction:column;grid-column:2;grid-row:1/5;max-height:calc(100dvh - 32px);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;min-height:0}
   .side h3{margin:0 0 8px;font-family:var(--display);font-size:18px}
   .mlist{overflow:auto;flex:1;display:grid;grid-template-columns:36px 1fr 1fr;align-content:start;gap:2px 4px;font-size:14px;font-weight:700}
@@ -211,6 +212,7 @@ svg.defs{position:absolute;width:0;height:0}
       <label class="lb" id="namesLabel">Your name</label>
       <div class="names"><input class="inp" id="name1" maxlength="14" placeholder="Player 1" autocomplete="off"><input class="inp" id="name2" maxlength="14" placeholder="Player 2" autocomplete="off"></div>
       <label class="toggle" id="rotateRow"><span>Turn the board for each player</span><input type="checkbox" id="rotate"></label>
+      <label class="toggle"><span>3D board</span><input type="checkbox" id="view3d"></label>
     </div>
     <button class="btn primary" id="startBtn">New game</button>
     <div id="onlineBox" class="hidden">
@@ -230,7 +232,7 @@ svg.defs{position:absolute;width:0;height:0}
 <!-- ================= GAME ================= -->
 <section id="game" class="hidden">
   <div class="pcard" id="topCard"></div>
-  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <div class="boardwrap"><div class="board" id="board"></div><div class="board3d hidden" id="board3d"></div></div>
   <div class="pcard" id="botCard"></div>
   <div class="moves" id="moves"></div>
   <div class="actions" id="actions"></div>
@@ -248,7 +250,7 @@ const $ = (s) => document.querySelector(s);
 const SAVE = "checkmate_game_v1", PREF = "checkmate_prefs_v1", STATS = "checkmate_stats_v1", ONLINE = "checkmate_online_v1";
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-const prefs = Object.assign({ mode: "solo", level: "medium", color: "r", n1: "", n2: "", rotate: true, sound: true, coords: true }, load(PREF, {}));
+const prefs = Object.assign({ mode: "solo", level: "medium", color: "r", n1: "", n2: "", rotate: true, sound: true, coords: true, view: "2d" }, load(PREF, {}));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const other = (c) => (c === "w" ? "b" : "w");
 const cname = (c) => (c === "w" ? "White" : "Black");
@@ -291,6 +293,7 @@ function syncMenu() {
   $("#namesLabel").textContent = duo ? "Player names (White, Black)" : "Your name";
   $("#rotateRow").classList.toggle("hidden", !duo);
   $("#rotate").checked = prefs.rotate;
+  $("#view3d").checked = prefs.view === "3d";
   $("#startBtn").classList.toggle("hidden", online);
   $("#onlineBox").classList.toggle("hidden", !online);
   $("#name1").value = prefs.n1; $("#name2").value = prefs.n2;
@@ -310,6 +313,7 @@ $("#colorSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) {
 $("#name1").oninput = (e) => { prefs.n1 = e.target.value; store(PREF, prefs); };
 $("#name2").oninput = (e) => { prefs.n2 = e.target.value; store(PREF, prefs); };
 $("#rotate").onchange = (e) => { prefs.rotate = e.target.checked; store(PREF, prefs); };
+$("#view3d").onchange = (e) => { prefs.view = e.target.checked ? "3d" : "2d"; store(PREF, prefs); if (prefs.view === "3d") ensure3D(); };
 $("#startBtn").onclick = () => newGame();
 $("#resumeBtn").onclick = () => { G = load(SAVE, null); startGame(); };
 $("#rulesBtn").onclick = () => showRules();
@@ -365,6 +369,19 @@ let cells = [];
 function render() {
   const s = R.s, bc = bottomColor();
   const board = $("#board");
+  const use3d = prefs.view === "3d" && b3;
+  board.classList.toggle("hidden", !!use3d); $("#board3d").classList.toggle("hidden", !use3d);
+  if (prefs.view === "3d" && !b3) ensure3D();
+  if (use3d) render3d(bc); else render2d(bc);
+  anim3 = null;
+  // player cards
+  const top = other(bc), bot = bc;
+  renderCard($("#topCard"), top); renderCard($("#botCard"), bot);
+  renderMoves();
+  renderActions();
+}
+function render2d(bc) {
+  const s = R.s, board = $("#board");
   if (!cells.length) for (let v = 0; v < 64; v++) { const d = document.createElement("div"); board.appendChild(d); cells.push(d); }
   const last = R.list[R.list.length - 1];
   const chk = CM.inCheck(s) ? s.board.indexOf(s.turn === "w" ? "K" : "k") : -1;
@@ -387,11 +404,40 @@ function render() {
     }
     el.innerHTML = co + pieceHTML(s.board[sq]);
   }
-  // player cards
-  const top = other(bc), bot = bc;
-  renderCard($("#topCard"), top); renderCard($("#botCard"), bot);
-  renderMoves();
-  renderActions();
+}
+/* ---------- 3D view (loaded on demand) ---------- */
+let b3 = null, b3Loading = false, anim3 = null;
+function render3d(bc) {
+  const s = R.s, last = R.list[R.list.length - 1];
+  b3.update({ board: s.board, bottom: bc, last: last ? { from: last.from, to: last.to } : null, sel, targets: targets.map((m) => ({ to: m.to, cap: !!m.cap })),
+              hint: hintSq, check: CM.inCheck(s) ? s.board.indexOf(s.turn === "w" ? "K" : "k") : -1, anim: anim3, interactive: true });
+}
+function ensure3D() {
+  if (b3 || b3Loading) return;
+  b3Loading = true;
+  if (!$("#game").classList.contains("hidden")) toast("Loading 3D board…");
+  import("./board3d.js?v=1").then((mod) => {
+    b3 = mod.createBoard3D($("#board3d"), { onSquare: tapSquare });
+    b3Loading = false;
+    if (G && R && !$("#game").classList.contains("hidden")) render();
+  }).catch(() => {
+    b3Loading = false; prefs.view = "2d"; store(PREF, prefs); syncMenu();
+    toast("3D isn't available on this device right now");
+    if (G && R) render();
+  });
+}
+function setView(v) { prefs.view = v; store(PREF, prefs); sel = -1; targets = []; render(); }
+function tapSquare(sq, boardSq) {
+  const me = controlColor(); if (!me) return;
+  if (sel >= 0 && boardSq >= 0 && boardSq !== sq && targets.some((m) => m.to === boardSq)) {
+    // The finger was on a legal square that a piece in front partly hides: make the move.
+    const hidden = R.s.board[sq];
+    if (!hidden || CM.colorOf(hidden) !== me || !targets.some((m) => m.to === sq)) { humanMove(sel, boardSq); return; }
+  }
+  const p = R.s.board[sq];
+  if (sel >= 0 && targets.some((m) => m.to === sq)) { humanMove(sel, sq); return; }
+  if (p && CM.colorOf(p) === me) { selectSq(sel === sq ? -1 : sq); return; }
+  if (sel >= 0) selectSq(-1);
 }
 function capturedBy(color) { // pieces of the other colour that `color` has taken
   const start = { p: 8, n: 2, b: 2, r: 2, q: 1 }, have = { p: 0, n: 0, b: 0, r: 0, q: 0 };
@@ -446,6 +492,7 @@ function renderActions() {
     else a.push(["draw", "🤝", "Draw", !!G.over]);
   }
   a.push(["flip", "🔄", "Flip", false]);
+  a.push(prefs.view === "3d" ? ["view", "▦", "2D", false] : ["view", "🧊", "3D", false]);
   a.push(G.over ? ["results", "🏁", "Results", false] : ["menu", "☰", "Menu", false]);
   $("#actions").innerHTML = a.map(([k, i, t, dis]) => `<button class="act" data-a="${k}" ${dis ? "disabled" : ""}><span>${i}</span>${t}</button>`).join("");
 }
@@ -455,6 +502,7 @@ $("#actions").onclick = (e) => {
   if (k === "undo") doUndo();
   else if (k === "hint") doHint();
   else if (k === "flip") { flipManual = !flipManual; render(); }
+  else if (k === "view") setView(prefs.view === "3d" ? "2d" : "3d");
   else if (k === "menu") showMenu();
   else if (k === "results") showGameOver();
   else if (k === "resign") confirmSheet("Resign this game?", "Your opponent wins.", "Resign", () => netSend({ t: "resign" }));
@@ -464,6 +512,7 @@ $("#actions").onclick = (e) => {
 
 /* ---------- moving ---------- */
 function animate(m) {
+  if (prefs.view === "3d" && b3) return; // the 3D view animates itself
   const pairs = [[m.from, m.to]];
   if (m.f === "k") pairs.push([m.to + 1, m.to - 1]);
   if (m.f === "q") pairs.push([m.to - 2, m.to + 1]);
@@ -487,6 +536,7 @@ function applyMove(from, to, promo, quiet) {
   G.moves.push({ from, to, promo: m.promo });
   R = CM.replay(G.moves);
   sel = -1; targets = []; hintSq = [];
+  anim3 = m;
   if (G.mode === "duo" && G.rotate && !flipManual) { render(); animate(m); setTimeout(render, 420); }
   else { render(); animate(m); }
   if (!quiet) feedback(m);
@@ -655,6 +705,7 @@ function showMenu() {
     ${on && !G.started ? `<button data-a="invite"><span>📨</span>Share invite (code ${esc(G.code)})</button>` : ""}
     ${!on && !G.over ? `<button data-a="resign"><span>🏳️</span>Resign</button>` : ""}
     <button data-a="pgn"><span>📋</span>Copy moves (PGN)</button>
+    <button data-a="view"><span>🧊</span>Board: ${prefs.view === "3d" ? "3D" : "2D"}</button>
     <button data-a="coords"><span>🔤</span>Coordinates: ${prefs.coords ? "on" : "off"}</button>
     <button data-a="sound"><span>${prefs.sound ? "🔊" : "🔇"}</span>Sound: ${prefs.sound ? "on" : "off"}</button>
     <button data-a="rules"><span>📖</span>How to play</button>
@@ -668,6 +719,7 @@ function showMenu() {
     else if (k === "resign") confirmSheet("Resign this game?", G.mode === "solo" ? "The computer wins." : `${esc(G.names[R.s.turn])} resigns and ${esc(G.names[other(R.s.turn)])} wins.`, "Resign",
       () => { aiId++; aiBusy = false; const loser = G.mode === "solo" ? G.human : R.s.turn; finish({ result: loser === "w" ? "0-1" : "1-0", reason: "resignation" }); });
     else if (k === "pgn") { closeLayer(); copyPGN(); }
+    else if (k === "view") { closeLayer(); setView(prefs.view === "3d" ? "2d" : "3d"); }
     else if (k === "coords") { prefs.coords = !prefs.coords; store(PREF, prefs); render(); showMenu(); }
     else if (k === "sound") { prefs.sound = !prefs.sound; store(PREF, prefs); showMenu(); }
     else if (k === "rules") showRules();
@@ -793,6 +845,7 @@ function applyState(s) {
   const lobby = $("#layer .lobby");
   if (!G.started) { if (!lobby) showLobby(); }
   else if (lobby || newRound) { closeLayer(); }
+  if (ext) anim3 = R.list[R.list.length - 1];
   if (G.started && (wasLobby || newRound) && !s.moves.length) { toast(`You play ${cname(G.color)}${G.color === "w" ? " · your move" : ""}`); flipManual = false; tone(660, 0.12); }
   render();
   if (ext) { const m = R.list[R.list.length - 1]; animate(m); feedback(m); if (navigator.vibrate) try { navigator.vibrate(40); } catch {} }
@@ -836,7 +889,7 @@ fetch("/api/ping", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).
 }).catch(() => {});
 syncMenu();
 
-window.__cm = { get G() { return G; }, get R() { return R; }, net, humanMove, newGame, render };
+window.__cm = { get G() { return G; }, get R() { return R; }, get b3() { return b3; }, get sel() { return sel; }, net, humanMove, newGame, render };
 if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
 </script>
